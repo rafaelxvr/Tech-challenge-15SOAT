@@ -1,0 +1,42 @@
+# Maven
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# IDE
+.idea/
+*.iws
+*.iml
+*.ipr
+.vscode/
+*.swp
+*.swo
+
+# Spring Boot
+.mvn/
+mvnw
+mvnw.cmd
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+spring.log
+
+# Docker
+docker/postgres/data/
+
+# OS
+.DS_Store
+Thumbs.db

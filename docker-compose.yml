@@ -1,0 +1,90 @@
+services:
+
+  # ========================
+  #    BANCO DE DADOS
+  # ========================
+  postgres:
+    image: postgres:16-alpine
+    container_name: oficina-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: oficina_mecanica
+      POSTGRES_USER: oficina
+      POSTGRES_PASSWORD: oficina123
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oficina -d oficina_mecanica"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - oficina-network
+
+  # ========================
+  #    APLICAÇÃO
+  # ========================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: oficina-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL: jdbc:postgresql://postgres:5432/oficina_mecanica
+      DB_USERNAME: oficina
+      DB_PASSWORD: oficina123
+      JWT_SECRET: ${JWT_SECRET:-mude-esta-chave-em-producao-use-minimo-32-caracteres}
+      JWT_EXPIRATION: 86400000
+      SERVER_PORT: 8080
+      JAVA_OPTS: "-Xms256m -Xmx512m"
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/api/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - oficina-network
+
+  # ========================
+  #    PGADMIN (opcional - dev)
+  # ========================
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: oficina-pgadmin
+    restart: unless-stopped
+    profiles:
+      - tools
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@oficina.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      - postgres
+    networks:
+      - oficina-network
+
+volumes:
+  postgres_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+
+networks:
+  oficina-network:
+    driver: bridge
