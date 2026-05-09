@@ -1,6 +1,5 @@
 package com.oficina.entity;
 
-import com.oficina.entity.Servico;
 import jakarta.persistence.*;
 import lombok.*;
 

@@ -1,21 +1,12 @@
 package com.oficina.service;
 
-import com.oficina.service.ClienteService;
+import com.oficina.config.SecurityUtils;
 import com.oficina.dto.*;
-import com.oficina.service.PecaService;
-import com.oficina.service.ServicoService;
-import com.oficina.service.VeiculoService;
-import com.oficina.dto.VeiculoRequest;
-import com.oficina.dto.VeiculoResponse;
-import com.oficina.entity.Cliente;
+import com.oficina.entity.*;
 import com.oficina.exception.BusinessRuleException;
 import com.oficina.exception.EntityNotFoundException;
-import com.oficina.entity.*;
 import com.oficina.repository.OrdemServicoRepository;
-import com.oficina.entity.Peca;
 import com.oficina.validation.ValidadorDocumento;
-import com.oficina.entity.Veiculo;
-import com.oficina.config.SecurityUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -31,6 +22,8 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class OrdemServicoService {
+
+    private static final String ENTIDADE = "Ordem de serviço";
 
     private final OrdemServicoRepository ordemServicoRepository;
     private final ClienteService clienteService;
@@ -97,14 +90,14 @@ public class OrdemServicoService {
     @Transactional(readOnly = true)
     public OrdemServicoDetalheResponse buscarPorId(UUID id) {
         OrdemServico os = ordemServicoRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Ordem de serviço", id));
+                .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, id));
         return montarDetalhe(os);
     }
 
     @Transactional(readOnly = true)
     public AcompanhamentoOsResponse acompanhamentoPublico(Long numero) {
         OrdemServico os = ordemServicoRepository.findDetalheAcompanhamentoPorNumero(numero)
-                .orElseThrow(() -> new EntityNotFoundException("Ordem de serviço", numero));
+                .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, numero));
 
         os.getHistorico().size();
         List<OrdemServicoDetalheResponse.HistoricoStatusResponse> historico = os.getHistorico().stream()
@@ -137,7 +130,7 @@ public class OrdemServicoService {
     @Transactional
     public OrdemServicoDetalheResponse iniciarDiagnostico(UUID id, AcaoOrdemRequest acao) {
         OrdemServico os = ordemServicoRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Ordem de serviço", id));
+                .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, id));
         UUID usuarioId = SecurityUtils.usuarioAutenticadoId().orElse(null);
         os.iniciarDiagnostico(usuarioId, acao != null ? acao.observacao() : null);
         return montarDetalhe(ordemServicoRepository.save(os));
@@ -146,7 +139,7 @@ public class OrdemServicoService {
     @Transactional
     public OrdemServicoDetalheResponse enviarOrcamento(UUID id, AcaoOrdemRequest acao) {
         OrdemServico os = ordemServicoRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Ordem de serviço", id));
+                .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, id));
         UUID usuarioId = SecurityUtils.usuarioAutenticadoId().orElse(null);
         os.enviarOrcamentoParaAprovacao(usuarioId, acao != null ? acao.observacao() : "Orçamento enviado ao cliente");
         return montarDetalhe(ordemServicoRepository.save(os));
@@ -155,7 +148,7 @@ public class OrdemServicoService {
     @Transactional
     public OrdemServicoDetalheResponse aprovarPeloCliente(Long numero, AprovacaoClienteRequest request) {
         OrdemServico os = ordemServicoRepository.findComPecasEClientePorNumero(numero)
-                .orElseThrow(() -> new EntityNotFoundException("Ordem de serviço", numero));
+                .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, numero));
 
         String doc = ValidadorDocumento.normalizarDigitos(request.documentoCliente());
         ValidadorDocumento.validarCpfOuCnpj(doc);
@@ -178,7 +171,7 @@ public class OrdemServicoService {
     @Transactional
     public OrdemServicoDetalheResponse finalizar(UUID id, AcaoOrdemRequest acao) {
         OrdemServico os = ordemServicoRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Ordem de serviço", id));
+                .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, id));
         UUID usuarioId = SecurityUtils.usuarioAutenticadoId().orElse(null);
         os.finalizarServico(usuarioId, acao != null ? acao.observacao() : null);
         return montarDetalhe(ordemServicoRepository.save(os));
@@ -187,7 +180,7 @@ public class OrdemServicoService {
     @Transactional
     public OrdemServicoDetalheResponse registrarEntrega(UUID id, AcaoOrdemRequest acao) {
         OrdemServico os = ordemServicoRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Ordem de serviço", id));
+                .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, id));
         UUID usuarioId = SecurityUtils.usuarioAutenticadoId().orElse(null);
         os.registrarEntrega(usuarioId, acao != null ? acao.observacao() : null);
         return montarDetalhe(ordemServicoRepository.save(os));

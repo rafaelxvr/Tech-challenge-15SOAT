@@ -4,6 +4,7 @@ import com.oficina.exception.BusinessRuleException;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ValidadorPlacaTest {
@@ -15,17 +16,40 @@ class ValidadorPlacaTest {
 
     @Test
     void validar_aceitaMercosul() {
-        ValidadorPlaca.validar("ABC1D23");
+        assertThatCode(() -> ValidadorPlaca.validar("ABC1D23")).doesNotThrowAnyException();
     }
 
     @Test
     void validar_aceitaAntiga() {
-        ValidadorPlaca.validar("ABC1234");
+        assertThatCode(() -> ValidadorPlaca.validar("ABC1234")).doesNotThrowAnyException();
     }
 
     @Test
     void validar_rejeitaInvalida() {
         assertThatThrownBy(() -> ValidadorPlaca.validar("1234567"))
+                .isInstanceOf(BusinessRuleException.class);
+    }
+
+    @Test
+    void normalizar_nullRetornaNull() {
+        assertThat(ValidadorPlaca.normalizar(null)).isNull();
+    }
+
+    @Test
+    void validar_nullLanca() {
+        assertThatThrownBy(() -> ValidadorPlaca.validar(null))
+                .isInstanceOf(BusinessRuleException.class);
+    }
+
+    @Test
+    void validar_blankLanca() {
+        assertThatThrownBy(() -> ValidadorPlaca.validar("   "))
+                .isInstanceOf(BusinessRuleException.class);
+    }
+
+    @Test
+    void validar_tamanhoMaiorQue8Lanca() {
+        assertThatThrownBy(() -> ValidadorPlaca.validar("ABCDEFGH1"))
                 .isInstanceOf(BusinessRuleException.class);
     }
 }

@@ -37,6 +37,9 @@ spring.log
 # Docker
 docker/postgres/data/
 
+# SonarScanner
+.scannerwork/
+
 # OS
 .DS_Store
 Thumbs.db

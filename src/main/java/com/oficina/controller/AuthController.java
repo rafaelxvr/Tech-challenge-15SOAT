@@ -1,7 +1,6 @@
 package com.oficina.controller;
 
 import com.oficina.entity.Usuario;
-import com.oficina.repository.UsuarioRepository;
 import com.oficina.config.JwtService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -26,7 +25,6 @@ public class AuthController {
 
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
-    private final UsuarioRepository usuarioRepository;
 
     @PostMapping("/login")
     @Operation(summary = "Realizar login", description = "Autentica o usuário e retorna um token JWT")

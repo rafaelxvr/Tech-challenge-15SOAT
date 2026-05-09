@@ -20,6 +20,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ClienteService {
 
+    private static final String ENTIDADE = "Cliente";
+
     private final ClienteRepository clienteRepository;
 
     @Transactional(readOnly = true)
@@ -32,7 +34,7 @@ public class ClienteService {
         return clienteRepository.findById(id)
                 .filter(Cliente::isAtivo)
                 .map(this::toResponse)
-                .orElseThrow(() -> new EntityNotFoundException("Cliente", id));
+                .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, id));
     }
 
     @Transactional
@@ -44,7 +46,7 @@ public class ClienteService {
                 : ValidadorDocumento.inferirTipo(doc);
 
         if (clienteRepository.existsByDocumento(doc)) {
-            throw new DuplicateEntityException("Cliente", "documento", doc);
+            throw new DuplicateEntityException(ENTIDADE, "documento", doc);
         }
 
         Cliente cliente = Cliente.builder()
@@ -70,7 +72,7 @@ public class ClienteService {
     public ClienteResponse atualizar(UUID id, ClienteRequest request) {
         Cliente cliente = clienteRepository.findById(id)
                 .filter(Cliente::isAtivo)
-                .orElseThrow(() -> new EntityNotFoundException("Cliente", id));
+                .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, id));
 
         String doc = ValidadorDocumento.normalizarDigitos(request.documento());
         ValidadorDocumento.validarCpfOuCnpj(doc);
@@ -79,7 +81,7 @@ public class ClienteService {
                 : ValidadorDocumento.inferirTipo(doc);
 
         if (!doc.equals(cliente.getDocumento()) && clienteRepository.existsByDocumento(doc)) {
-            throw new DuplicateEntityException("Cliente", "documento", doc);
+            throw new DuplicateEntityException(ENTIDADE, "documento", doc);
         }
 
         cliente.setNome(request.nome());
@@ -101,7 +103,7 @@ public class ClienteService {
     @Transactional
     public void desativar(UUID id) {
         Cliente cliente = clienteRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Cliente", id));
+                .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, id));
         cliente.setAtivo(false);
     }
 

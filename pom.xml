@@ -25,6 +25,12 @@
         <testcontainers.version>1.19.8</testcontainers.version>
         <jacoco.version>0.8.11</jacoco.version>
         <lombok.version>1.18.32</lombok.version>
+        <!-- SonarQube (docker compose: http://localhost:9000) -->
+        <sonar.maven.plugin.version>4.0.0.4121</sonar.maven.plugin.version>
+        <sonar.projectKey>com.oficina:oficina-mecanica</sonar.projectKey>
+        <sonar.projectName>Oficina Mecânica</sonar.projectName>
+        <sonar.host.url>http://localhost:9000</sonar.host.url>
+        <sonar.coverage.jacoco.xmlReportPaths>${project.build.directory}/site/jacoco/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
     </properties>
 
     <dependencies>
@@ -248,21 +254,29 @@
                         <goals>
                             <goal>report</goal>
                         </goals>
+                        <configuration>
+                            <formats>
+                                <format>HTML</format>
+                                <format>XML</format>
+                            </formats>
+                        </configuration>
                     </execution>
                     <execution>
                         <id>check</id>
+                        <phase>verify</phase>
                         <goals>
                             <goal>check</goal>
                         </goals>
                         <configuration>
+                            <!-- Filtro do check (não use includes dentro de <rule> — é ignorado pelo plugin) -->
+                            <includes>
+                                <include>com/oficina/entity/*</include>
+                                <include>com/oficina/validation/*</include>
+                                <include>com/oficina/service/*</include>
+                            </includes>
                             <rules>
                                 <rule>
                                     <element>BUNDLE</element>
-                                    <includes>
-                                        <include>com.oficina.entity.*</include>
-                                        <include>com.oficina.validation.*</include>
-                                        <include>com.oficina.service.*</include>
-                                    </includes>
                                     <limits>
                                         <limit>
                                             <counter>LINE</counter>
@@ -275,6 +289,13 @@
                         </configuration>
                     </execution>
                 </executions>
+            </plugin>
+
+            <!-- SonarQube: mvn verify sonar:sonar -Dsonar.token=SEU_TOKEN -->
+            <plugin>
+                <groupId>org.sonarsource.scanner.maven</groupId>
+                <artifactId>sonar-maven-plugin</artifactId>
+                <version>${sonar.maven.plugin.version}</version>
             </plugin>
 
         </plugins>

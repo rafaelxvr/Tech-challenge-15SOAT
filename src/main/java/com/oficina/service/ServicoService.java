@@ -17,6 +17,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ServicoService {
 
+    private static final String ENTIDADE = "Serviço";
+
     private final ServicoRepository servicoRepository;
 
     @Transactional(readOnly = true)
@@ -29,7 +31,7 @@ public class ServicoService {
         return servicoRepository.findById(id)
                 .filter(Servico::isAtivo)
                 .map(this::toResponse)
-                .orElseThrow(() -> new EntityNotFoundException("Serviço", id));
+                .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, id));
     }
 
     @Transactional
@@ -47,7 +49,7 @@ public class ServicoService {
     @Transactional
     public ServicoResponse atualizar(UUID id, ServicoRequest request) {
         Servico servico = servicoRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Serviço", id));
+                .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, id));
         servico.setNome(request.nome());
         servico.setDescricao(request.descricao());
         servico.setValor(request.valor());
@@ -58,7 +60,7 @@ public class ServicoService {
     @Transactional
     public void desativar(UUID id) {
         Servico servico = servicoRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Serviço", id));
+                .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, id));
         servico.setAtivo(false);
     }
 
@@ -66,7 +68,7 @@ public class ServicoService {
     public Servico obterAtivo(UUID id) {
         return servicoRepository.findById(id)
                 .filter(Servico::isAtivo)
-                .orElseThrow(() -> new EntityNotFoundException("Serviço", id));
+                .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, id));
     }
 
     private ServicoResponse toResponse(Servico s) {

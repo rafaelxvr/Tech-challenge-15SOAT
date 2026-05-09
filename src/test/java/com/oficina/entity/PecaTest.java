@@ -39,4 +39,33 @@ class PecaTest {
         assertThatThrownBy(() -> p.baixarEstoque(3))
                 .isInstanceOf(BusinessRuleException.class);
     }
+
+    @Test
+    void reporEstoque_somaQuantidade() {
+        Peca p = Peca.builder()
+                .codigo("T-3")
+                .nome("Teste")
+                .valorUnitario(BigDecimal.TEN)
+                .quantidadeEstoque(2)
+                .quantidadeMinima(1)
+                .unidadeMedida("UN")
+                .ativo(true)
+                .build();
+        p.reporEstoque(4);
+        assertThat(p.getQuantidadeEstoque()).isEqualTo(6);
+    }
+
+    @Test
+    void baixarEstoque_quantidadeInvalida_lanca() {
+        Peca p = Peca.builder()
+                .codigo("T-4")
+                .nome("Teste")
+                .valorUnitario(BigDecimal.TEN)
+                .quantidadeEstoque(5)
+                .quantidadeMinima(1)
+                .unidadeMedida("UN")
+                .ativo(true)
+                .build();
+        assertThatThrownBy(() -> p.baixarEstoque(0)).isInstanceOf(BusinessRuleException.class);
+    }
 }

@@ -10,8 +10,8 @@ import java.util.regex.Pattern;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class ValidadorPlaca {
 
-    private static final Pattern MERCOSUL = Pattern.compile("^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$");
-    private static final Pattern ANTIGA = Pattern.compile("^[A-Z]{3}[0-9]{4}$");
+    private static final Pattern MERCOSUL = Pattern.compile("^[A-Z]{3}\\d[A-Z\\d]\\d{2}$");
+    private static final Pattern ANTIGA = Pattern.compile("^[A-Z]{3}\\d{4}$");
 
     public static String normalizar(String placa) {
         if (placa == null) {

@@ -5,6 +5,7 @@ import com.oficina.exception.BusinessRuleException;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ValidadorDocumentoTest {
@@ -21,7 +22,7 @@ class ValidadorDocumentoTest {
 
     @Test
     void validar_cpfConhecidoValido() {
-        ValidadorDocumento.validarCpfOuCnpj("39053344705");
+        assertThatCode(() -> ValidadorDocumento.validarCpfOuCnpj("39053344705")).doesNotThrowAnyException();
     }
 
     @Test

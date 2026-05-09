@@ -3,7 +3,6 @@ package com.oficina.controller;
 import com.oficina.service.OrdemServicoService;
 import com.oficina.dto.*;
 import com.oficina.entity.StatusOrdemServico;
-import com.oficina.dto.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;

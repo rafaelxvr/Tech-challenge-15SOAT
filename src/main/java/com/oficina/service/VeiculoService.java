@@ -21,6 +21,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class VeiculoService {
 
+    private static final String ENTIDADE = "Veículo";
+
     private final VeiculoRepository veiculoRepository;
     private final ClienteRepository clienteRepository;
 
@@ -39,7 +41,7 @@ public class VeiculoService {
         return veiculoRepository.findById(id)
                 .filter(Veiculo::isAtivo)
                 .map(this::toResponse)
-                .orElseThrow(() -> new EntityNotFoundException("Veículo", id));
+                .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, id));
     }
 
     @Transactional
@@ -55,7 +57,7 @@ public class VeiculoService {
         if (existente.isPresent()) {
             Veiculo v = existente.get();
             if (v.isAtivo()) {
-                throw new DuplicateEntityException("Veículo", "placa", placa);
+                throw new DuplicateEntityException(ENTIDADE, "placa", placa);
             }
             v.setCliente(cliente);
             v.setMarca(request.marca());
@@ -85,14 +87,14 @@ public class VeiculoService {
     public VeiculoResponse atualizar(UUID id, VeiculoRequest request) {
         Veiculo veiculo = veiculoRepository.findById(id)
                 .filter(Veiculo::isAtivo)
-                .orElseThrow(() -> new EntityNotFoundException("Veículo", id));
+                .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, id));
 
         String placa = ValidadorPlaca.normalizar(request.placa());
         ValidadorPlaca.validar(placa);
 
         veiculoRepository.findByPlaca(placa).ifPresent(outro -> {
             if (outro.isAtivo() && !outro.getId().equals(id)) {
-                throw new DuplicateEntityException("Veículo", "placa", placa);
+                throw new DuplicateEntityException(ENTIDADE, "placa", placa);
             }
         });
 
@@ -114,7 +116,7 @@ public class VeiculoService {
     @Transactional
     public void desativar(UUID id) {
         Veiculo veiculo = veiculoRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Veículo", id));
+                .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, id));
         veiculo.setAtivo(false);
     }
 

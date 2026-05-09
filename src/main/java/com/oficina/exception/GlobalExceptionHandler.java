@@ -7,7 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.data.mapping.PropertyReferenceException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.validation.FieldError;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -48,7 +48,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(PropertyReferenceException.class)
     public ResponseEntity<ErrorResponse> handleInvalidSort(
             PropertyReferenceException ex, HttpServletRequest request) {
-        String field = ex.getPropertyName() != null ? ex.getPropertyName() : "desconhecido";
+        String raw = ex.getPropertyName();
+        String field = StringUtils.hasText(raw) ? raw : "desconhecido";
         log.warn("Ordenação inválida: {}", ex.getMessage());
         return buildResponse(
                 HttpStatus.BAD_REQUEST,
@@ -67,11 +68,8 @@ public class GlobalExceptionHandler {
             MethodArgumentNotValidException ex, HttpServletRequest request) {
 
         Map<String, String> fieldErrors = new HashMap<>();
-        ex.getBindingResult().getAllErrors().forEach(error -> {
-            String fieldName = ((FieldError) error).getField();
-            String message = error.getDefaultMessage();
-            fieldErrors.put(fieldName, message);
-        });
+        ex.getBindingResult().getFieldErrors().forEach(fieldError ->
+                fieldErrors.put(fieldError.getField(), fieldError.getDefaultMessage()));
 
         ValidationErrorResponse response = new ValidationErrorResponse(
                 LocalDateTime.now(),
