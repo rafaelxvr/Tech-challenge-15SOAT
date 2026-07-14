@@ -29,7 +29,7 @@ public class OrdemServicoController {
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN','MECANICO')")
     @SecurityRequirement(name = "bearerAuth")
-    @Operation(summary = "Criar ordem de serviço (orçamento calculado automaticamente)")
+    @Operation(summary = "Abertura de OS — cliente, veículo, serviços e peças; retorna identificação única")
     public ResponseEntity<ApiResponse<OrdemServicoDetalheResponse>> criar(
             @Valid @RequestBody CriarOrdemServicoRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -39,7 +39,7 @@ public class OrdemServicoController {
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN','MECANICO')")
     @SecurityRequirement(name = "bearerAuth")
-    @Operation(summary = "Listar ordens de serviço")
+    @Operation(summary = "Listar OS ativas (exclui FINALIZADA/ENTREGUE), prioridade de status e mais antigas primeiro")
     public ResponseEntity<ApiResponse<Page<OrdemServicoResumoResponse>>> listar(
             @RequestParam(required = false) StatusOrdemServico status,
             @PageableDefault(size = 20) Pageable pageable) {
@@ -55,20 +55,41 @@ public class OrdemServicoController {
     }
 
     @GetMapping("/{numero}/acompanhamento")
-    @Operation(summary = "Acompanhamento público da OS (cliente)")
+    @Operation(summary = "Consulta de status da OS (Recebida, Diagnóstico, Aguardando Aprovação, Execução, Finalizada, Entregue)")
     public ResponseEntity<ApiResponse<AcompanhamentoOsResponse>> acompanhamento(
             @PathVariable Long numero) {
         return ResponseEntity.ok(ApiResponse.success(ordemServicoService.acompanhamentoPublico(numero)));
     }
 
+    @PostMapping("/{numero}/orcamento/notificacao")
+    @Operation(summary = "Recebe notificação externa de aprovação ou recusa do orçamento")
+    public ResponseEntity<ApiResponse<OrdemServicoDetalheResponse>> notificacaoOrcamento(
+            @PathVariable Long numero,
+            @Valid @RequestBody DecisaoOrcamentoRequest request) {
+        String msg = request.decisao() == DecisaoOrcamentoRequest.DecisaoOrcamento.APROVADO
+                ? "Orçamento aprovado."
+                : "Orçamento recusado.";
+        return ResponseEntity.ok(ApiResponse.success(
+                msg, ordemServicoService.processarDecisaoOrcamento(numero, request)));
+    }
+
     @PostMapping("/{numero}/aprovar")
-    @Operation(summary = "Aprovar orçamento (cliente), com validação de CPF/CNPJ")
+    @Operation(summary = "Aprovar orçamento (cliente) — atalho compatível; preferir /orcamento/notificacao")
     public ResponseEntity<ApiResponse<OrdemServicoDetalheResponse>> aprovar(
             @PathVariable Long numero,
             @Valid @RequestBody AprovacaoClienteRequest request) {
         return ResponseEntity.ok(ApiResponse.success(
                 "Orçamento aprovado.",
                 ordemServicoService.aprovarPeloCliente(numero, request)));
+    }
+
+    @PostMapping("/email/atualizar-status")
+    @Operation(summary = "Atualização de status da OS via ferramenta de e-mail (token no link)")
+    public ResponseEntity<ApiResponse<OrdemServicoDetalheResponse>> atualizarStatusViaEmail(
+            @Valid @RequestBody AtualizacaoStatusEmailRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(
+                "Status atualizado via e-mail.",
+                ordemServicoService.atualizarStatusViaEmail(request)));
     }
 
     @PostMapping("/{id}/iniciar-diagnostico")

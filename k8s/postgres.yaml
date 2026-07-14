@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oficina-postgres
+  namespace: oficina
+  labels:
+    app: oficina-postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: oficina-postgres
+  template:
+    metadata:
+      labels:
+        app: oficina-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+              name: postgres
+          env:
+            - name: POSTGRES_DB
+              value: oficina_mecanica
+            - name: POSTGRES_USER
+              value: oficina
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: oficina-secrets
+                  key: POSTGRES_PASSWORD
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "oficina", "-d", "oficina_mecanica"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "oficina", "-d", "oficina_mecanica"]
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: postgres-data
+          persistentVolumeClaim:
+            claimName: oficina-postgres-pvc
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: oficina-postgres-pvc
+  namespace: oficina
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oficina-postgres
+  namespace: oficina
+  labels:
+    app: oficina-postgres
+spec:
+  type: ClusterIP
+  selector:
+    app: oficina-postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+      name: postgres

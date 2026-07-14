@@ -24,6 +24,37 @@ public interface OrdemServicoRepository extends JpaRepository<OrdemServico, UUID
     @EntityGraph(attributePaths = {"cliente", "veiculo"})
     Page<OrdemServico> findByStatus(StatusOrdemServico status, Pageable pageable);
 
+    /**
+     * Listagem operacional: exclui FINALIZADA/ENTREGUE (exclusão lógica na listagem)
+     * e ordena por prioridade de status + mais antigas primeiro.
+     */
+    @EntityGraph(attributePaths = {"cliente", "veiculo"})
+    @Query(
+            value = """
+                    SELECT o FROM OrdemServico o
+                    WHERE o.status NOT IN :excluidos
+                      AND (:status IS NULL OR o.status = :status)
+                    ORDER BY
+                      CASE o.status
+                        WHEN com.oficina.entity.StatusOrdemServico.EM_EXECUCAO THEN 1
+                        WHEN com.oficina.entity.StatusOrdemServico.AGUARDANDO_APROVACAO THEN 2
+                        WHEN com.oficina.entity.StatusOrdemServico.EM_DIAGNOSTICO THEN 3
+                        WHEN com.oficina.entity.StatusOrdemServico.RECEBIDA THEN 4
+                        ELSE 5
+                      END ASC,
+                      o.criadoEm ASC
+                    """,
+            countQuery = """
+                    SELECT COUNT(o) FROM OrdemServico o
+                    WHERE o.status NOT IN :excluidos
+                      AND (:status IS NULL OR o.status = :status)
+                    """
+    )
+    Page<OrdemServico> findAtivasOrdenadasPorPrioridade(
+            @Param("status") StatusOrdemServico status,
+            @Param("excluidos") java.util.Collection<StatusOrdemServico> excluidos,
+            Pageable pageable);
+
     Optional<OrdemServico> findByNumero(Long numero);
 
     @EntityGraph(attributePaths = {"pecas", "pecas.peca", "cliente"})

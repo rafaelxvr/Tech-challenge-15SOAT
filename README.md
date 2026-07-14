@@ -1,6 +1,83 @@
-# Oficina Mecânica — Sistema Integrado de Atendimento
+# Oficina Mecânica — Tech Challenge Fase 2 (14SOAT)
 
-Back-end MVP para gestão de ordens de serviço, clientes, veículos, catálogo de peças e serviços e métricas administrativas.
+Back-end para gestão de ordens de serviço, clientes, veículos, catálogo e métricas, evoluído na **Fase 2** com foco em qualidade, resiliência, containerização, Kubernetes, IaC (Terraform) e CI/CD.
+
+---
+
+## Objetivos desta fase
+
+- Reduzir riscos operacionais com infraestrutura escalável (K8s + HPA)
+- Automatizar provisionamento (Terraform) e deploy (GitHub Actions)
+- Manter evolução sustentável (arquitetura em camadas/hexagonal + testes)
+- Suportar picos de demanda com escalabilidade dinâmica
+
+---
+
+## Arquitetura proposta
+
+```mermaid
+flowchart TB
+  subgraph clients [Clientes]
+    Swagger[Swagger / Postman]
+    EmailTool[Ferramenta de e-mail / webhook]
+  end
+
+  subgraph k8s [Kubernetes - namespace oficina]
+    HPA[HPA CPU/Mem]
+    AppDeploy[Deployment oficina-app]
+    AppSvc[Service NodePort 30080]
+    PgDeploy[Deployment PostgreSQL]
+    MailHog[MailHog SMTP]
+    CM[ConfigMap]
+    SEC[Secret]
+    HPA --> AppDeploy
+    AppSvc --> AppDeploy
+    AppDeploy --> PgDeploy
+    AppDeploy --> MailHog
+    CM -.-> AppDeploy
+    SEC -.-> AppDeploy
+  end
+
+  subgraph cicd [CI/CD GitHub Actions]
+    Build[mvn verify]
+    Image[Docker build/push GHCR]
+    Deploy[kind + kubectl apply]
+    Build --> Image --> Deploy
+  end
+
+  Swagger --> AppSvc
+  EmailTool --> AppSvc
+  Deploy --> k8s
+```
+
+### Componentes da aplicação (hexagonal / ports & adapters)
+
+| Camada | Pacotes | Responsabilidade |
+|---|---|---|
+| Domínio | `entity`, `exception`, `validation` | Regras e modelo de negócio (OS, estoque, transições) |
+| Aplicação | `service`, `application.port.out` | Casos de uso; portas de saída (ex.: `NotificacaoPort`) |
+| Adaptadores de entrada | `controller`, `dto` | REST / OpenAPI |
+| Adaptadores de saída | `repository`, `adapter.out.mail` | JPA/Postgres, e-mail SMTP |
+| Configuração | `config` | Security JWT, OpenAPI, wiring Spring |
+
+Classe de entrada: `OficinaApplication`.
+
+### Infraestrutura provisionada
+
+| Recurso | Onde | Descrição |
+|---|---|---|
+| Cluster K8s | Terraform (`infra/`) + Kind | Cluster local com NodePort 30080 |
+| Banco | `k8s/postgres.yaml` | PostgreSQL 16 + PVC; schema via Flyway na API |
+| API | `k8s/app.yaml` | Deployment (2 réplicas), Service, HPA |
+| Config | `k8s/configmap.yaml` + `secret.yaml` | Variáveis e segredos (JWT, senhas, token e-mail) |
+| E-mail | MailHog (Compose profile `tools` / K8s) | Visualização de notificações de status |
+
+### Fluxo de deploy
+
+1. **CI**: `mvn verify` (build + testes)
+2. **Imagem**: build Docker → push GHCR (`ghcr.io/<owner>/oficina-mecanica`)
+3. **CD**: sobe Kind → aplica Postgres → aplica App/HPA/MailHog
+4. Flyway migra o banco no startup da aplicação
 
 ---
 
@@ -10,86 +87,204 @@ Back-end MVP para gestão de ordens de serviço, clientes, veículos, catálogo 
 |---|---|---|
 | Java | 17 | Runtime |
 | Spring Boot | 3.2.5 | Framework |
-| PostgreSQL | 16 | Banco (Docker / local) |
-| Flyway | (via Spring Boot) | Migrações do schema |
+| PostgreSQL | 16 | Banco |
+| Flyway | (Boot) | Migrações |
 | Spring Security + JWT | jjwt 0.12.x | API stateless |
-| MapStruct | 1.5.5 | Mapeamento DTO |
-| Lombok | 1.18.x | Redução de boilerplate |
+| Spring Mail + MailHog | — | Notificação / atualização de status via e-mail |
+| Kubernetes | Kind / manifests em `/k8s` | Orquestração + HPA |
+| Terraform | ≥ 1.5 | Provisionamento do cluster + apply |
+| GitHub Actions | `.github/workflows/ci-cd.yml` | CI/CD |
 | SpringDoc OpenAPI | 2.5 | Swagger |
-| Testcontainers | 1.19.x | Testes com Postgres real |
-| JaCoCo | 0.8.11 | Cobertura mínima configurada |
+| Testcontainers | 1.19.x | Testes com Postgres |
 
 ---
 
 ## Pré-requisitos
 
-- **Java 17+** — [Eclipse Temurin (Adoptium)](https://adoptium.net/)
-- **Maven 3.9+** — [Apache Maven](https://maven.apache.org/)
-- **Docker Desktop** (ou engine Docker equivalente) rodando — [Docker](https://www.docker.com/)
+- **Java 17+**, **Maven 3.9+**, **Docker Desktop** ativo
+- Para K8s local: **kubectl**, **kind**, **Terraform ≥ 1.5**
 
 ---
 
-## Execução rápida
-
-### Docker Compose (recomendado)
-
-Na raiz do projeto:
+## Execução local (Docker Compose)
 
 ```bash
 docker compose up --build -d
 ```
 
-Requisitos: Docker Desktop aberto até o engine ficar ativo (senão o cliente não encontra o pipe `dockerDesktopLinuxEngine` no Windows).
-
-Variável opcional antes do comando (produção / ambientes reais):
+Com ferramentas de e-mail e PgAdmin:
 
 ```bash
-set JWT_SECRET=sua-chave-com-pelo-menos-32-caracteres
-docker compose up --build -d
+docker compose --profile tools up --build -d
 ```
 
-(PowerShell: `$env:JWT_SECRET="..."`.)
-
-- API base: **http://localhost:8080/api**
-- Health: **http://localhost:8080/api/actuator/health**
-
-Logs da aplicação:
-
-```bash
-docker compose logs -f app
-```
-
-### Apenas PostgreSQL + app local
-
-```bash
-docker compose up -d postgres
-mvn spring-boot:run -Dspring-boot.run.profiles=dev
-```
-
-Perfil `dev` habilita SQL debug no console (ver `application.yml`).
-
-### PgAdmin (perfil opcional)
-
-```bash
-docker compose --profile tools up -d
-```
-
-- Interface: http://localhost:5050  
-- Credenciais padrão no `docker-compose.yml` (`PGADMIN_DEFAULT_EMAIL` / `PGADMIN_DEFAULT_PASSWORD`).
-
-### Variáveis de ambiente (desenvolvimento local)
+- API: http://localhost:8080/api  
+- Health: http://localhost:8080/api/actuator/health  
+- Swagger: http://localhost:8080/api/swagger-ui.html  
+- MailHog UI: http://localhost:8025  
 
 ```bash
 copy .env.example .env
+docker compose logs -f app
 ```
 
-Ajuste `DB_*`, `JWT_*` e `SPRING_PROFILES_ACTIVE` conforme necessário. Não commite o arquivo `.env`.
+### App local + só Postgres
+
+```bash
+docker compose up -d postgres
+docker compose --profile tools up -d mailhog
+mvn spring-boot:run -Dspring-boot.run.profiles=dev
+```
 
 ---
 
-## Conexão ao banco (DBeaver ou similar)
+## Deploy em Kubernetes
 
-Com o serviço `postgres` do Compose em execução (porta publicada `5432`):
+### Opção A — script (Windows PowerShell)
+
+```powershell
+docker build -t oficina-mecanica:local .
+kind create cluster --name oficina-k8s --config - <<'EOF'
+# ou use Terraform (Opção B)
+EOF
+.\infra\apply-k8s.ps1 -Image "oficina-mecanica:local" -ClusterName "oficina-k8s"
+```
+
+Se o cluster ainda não existir, use a Opção B (Terraform cria o Kind com o NodePort mapeado).
+
+### Opção B — Terraform (recomendado)
+
+```bash
+docker build -t oficina-mecanica:local .
+cd infra
+terraform init
+terraform apply
+```
+
+No Windows, se o `local-exec` do apply falhar no shell, após o cluster criado:
+
+```powershell
+.\infra\apply-k8s.ps1
+```
+
+API no Kind: **http://localhost:30080/api**
+
+```bash
+kubectl -n oficina get deploy,svc,hpa,pods
+kubectl -n oficina logs -f deploy/oficina-app
+```
+
+Escalar / observar HPA (demo de carga):
+
+```bash
+kubectl -n oficina autoscale deployment oficina-app --cpu-percent=50 --min=2 --max=6
+# ou use o HPA já declarado em k8s/app.yaml
+kubectl -n oficina get hpa -w
+```
+
+---
+
+## Provisionamento com Terraform (`/infra`)
+
+Recursos criados (ver `terraform output recursos_criados`):
+
+1. Cluster **Kind** (`oficina-k8s`) com mapeamento do NodePort **30080**
+2. Load da imagem Docker no nó Kind
+3. Apply dos manifestos em `/k8s` (namespace, ConfigMap, Secret, Postgres, App, HPA, MailHog)
+
+Destruir:
+
+```bash
+cd infra
+terraform destroy
+```
+
+Detalhes: [`infra/README.md`](infra/README.md).
+
+---
+
+## APIs de Ordem de Serviço (Fase 2)
+
+Base: **http://localhost:8080/api** (Compose) ou **http://localhost:30080/api** (Kind).
+
+| Método | Caminho | Descrição |
+|---|---|---|
+| POST | `/ordens-servico` | Abertura de OS (cliente, veículo, serviços, peças) → retorna id/número |
+| GET | `/ordens-servico/{numero}/acompanhamento` | Consulta de status (público) |
+| POST | `/ordens-servico/{numero}/orcamento/notificacao` | Notificação externa **APROVADO** / **RECUSADO** |
+| GET | `/ordens-servico` | Listagem: prioridade Execução > Aguardando > Diagnóstico > Recebida; mais antigas primeiro; **sem** FINALIZADA/ENTREGUE |
+| POST | `/ordens-servico/email/atualizar-status` | Atualização de status via ferramenta de e-mail (token) |
+
+Collection / contrato interativo: **Swagger UI** → http://localhost:8080/api/swagger-ui.html  
+OpenAPI JSON: http://localhost:8080/api/v3/api-docs  
+
+### Login seed
+
+```json
+POST /api/auth/login
+{ "email": "admin@oficina.com", "senha": "Admin@123" }
+```
+
+### Exemplo — notificação de orçamento
+
+```json
+POST /api/ordens-servico/1/orcamento/notificacao
+{
+  "decisao": "APROVADO",
+  "documentoCliente": "39053344705",
+  "observacao": "Aprovado pelo app do cliente"
+}
+```
+
+### Exemplo — status via e-mail
+
+```json
+POST /api/ordens-servico/email/atualizar-status
+{
+  "numero": 1,
+  "novoStatus": "EM_DIAGNOSTICO",
+  "token": "oficina-email-status-token",
+  "observacao": "Clique no link do e-mail"
+}
+```
+
+Após mudanças de status, confira a mensagem no **MailHog** (http://localhost:8025).
+
+---
+
+## Testes
+
+```bash
+mvn test
+mvn test jacoco:report
+```
+
+Abrir: `target/site/jacoco/index.html`. Testcontainers exige Docker.
+
+---
+
+## Vídeo demonstrativo
+
+Roteiro completo (tempo a tempo, comandos e payloads): [`docs/roteiro-video.md`](docs/roteiro-video.md)  
+Diagramas para o PDF/vídeo: [`docs/diagrama-arquitetura.md`](docs/diagrama-arquitetura.md)
+
+> **TODO (entrega):** gravar com o roteiro, publicar no YouTube/Vimeo (até 15 min) e colar o link abaixo.
+
+- Link do vídeo: _pending_
+
+---
+
+## Entrega no portal
+
+PDF com:
+
+1. Link do repositório GitHub compartilhado com o usuário **`soat-architecture`**
+2. Desenho da arquitetura (diagrama deste README)
+3. Link do vídeo demonstrativo
+
+---
+
+## Banco (DBeaver)
 
 | Campo | Valor |
 |---|---|
@@ -99,152 +294,17 @@ Com o serviço `postgres` do Compose em execução (porta publicada `5432`):
 | Usuário | `oficina` |
 | Senha | `oficina123` |
 
-Valores definidos em `docker-compose.yml`. Se a porta 5432 já estiver em uso na máquina, altere o mapeamento no Compose e use a porta correspondente no cliente.
-
 ---
 
-## Documentação da API
+## Variáveis relevantes
 
-Com a aplicação no ar:
-
-- **Swagger UI:** http://localhost:8080/api/swagger-ui.html  
-- **OpenAPI JSON:** http://localhost:8080/api/v3/api-docs  
-
-### Autenticação
-
-1. `POST /api/auth/login` com corpo, por exemplo:
-
-```json
-{
-  "email": "admin@oficina.com",
-  "senha": "Admin@123"
-}
-```
-
-2. Use o `accessToken` retornado no Swagger (**Authorize**) como `Bearer <token>`.
-
-Usuário seed está em `db/migration/V2__seed_data.sql`.
-
----
-
-## Organização do código
-
-Estrutura principal em `src/main/java/com/oficina/`:
-
-| Pacote | Responsabilidade |
-|---|---|
-| `controller` | Controllers REST |
-| `dto` | DTOs de entrada/saída e envelopes (`ApiResponse`) |
-| `entity` | Entidades JPA e enums persistidos |
-| `exception` | Exceções de domínio e `GlobalExceptionHandler` |
-| `repository` | Spring Data JPA |
-| `service` | Regras de aplicação e orquestração |
-| `validation` | Validadores reutilizáveis (documento, placa) |
-| `config` | Segurança, JWT, OpenAPI |
-
-Classe de entrada: `OficinaApplication`.
-
-Recursos:
-
-- `src/main/resources/application.yml` — perfis `dev`, `test`, padrão + variáveis de ambiente  
-- `src/main/resources/db/migration/` — scripts Flyway (`V1` schema, `V2` seed, `V3` ajustes de schema)
-
----
-
-## Fluxo da ordem de serviço
-
-Estados (`status_os`):
-
-```
-RECEBIDA → EM_DIAGNOSTICO → AGUARDANDO_APROVACAO → EM_EXECUCAO → FINALIZADA → ENTREGUE
-```
-
-| Status | Descrição |
-|---|---|
-| `RECEBIDA` | OS criada |
-| `EM_DIAGNOSTICO` | Diagnóstico em andamento |
-| `AGUARDANDO_APROVACAO` | Aguardando aprovação do cliente |
-| `EM_EXECUCAO` | Serviço autorizado e em execução |
-| `FINALIZADA` | Serviço concluído |
-| `ENTREGUE` | Veículo entregue |
-
----
-
-## Testes
-
-```bash
-mvn test
-```
-
-Relatório JaCoCo:
-
-```bash
-mvn test jacoco:report
-```
-
-Abrir: `target/site/jacoco/index.html`.
-
-Testes que usam **Testcontainers** exigem Docker ativo.
-
-Regra de cobertura no `pom.xml`: pacotes `com.oficina.entity`, `com.oficina.validation` e `com.oficina.service` com razão de linhas cobertas mínima de **80%** (goal `jacoco:check`).
-
----
-
-## Endpoints principais (prefixo `/api`)
-
-Todos os caminhos abaixo são relativos à base **http://localhost:8080/api**.
-
-| Método | Caminho | Descrição | Auth |
-|---|---|---|---|
-| POST | `/auth/login` | Login JWT | Pública |
-| GET/POST | `/clientes` | Listar / criar clientes | Autenticado (ver `@PreAuthorize` no controller) |
-| GET/POST | `/veiculos` | Listar / cadastrar veículos | Autenticado (ver `@PreAuthorize` no controller) |
-| POST | `/ordens-servico` | Criar OS | Autenticado |
-| GET | `/ordens-servico` | Listar OS | Autenticado |
-| GET | `/ordens-servico/{numero}/acompanhamento` | Acompanhamento por número | Pública |
-| POST | `/ordens-servico/{id}/iniciar-diagnostico` | Transição de status | ADMIN / MECANICO |
-| POST | `/ordens-servico/{id}/enviar-orcamento` | Enviar orçamento | ADMIN / MECANICO |
-| POST | `/ordens-servico/{numero}/aprovar` | Aprovar orçamento (cliente, documento) | Pública |
-| POST | `/ordens-servico/{id}/finalizar` | Finalizar serviço | Autenticado |
-| POST | `/ordens-servico/{id}/entregar` | Registrar entrega | Autenticado |
-| GET | `/servicos`, `/pecas` | Catálogo paginado | Autenticado |
-| GET | `/admin/metricas/tempo-execucao-servicos` | Métricas (admin) | Admin |
-
-Detalhes e restrições por papel: anotações `@PreAuthorize` nos controllers e regras em `SecurityConfig`.
-
----
-
-## Perfis de acesso (roles)
-
-| Role | Uso típico |
-|---|---|
-| `ADMIN` | Operações administrativas e métricas |
-| `MECANICO` | Fluxo operacional da oficina |
-| `CLIENTE` | Acesso limitado (ex.: acompanhamento quando aplicável) |
-
----
-
-## Variáveis de ambiente relevantes
-
-| Variável | Padrão (local) | Descrição |
+| Variável | Padrão | Descrição |
 |---|---|---|
-| `DB_URL` | `jdbc:postgresql://localhost:5432/oficina_mecanica` | JDBC URL |
-| `DB_USERNAME` | `oficina` | Usuário do banco |
-| `DB_PASSWORD` | `oficina123` | Senha do banco |
-| `JWT_SECRET` | Veja `application.yml` / Compose | **Definir valor forte em produção** |
-| `JWT_EXPIRATION` | `86400000` | Expiração do access token (ms) |
-| `SERVER_PORT` | `8080` | Porta HTTP |
-| `SPRING_PROFILES_ACTIVE` | `prod` no Compose da app | Perfil Spring |
-
-No Docker Compose, a app usa host `postgres` em `DB_URL` e perfil `prod`.
-
----
-
-## Contribuição
-
-1. Branch: `git checkout -b feature/descricao-curta`
-2. Commits com mensagens claras
-3. Abrir Pull Request para revisão
+| `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` | ver Compose | JDBC |
+| `JWT_SECRET` | — | Mín. 32 caracteres em produção |
+| `MAIL_HOST` / `MAIL_PORT` | localhost:1025 | SMTP (MailHog) |
+| `MAIL_ENABLED` | true | Liga/desliga envio |
+| `MAIL_STATUS_TOKEN` | `oficina-email-status-token` | Token do endpoint via e-mail |
 
 ---
 

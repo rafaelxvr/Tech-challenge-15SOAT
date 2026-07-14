@@ -1,5 +1,6 @@
 package com.oficina.service;
 
+import com.oficina.application.port.out.NotificacaoPort;
 import com.oficina.dto.*;
 import com.oficina.entity.*;
 import com.oficina.exception.BusinessRuleException;
@@ -16,6 +17,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -28,6 +30,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -51,12 +55,20 @@ class OrdemServicoServiceTest {
     @Mock
     private PecaService pecaService;
 
+    @Mock
+    private NotificacaoPort notificacaoPort;
+
     @InjectMocks
     private OrdemServicoService ordemServicoService;
 
     @AfterEach
     void clearSecurity() {
         SecurityContextHolder.clearContext();
+    }
+
+    @org.junit.jupiter.api.BeforeEach
+    void setToken() {
+        ReflectionTestUtils.setField(ordemServicoService, "emailStatusToken", "oficina-email-status-token");
     }
 
     @Test
@@ -104,10 +116,11 @@ class OrdemServicoServiceTest {
     }
 
     @Test
-    void listar_semStatus_usaFindAll() {
+    void listar_semStatus_usaFindAtivasOrdenadas() {
         Pageable p = PageRequest.of(0, 5);
         OrdemServico os = osBasica();
-        when(ordemServicoRepository.findAll(p)).thenReturn(new PageImpl<>(List.of(os)));
+        when(ordemServicoRepository.findAtivasOrdenadasPorPrioridade(isNull(), any(), any()))
+                .thenReturn(new PageImpl<>(List.of(os)));
 
         assertThat(ordemServicoService.listar(null, p).getContent()).hasSize(1);
     }
@@ -116,10 +129,17 @@ class OrdemServicoServiceTest {
     void listar_comStatus_filtra() {
         Pageable p = PageRequest.of(0, 5);
         OrdemServico os = osBasica();
-        when(ordemServicoRepository.findByStatus(StatusOrdemServico.RECEBIDA, p))
+        when(ordemServicoRepository.findAtivasOrdenadasPorPrioridade(
+                eq(StatusOrdemServico.RECEBIDA), any(), any()))
                 .thenReturn(new PageImpl<>(List.of(os)));
 
         assertThat(ordemServicoService.listar(StatusOrdemServico.RECEBIDA, p).getContent()).hasSize(1);
+    }
+
+    @Test
+    void listar_statusFinalizada_lanca() {
+        assertThatThrownBy(() -> ordemServicoService.listar(StatusOrdemServico.FINALIZADA, PageRequest.of(0, 5)))
+                .isInstanceOf(BusinessRuleException.class);
     }
 
     @Test

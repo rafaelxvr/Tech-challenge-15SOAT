@@ -1,0 +1,16 @@
+# Aplica todos os manifestos do namespace oficina (ordem estável via nomes).
+# Uso: kubectl apply -k k8s/
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: oficina
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - secret.yaml
+  - postgres.yaml
+  - mailhog.yaml
+  - app.yaml
+images:
+  - name: ghcr.io/OWNER/oficina-mecanica
+    newName: oficina-mecanica
+    newTag: local

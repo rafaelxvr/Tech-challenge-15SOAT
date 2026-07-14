@@ -157,6 +157,13 @@ public class OrdemServico {
         iniciadoEm = LocalDateTime.now();
     }
 
+    /** Recusa do orçamento: volta para diagnóstico para revisão (exclusão lógica da fila de aprovação). */
+    public void recusarOrcamentoCliente(UUID usuarioId, String observacao) {
+        assertTransicao(StatusOrdemServico.EM_DIAGNOSTICO, EnumSet.of(StatusOrdemServico.AGUARDANDO_APROVACAO));
+        aplicarNovoStatus(StatusOrdemServico.EM_DIAGNOSTICO, usuarioId,
+                observacao != null ? observacao : "Orçamento recusado pelo cliente");
+    }
+
     public void finalizarServico(UUID usuarioId, String observacao) {
         assertTransicao(StatusOrdemServico.FINALIZADA, EnumSet.of(StatusOrdemServico.EM_EXECUCAO));
         aplicarNovoStatus(StatusOrdemServico.FINALIZADA, usuarioId, observacao);

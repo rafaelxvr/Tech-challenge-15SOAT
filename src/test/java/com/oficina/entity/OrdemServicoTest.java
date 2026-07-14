@@ -86,6 +86,14 @@ class OrdemServicoTest {
     }
 
     @Test
+    void recusarOrcamento_voltaParaDiagnostico() {
+        ordem.iniciarDiagnostico(null, null);
+        ordem.enviarOrcamentoParaAprovacao(null, null);
+        ordem.recusarOrcamentoCliente(null, "Cliente recusou");
+        assertThat(ordem.getStatus()).isEqualTo(StatusOrdemServico.EM_DIAGNOSTICO);
+    }
+
+    @Test
     void transicaoInvalida_lancaExcecao() {
         assertThatThrownBy(() -> ordem.enviarOrcamentoParaAprovacao(null, null))
                 .isInstanceOf(BusinessRuleException.class);

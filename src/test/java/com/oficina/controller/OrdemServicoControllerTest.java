@@ -5,7 +5,9 @@ import com.oficina.config.JwtService;
 import com.oficina.dto.AcaoOrdemRequest;
 import com.oficina.dto.AcompanhamentoOsResponse;
 import com.oficina.dto.AprovacaoClienteRequest;
+import com.oficina.dto.AtualizacaoStatusEmailRequest;
 import com.oficina.dto.CriarOrdemServicoRequest;
+import com.oficina.dto.DecisaoOrcamentoRequest;
 import com.oficina.dto.ItemServicoOsRequest;
 import com.oficina.dto.OrdemServicoDetalheResponse;
 import com.oficina.dto.OrdemServicoResumoResponse;
@@ -152,6 +154,34 @@ class OrdemServicoControllerTest {
         mockMvc.perform(post("/ordens-servico/{numero}/aprovar", 100L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new AprovacaoClienteRequest("52998224725"))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void notificacaoOrcamentoAprovado() throws Exception {
+        when(ordemServicoService.processarDecisaoOrcamento(eq(100L), any(DecisaoOrcamentoRequest.class)))
+                .thenReturn(detalhe());
+
+        var body = new DecisaoOrcamentoRequest(
+                DecisaoOrcamentoRequest.DecisaoOrcamento.APROVADO, "52998224725", null);
+
+        mockMvc.perform(post("/ordens-servico/{numero}/orcamento/notificacao", 100L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void atualizarStatusViaEmail() throws Exception {
+        when(ordemServicoService.atualizarStatusViaEmail(any(AtualizacaoStatusEmailRequest.class)))
+                .thenReturn(detalhe());
+
+        var body = new AtualizacaoStatusEmailRequest(
+                100L, StatusOrdemServico.EM_DIAGNOSTICO, "oficina-email-status-token", "via email");
+
+        mockMvc.perform(post("/ordens-servico/email/atualizar-status")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isOk());
     }
 

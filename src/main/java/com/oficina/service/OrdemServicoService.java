@@ -1,5 +1,6 @@
 package com.oficina.service;
 
+import com.oficina.application.port.out.NotificacaoPort;
 import com.oficina.config.SecurityUtils;
 import com.oficina.dto.*;
 import com.oficina.entity.*;
@@ -8,7 +9,9 @@ import com.oficina.exception.EntityNotFoundException;
 import com.oficina.repository.OrdemServicoRepository;
 import com.oficina.validation.ValidadorDocumento;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,7 +19,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -25,11 +30,21 @@ public class OrdemServicoService {
 
     private static final String ENTIDADE = "Ordem de serviço";
 
+    /** Status excluídos logicamente da listagem operacional (não são apagados do banco). */
+    private static final Set<StatusOrdemServico> STATUS_EXCLUIDOS_LISTAGEM = EnumSet.of(
+            StatusOrdemServico.FINALIZADA,
+            StatusOrdemServico.ENTREGUE
+    );
+
     private final OrdemServicoRepository ordemServicoRepository;
     private final ClienteService clienteService;
     private final VeiculoService veiculoService;
     private final ServicoService servicoService;
     private final PecaService pecaService;
+    private final NotificacaoPort notificacaoPort;
+
+    @Value("${oficina.mail.status-token:oficina-email-status-token}")
+    private String emailStatusToken;
 
     @Transactional
     public OrdemServicoDetalheResponse criar(CriarOrdemServicoRequest request) {
@@ -76,14 +91,25 @@ public class OrdemServicoService {
         os.recalcularValorTotal();
         ordemServicoRepository.save(os);
         ordemServicoRepository.flush();
-        return montarDetalhe(ordemServicoRepository.findById(os.getId()).orElseThrow());
+        OrdemServico salva = ordemServicoRepository.findById(os.getId()).orElseThrow();
+        notificacaoPort.notificarAtualizacaoStatus(salva, null, "Abertura da ordem de serviço");
+        return montarDetalhe(salva);
     }
 
+    /**
+     * Listagem operacional: prioridade Em Execução > Aguardando Aprovação > Diagnóstico > Recebida,
+     * mais antigas primeiro; FINALIZADA e ENTREGUE ficam de fora (exclusão lógica).
+     */
     @Transactional(readOnly = true)
     public Page<OrdemServicoResumoResponse> listar(StatusOrdemServico status, Pageable pageable) {
-        Page<OrdemServico> page = status == null
-                ? ordemServicoRepository.findAll(pageable)
-                : ordemServicoRepository.findByStatus(status, pageable);
+        if (status != null && STATUS_EXCLUIDOS_LISTAGEM.contains(status)) {
+            throw new BusinessRuleException(
+                    "Ordens FINALIZADA/ENTREGUE não entram na listagem operacional. Use a consulta por id ou número."
+            );
+        }
+        Pageable semSortCliente = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
+        Page<OrdemServico> page = ordemServicoRepository.findAtivasOrdenadasPorPrioridade(
+                status, STATUS_EXCLUIDOS_LISTAGEM, semSortCliente);
         return page.map(this::toResumo);
     }
 
@@ -131,18 +157,34 @@ public class OrdemServicoService {
     public OrdemServicoDetalheResponse iniciarDiagnostico(UUID id, AcaoOrdemRequest acao) {
         OrdemServico os = ordemServicoRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, id));
+        StatusOrdemServico anterior = os.getStatus();
         UUID usuarioId = SecurityUtils.usuarioAutenticadoId().orElse(null);
-        os.iniciarDiagnostico(usuarioId, acao != null ? acao.observacao() : null);
-        return montarDetalhe(ordemServicoRepository.save(os));
+        String obs = acao != null ? acao.observacao() : null;
+        os.iniciarDiagnostico(usuarioId, obs);
+        OrdemServico salva = ordemServicoRepository.save(os);
+        notificacaoPort.notificarAtualizacaoStatus(salva, anterior, obs != null ? obs : "Diagnóstico iniciado");
+        return montarDetalhe(salva);
     }
 
     @Transactional
     public OrdemServicoDetalheResponse enviarOrcamento(UUID id, AcaoOrdemRequest acao) {
         OrdemServico os = ordemServicoRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, id));
+        StatusOrdemServico anterior = os.getStatus();
         UUID usuarioId = SecurityUtils.usuarioAutenticadoId().orElse(null);
-        os.enviarOrcamentoParaAprovacao(usuarioId, acao != null ? acao.observacao() : "Orçamento enviado ao cliente");
-        return montarDetalhe(ordemServicoRepository.save(os));
+        String obs = acao != null ? acao.observacao() : "Orçamento enviado ao cliente";
+        os.enviarOrcamentoParaAprovacao(usuarioId, obs);
+        OrdemServico salva = ordemServicoRepository.save(os);
+        notificacaoPort.notificarAtualizacaoStatus(salva, anterior, obs);
+        return montarDetalhe(salva);
+    }
+
+    @Transactional
+    public OrdemServicoDetalheResponse processarDecisaoOrcamento(Long numero, DecisaoOrcamentoRequest request) {
+        return switch (request.decisao()) {
+            case APROVADO -> aprovarPeloCliente(numero, new AprovacaoClienteRequest(request.documentoCliente()));
+            case RECUSADO -> recusarPeloCliente(numero, request);
+        };
     }
 
     @Transactional
@@ -150,14 +192,10 @@ public class OrdemServicoService {
         OrdemServico os = ordemServicoRepository.findComPecasEClientePorNumero(numero)
                 .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, numero));
 
-        String doc = ValidadorDocumento.normalizarDigitos(request.documentoCliente());
-        ValidadorDocumento.validarCpfOuCnpj(doc);
-        if (!doc.equals(os.getCliente().getDocumento())) {
-            throw new BusinessRuleException("Documento não confere com o cliente desta ordem de serviço.");
-        }
-
+        validarDocumentoCliente(os, request.documentoCliente());
         validarEstoqueDisponivel(os);
 
+        StatusOrdemServico anterior = os.getStatus();
         UUID usuarioId = SecurityUtils.usuarioAutenticadoId().orElse(null);
         os.aprovarExecucaoCliente(usuarioId, "Orçamento aprovado pelo cliente");
 
@@ -165,25 +203,101 @@ public class OrdemServicoService {
             item.getPeca().baixarEstoque(item.getQuantidade());
         }
 
-        return montarDetalhe(ordemServicoRepository.save(os));
+        OrdemServico salva = ordemServicoRepository.save(os);
+        notificacaoPort.notificarAtualizacaoStatus(salva, anterior, "Orçamento aprovado pelo cliente");
+        return montarDetalhe(salva);
+    }
+
+    @Transactional
+    public OrdemServicoDetalheResponse recusarPeloCliente(Long numero, DecisaoOrcamentoRequest request) {
+        OrdemServico os = ordemServicoRepository.findComPecasEClientePorNumero(numero)
+                .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, numero));
+
+        validarDocumentoCliente(os, request.documentoCliente());
+
+        StatusOrdemServico anterior = os.getStatus();
+        UUID usuarioId = SecurityUtils.usuarioAutenticadoId().orElse(null);
+        String obs = request.observacao() != null ? request.observacao() : "Orçamento recusado pelo cliente";
+        os.recusarOrcamentoCliente(usuarioId, obs);
+
+        OrdemServico salva = ordemServicoRepository.save(os);
+        notificacaoPort.notificarAtualizacaoStatus(salva, anterior, obs);
+        return montarDetalhe(salva);
+    }
+
+    /**
+     * Atualiza status da OS a partir de ferramenta de e-mail (link/token no corpo da mensagem).
+     * Transições permitidas seguem o mesmo fluxo operacional da oficina.
+     */
+    @Transactional
+    public OrdemServicoDetalheResponse atualizarStatusViaEmail(AtualizacaoStatusEmailRequest request) {
+        if (!emailStatusToken.equals(request.token())) {
+            throw new BusinessRuleException("Token de atualização por e-mail inválido.");
+        }
+
+        StatusOrdemServico destino = request.novoStatus();
+        OrdemServico os = (destino == StatusOrdemServico.EM_EXECUCAO)
+                ? ordemServicoRepository.findComPecasEClientePorNumero(request.numero())
+                    .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, request.numero()))
+                : ordemServicoRepository.findByNumero(request.numero())
+                    .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, request.numero()));
+
+        StatusOrdemServico anterior = os.getStatus();
+        String obs = request.observacao() != null ? request.observacao() : "Atualização via e-mail";
+        UUID usuarioId = SecurityUtils.usuarioAutenticadoId().orElse(null);
+
+        switch (destino) {
+            case EM_DIAGNOSTICO -> os.iniciarDiagnostico(usuarioId, obs);
+            case AGUARDANDO_APROVACAO -> os.enviarOrcamentoParaAprovacao(usuarioId, obs);
+            case EM_EXECUCAO -> {
+                validarEstoqueDisponivel(os);
+                os.aprovarExecucaoCliente(usuarioId, obs);
+                for (OsPecaItem item : os.getPecas()) {
+                    item.getPeca().baixarEstoque(item.getQuantidade());
+                }
+            }
+            case FINALIZADA -> os.finalizarServico(usuarioId, obs);
+            case ENTREGUE -> os.registrarEntrega(usuarioId, obs);
+            case RECEBIDA -> throw new BusinessRuleException("Não é possível retornar para RECEBIDA via e-mail.");
+        }
+
+        OrdemServico salva = ordemServicoRepository.save(os);
+        notificacaoPort.notificarAtualizacaoStatus(salva, anterior, obs);
+        return montarDetalhe(salva);
     }
 
     @Transactional
     public OrdemServicoDetalheResponse finalizar(UUID id, AcaoOrdemRequest acao) {
         OrdemServico os = ordemServicoRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, id));
+        StatusOrdemServico anterior = os.getStatus();
         UUID usuarioId = SecurityUtils.usuarioAutenticadoId().orElse(null);
-        os.finalizarServico(usuarioId, acao != null ? acao.observacao() : null);
-        return montarDetalhe(ordemServicoRepository.save(os));
+        String obs = acao != null ? acao.observacao() : null;
+        os.finalizarServico(usuarioId, obs);
+        OrdemServico salva = ordemServicoRepository.save(os);
+        notificacaoPort.notificarAtualizacaoStatus(salva, anterior, obs != null ? obs : "Serviço finalizado");
+        return montarDetalhe(salva);
     }
 
     @Transactional
     public OrdemServicoDetalheResponse registrarEntrega(UUID id, AcaoOrdemRequest acao) {
         OrdemServico os = ordemServicoRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, id));
+        StatusOrdemServico anterior = os.getStatus();
         UUID usuarioId = SecurityUtils.usuarioAutenticadoId().orElse(null);
-        os.registrarEntrega(usuarioId, acao != null ? acao.observacao() : null);
-        return montarDetalhe(ordemServicoRepository.save(os));
+        String obs = acao != null ? acao.observacao() : null;
+        os.registrarEntrega(usuarioId, obs);
+        OrdemServico salva = ordemServicoRepository.save(os);
+        notificacaoPort.notificarAtualizacaoStatus(salva, anterior, obs != null ? obs : "Veículo entregue");
+        return montarDetalhe(salva);
+    }
+
+    private void validarDocumentoCliente(OrdemServico os, String documentoInformado) {
+        String doc = ValidadorDocumento.normalizarDigitos(documentoInformado);
+        ValidadorDocumento.validarCpfOuCnpj(doc);
+        if (!doc.equals(os.getCliente().getDocumento())) {
+            throw new BusinessRuleException("Documento não confere com o cliente desta ordem de serviço.");
+        }
     }
 
     private void validarEstoqueDisponivel(OrdemServico os) {

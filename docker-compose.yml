@@ -46,6 +46,10 @@ services:
       JWT_EXPIRATION: 86400000
       SERVER_PORT: 8080
       JAVA_OPTS: "-Xms256m -Xmx512m"
+      MAIL_HOST: mailhog
+      MAIL_PORT: 1025
+      MAIL_ENABLED: "true"
+      MAIL_STATUS_TOKEN: ${MAIL_STATUS_TOKEN:-oficina-email-status-token}
     ports:
       - "8080:8080"
     healthcheck:
@@ -99,6 +103,19 @@ services:
       - pgadmin_data:/var/lib/pgadmin
     depends_on:
       - postgres
+    networks:
+      - oficina-network
+
+  # ========================
+  #    MAILHOG (e-mail local)
+  # ========================
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    container_name: oficina-mailhog
+    restart: unless-stopped
+    ports:
+      - "1025:1025"
+      - "8025:8025"
     networks:
       - oficina-network
 

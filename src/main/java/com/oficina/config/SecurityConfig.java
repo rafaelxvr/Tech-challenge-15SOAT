@@ -50,6 +50,8 @@ public class SecurityConfig {
                         // Consulta e aprovação de OS pelo cliente (sem JWT)
                         .requestMatchers(HttpMethod.GET, "/ordens-servico/*/acompanhamento").permitAll()
                         .requestMatchers(HttpMethod.POST, "/ordens-servico/*/aprovar").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/ordens-servico/*/orcamento/notificacao").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/ordens-servico/email/atualizar-status").permitAll()
 
                         // Gestão administrativa - somente ADMIN
                         .requestMatchers(HttpMethod.DELETE, "/**").hasRole("ADMIN")

@@ -36,9 +36,21 @@ spring:
     baseline-on-migrate: true
     validate-on-migrate: true
 
-  # ========================
-  #    JACKSON
-  # ========================
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:1025}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: false
+          starttls:
+            enable: false
+
+# ========================
+#    JACKSON
+# ========================
   jackson:
     serialization:
       write-dates-as-timestamps: false
@@ -65,6 +77,12 @@ security:
     secret: ${JWT_SECRET:3cTp9vQzXkN8mR2jL5wY7aB4fH6dE1iU0oP}
     expiration: ${JWT_EXPIRATION:86400000}  # 24 horas em ms
     refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000}  # 7 dias em ms
+
+oficina:
+  mail:
+    enabled: ${MAIL_ENABLED:true}
+    from: ${MAIL_FROM:noreply@oficina.com}
+    status-token: ${MAIL_STATUS_TOKEN:oficina-email-status-token}
 
 # ========================
 #    OPENAPI / SWAGGER
@@ -138,3 +156,7 @@ spring:
 
   jpa:
     show-sql: true
+
+oficina:
+  mail:
+    enabled: false
