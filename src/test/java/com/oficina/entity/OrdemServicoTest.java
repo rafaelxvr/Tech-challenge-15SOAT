@@ -94,6 +94,16 @@ class OrdemServicoTest {
     }
 
     @Test
+    void recusarOrcamento_semObservacao_usaMensagemPadrao() {
+        ordem.iniciarDiagnostico(null, null);
+        ordem.enviarOrcamentoParaAprovacao(null, null);
+        ordem.recusarOrcamentoCliente(null, null);
+        assertThat(ordem.getStatus()).isEqualTo(StatusOrdemServico.EM_DIAGNOSTICO);
+        assertThat(ordem.getHistorico().get(ordem.getHistorico().size() - 1).getObservacao())
+                .contains("recusado");
+    }
+
+    @Test
     void transicaoInvalida_lancaExcecao() {
         assertThatThrownBy(() -> ordem.enviarOrcamentoParaAprovacao(null, null))
                 .isInstanceOf(BusinessRuleException.class);
