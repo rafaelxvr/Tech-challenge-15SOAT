@@ -15,6 +15,37 @@ Back-end para gestão de ordens de serviço, clientes, veículos, catálogo e m�
 
 ## Arquitetura proposta
 
+```
+                    ┌─────────────────┐     ┌──────────────────┐
+                    │ Swagger/Postman │     │ Webhook / e-mail │
+                    └────────┬────────┘     └────────┬─────────┘
+                             │                       │
+                             └───────────┬───────────┘
+                                         ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│  Kubernetes (namespace oficina)                                        │
+│                                                                        │
+│   ConfigMap + Secret ──▶  Service :30080 ──▶  oficina-app (2–6 pods) │
+│                              ▲                      │                  │
+│                              │                      ├──▶ PostgreSQL    │
+│                         HPA (CPU/Mem)               └──▶ MailHog SMTP  │
+└────────────────────────────────────────────────────────────────────────┘
+                                         ▲
+                                         │ kubectl apply /k8s
+┌────────────────────────────────────────┴───────────────────────────────┐
+│  CI/CD (GitHub Actions)                                                │
+│   mvn verify  →  Docker build/push GHCR  →  Kind + deploy              │
+└────────────────────────────────────────────────────────────────────────┘
+                                         ▲
+                                         │
+                              Terraform (infra/) → Kind cluster
+```
+
+Diagramas Mermaid (exportáveis para o PDF) e roteiro do vídeo: [`docs/diagrama-arquitetura.md`](docs/diagrama-arquitetura.md) · [`docs/roteiro-video.md`](docs/roteiro-video.md).
+
+<details>
+<summary>Diagrama Mermaid (renderiza no GitHub; no IntelliJ use o plugin Mermaid ou o ASCII acima)</summary>
+
 ```mermaid
 flowchart TB
   subgraph clients [Clientes]
@@ -49,6 +80,8 @@ flowchart TB
   EmailTool --> AppSvc
   Deploy --> k8s
 ```
+
+</details>
 
 ### Componentes da aplicação (hexagonal / ports & adapters)
 
