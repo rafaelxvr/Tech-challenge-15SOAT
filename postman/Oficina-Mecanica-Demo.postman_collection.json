@@ -1,0 +1,300 @@
+{
+  "info": {
+    "_postman_id": "7dc2a31b-9cbc-46df-b4fb-9956d8ebde2f",
+    "name": "Oficina Mecânica - Roteiro Demo",
+    "description": "Fluxo curto para o vídeo: health, autenticação, cadastros, abertura e acompanhamento de OS e métricas administrativas.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      { "key": "token", "value": "{{bearerToken}}", "type": "string" }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (!pm.environment.get('demoRunId')) {",
+          "  const runId = Date.now().toString().slice(-8);",
+          "  pm.environment.set('demoRunId', runId);",
+          "  pm.environment.set('demoDocumento', `900${runId}`);",
+          "  pm.environment.set('demoEmail', `cliente.${runId}@oficina.com`);",
+          "  pm.environment.set('demoPlaca', `D${runId.slice(-6)}`);",
+          "  pm.environment.set('demoChassi', `9BWZZZ377VT${runId.slice(-6)}`);",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "01 - Health",
+      "request": {
+        "auth": { "type": "noauth" },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/actuator/health",
+          "host": ["{{baseUrl}}"],
+          "path": ["actuator", "health"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Health está UP', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().status).to.eql('UP');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 - Login administrador",
+      "request": {
+        "auth": { "type": "noauth" },
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"admin@oficina.com\",\n  \"senha\": \"Admin@123\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/auth/login",
+          "host": ["{{baseUrl}}"],
+          "path": ["auth", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Login retornou JWT de administrador', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const json = pm.response.json();",
+              "  pm.expect(json.role).to.eql('ADMIN');",
+              "  pm.expect(json.accessToken).to.be.a('string').and.not.empty;",
+              "  pm.environment.set('bearerToken', json.accessToken);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 - Cadastrar cliente",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"nome\": \"Cliente Demonstração\",\n  \"tipoDocumento\": \"CPF\",\n  \"documento\": \"{{demoDocumento}}\",\n  \"email\": \"{{demoEmail}}\",\n  \"telefone\": \"11999999999\",\n  \"cep\": \"01310-100\",\n  \"logradouro\": \"Avenida Paulista\",\n  \"numero\": \"1000\",\n  \"bairro\": \"Bela Vista\",\n  \"cidade\": \"São Paulo\",\n  \"estado\": \"SP\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/clientes",
+          "host": ["{{baseUrl}}"],
+          "path": ["clientes"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Cliente criado', function () {",
+              "  pm.response.to.have.status(201);",
+              "  const json = pm.response.json();",
+              "  pm.environment.set('clienteId', json.data.id);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 - Cadastrar veículo",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"placa\": \"{{demoPlaca}}\",\n  \"marca\": \"Fiat\",\n  \"modelo\": \"Argo\",\n  \"ano\": 2024,\n  \"cor\": \"Prata\",\n  \"chassi\": \"{{demoChassi}}\",\n  \"clienteId\": \"{{clienteId}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/veiculos",
+          "host": ["{{baseUrl}}"],
+          "path": ["veiculos"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Veículo criado', function () {",
+              "  pm.response.to.have.status(201);",
+              "  const json = pm.response.json();",
+              "  pm.environment.set('veiculoId', json.data.id);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 - Selecionar serviço do catálogo",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/servicos?size=20",
+          "host": ["{{baseUrl}}"],
+          "path": ["servicos"],
+          "query": [{ "key": "size", "value": "20" }]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Catálogo contém serviços', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const content = pm.response.json().data.content;",
+              "  pm.expect(content.length).to.be.above(0);",
+              "  pm.environment.set('servicoId', content[0].id);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 - Selecionar peça do estoque",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/pecas?size=20",
+          "host": ["{{baseUrl}}"],
+          "path": ["pecas"],
+          "query": [{ "key": "size", "value": "20" }]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Estoque contém peças', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const content = pm.response.json().data.content;",
+              "  pm.expect(content.length).to.be.above(0);",
+              "  pm.environment.set('pecaId', content[0].id);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 - Abrir ordem de serviço",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"documentoCliente\": \"{{demoDocumento}}\",\n  \"placaVeiculo\": \"{{demoPlaca}}\",\n  \"servicos\": [\n    {\n      \"servicoId\": \"{{servicoId}}\",\n      \"quantidade\": 1,\n      \"observacao\": \"Serviço selecionado na demonstração\"\n    }\n  ],\n  \"pecas\": [\n    {\n      \"pecaId\": \"{{pecaId}}\",\n      \"quantidade\": 1\n    }\n  ],\n  \"observacoes\": \"OS criada durante o vídeo demonstrativo\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/ordens-servico",
+          "host": ["{{baseUrl}}"],
+          "path": ["ordens-servico"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Ordem de serviço criada como RECEBIDA', function () {",
+              "  pm.response.to.have.status(201);",
+              "  const json = pm.response.json();",
+              "  pm.expect(json.data.status).to.eql('RECEBIDA');",
+              "  pm.environment.set('osId', json.data.id);",
+              "  pm.environment.set('osNumero', json.data.numero);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 - Acompanhamento público da OS",
+      "request": {
+        "auth": { "type": "noauth" },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/ordens-servico/{{osNumero}}/acompanhamento",
+          "host": ["{{baseUrl}}"],
+          "path": ["ordens-servico", "{{osNumero}}", "acompanhamento"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Acompanhamento público disponível', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().data.numero).to.eql(Number(pm.environment.get('osNumero')));",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 - Métricas administrativas",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/admin/metricas/tempo-execucao-servicos",
+          "host": ["{{baseUrl}}"],
+          "path": ["admin", "metricas", "tempo-execucao-servicos"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Métricas acessíveis ao ADMIN', function () {",
+              "  pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
