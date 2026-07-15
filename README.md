@@ -1,4 +1,4 @@
-# Oficina Mecânica — Tech Challenge Fase 2 (14SOAT)
+# Oficina Mecânica — Tech Challenge Fase 2 (15SOAT)
 
 Back-end para gestão de ordens de serviço, clientes, veículos, catálogo e métricas, evoluído na **Fase 2** com foco em qualidade, resiliência, containerização, Kubernetes, IaC (Terraform) e CI/CD.
 
@@ -301,15 +301,20 @@ Abrir: `target/site/jacoco/index.html`. Testcontainers exige Docker.
 Roteiro completo (tempo a tempo, comandos e payloads): [`docs/roteiro-video-demonstracao.md`](docs/roteiro-video-demonstracao.md)
 Diagramas para o PDF/vídeo: [`docs/diagrama-arquitetura.md`](docs/diagrama-arquitetura.md)
 
-> **TODO (entrega):** gravar com o roteiro, publicar no YouTube/Vimeo (até 15 min) e colar o link abaixo.
+Vídeo publicado no YouTube, conforme o roteiro de demonstração:
 
-- Link do vídeo: _pending_
+- [Assistir ao vídeo demonstrativo](https://youtu.be/iAgTYmfNnx0)
 
 ---
 
 ## Entrega no portal
 
-PDF com:
+Documentos finais:
+
+- [Fonte Markdown da entrega](docs/entrega-fase-2.md)
+- [PDF para o portal do aluno](docs/entrega-fase-2.pdf)
+
+O PDF contém:
 
 1. Link do repositório GitHub compartilhado com o usuário **`soat-architecture`**
 2. Desenho da arquitetura (diagrama deste README)
