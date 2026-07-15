@@ -41,7 +41,7 @@ Back-end para gestão de ordens de serviço, clientes, veículos, catálogo e m�
                               Terraform (infra/) → Kind cluster
 ```
 
-Diagramas Mermaid (exportáveis para o PDF) e roteiro do vídeo: [`docs/diagrama-arquitetura.md`](docs/diagrama-arquitetura.md) · [`docs/roteiro-video.md`](docs/roteiro-video.md).
+Diagramas Mermaid (exportáveis para o PDF) e roteiro do vídeo: [`docs/diagrama-arquitetura.md`](docs/diagrama-arquitetura.md) · [`docs/roteiro-video-demonstracao.md`](docs/roteiro-video-demonstracao.md).
 
 <details>
 <summary>Diagrama Mermaid (renderiza no GitHub; no IntelliJ use o plugin Mermaid ou o ASCII acima)</summary>
@@ -298,7 +298,7 @@ Abrir: `target/site/jacoco/index.html`. Testcontainers exige Docker.
 
 ## Vídeo demonstrativo
 
-Roteiro completo (tempo a tempo, comandos e payloads): [`docs/roteiro-video.md`](docs/roteiro-video.md)  
+Roteiro completo (tempo a tempo, comandos e payloads): [`docs/roteiro-video-demonstracao.md`](docs/roteiro-video-demonstracao.md)
 Diagramas para o PDF/vídeo: [`docs/diagrama-arquitetura.md`](docs/diagrama-arquitetura.md)
 
 > **TODO (entrega):** gravar com o roteiro, publicar no YouTube/Vimeo (até 15 min) e colar o link abaixo.

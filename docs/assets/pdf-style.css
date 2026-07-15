@@ -1,0 +1,109 @@
+@page {
+  size: A4;
+  margin: 14mm 13mm 14mm 13mm;
+}
+
+html,
+body {
+  background: #ffffff;
+  color: #172033;
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 9.2pt;
+  line-height: 1.28;
+}
+
+h1, h2, h3 {
+  color: #123b63;
+  page-break-after: avoid;
+}
+
+h1 {
+  border-bottom: 2px solid #1f6f9f;
+  font-size: 20pt;
+  margin: 0.8rem 0 0.45rem;
+  padding-bottom: 0.25rem;
+}
+
+h2 {
+  border-bottom: 1px solid #b9cfdf;
+  font-size: 15pt;
+  margin: 0.75rem 0 0.4rem;
+  padding-bottom: 0.15rem;
+}
+
+h3 {
+  font-size: 11.5pt;
+  margin: 0.65rem 0 0.3rem;
+}
+
+p, ul, ol {
+  margin-bottom: 0.45rem;
+  margin-top: 0.35rem;
+}
+
+table {
+  border-collapse: collapse;
+  font-size: 8pt;
+  width: 100%;
+}
+
+th, td {
+  border: 1px solid #aebfcd;
+  padding: 0.22rem 0.32rem;
+  vertical-align: top;
+}
+
+th {
+  background: #eaf2f7;
+  color: #123b63;
+}
+
+pre, code {
+  font-family: Consolas, "Courier New", monospace;
+}
+
+pre {
+  background: #f5f7f9;
+  border: 1px solid #d8e0e6;
+  margin: 0.4rem 0;
+  padding: 0.45rem;
+  white-space: pre-wrap;
+}
+
+img {
+  display: block;
+  margin: 0.45rem auto;
+  max-height: 155mm;
+  max-width: 100%;
+}
+
+.cover {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 245mm;
+  text-align: center;
+}
+
+.page-break {
+  break-after: page;
+  page-break-after: always;
+}
+
+.small {
+  color: #4d5d6c;
+  font-size: 7.5pt;
+  margin: 0.25rem 0 0;
+}
+
+hr {
+  margin: 0.35rem 0;
+}
+
+blockquote {
+  background: #f2f7fa;
+  border-left: 4px solid #1f6f9f;
+  margin: 0.45rem 0;
+  padding: 0.35rem 0.65rem;
+}

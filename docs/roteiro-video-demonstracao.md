@@ -138,15 +138,19 @@ Instale o Metrics Server logo após o deploy para que ele colete dados enquanto 
 ```powershell
 kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
 
+$patch = '[{\"op\":\"add\",\"path\":\"/spec/template/spec/containers/0/args/-\",\"value\":\"--kubelet-insecure-tls\"}]'
+
 kubectl patch deployment metrics-server `
   -n kube-system `
-  --type='json' `
-  -p='[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]'
+  --type=json `
+  --patch $patch
 
-kubectl -n kube-system rollout status deployment/metrics-server
+kubectl -n kube-system rollout status deployment/metrics-server --timeout=120s
 ```
 
-O parâmetro `--kubelet-insecure-tls` é usado somente neste cluster local Kind.
+No Windows PowerShell 5.1, as barras em `$patch` preservam as aspas internas do JSON ao chamar o `kubectl`. Sem elas, o PowerShell envia um JSON Patch malformado e a API do Kubernetes responde com erro `422 Invalid`.
+
+O parâmetro `--kubelet-insecure-tls` é usado somente neste cluster local Kind. A ordem correta é instalar o Metrics Server, aplicar o patch e somente depois aguardar o rollout.
 
 Valide; se as métricas ainda não aparecerem, siga para o Postman e repita depois:
 
@@ -158,7 +162,7 @@ kubectl -n oficina get hpa
 
 ### Fala sugerida
 
-> O Kind não instala o Metrics Server por padrão. Esse componente fornece ao HPA as métricas de CPU e memória usadas na decisão automática de escala.
+> O Kind não instala o Metrics Server por padrão. Esse componente fornece ao HPA, sigla de Horizontal Pod Autoscaler, as métricas de CPU e memória usadas para aumentar ou reduzir automaticamente a quantidade de pods.
 
 ---
 
@@ -275,11 +279,23 @@ Destaque na fala:
 - alvo de CPU: 60%;
 - alvo de memória: 70%.
 
-No segundo PowerShell, inicie a observação:
+No segundo PowerShell, inicie a observação conjunta. O loop atualiza o HPA e os pods a cada dois segundos:
 
 ```powershell
-kubectl -n oficina get hpa,pods -w
+while ($true) {
+    Clear-Host
+
+    Write-Host "=== HPA ===" -ForegroundColor Cyan
+    kubectl -n oficina get hpa oficina-app-hpa
+
+    Write-Host "`n=== PODS DA APLICAÇÃO ===" -ForegroundColor Cyan
+    kubectl -n oficina get pods -l app=oficina-app
+
+    Start-Sleep -Seconds 2
+}
 ```
+
+O `kubectl get ... -w` aceita apenas um tipo de recurso por processo nesta versão. Por isso, o loop consulta HPA e pods separadamente no mesmo terminal. Encerre-o com `Ctrl+C` depois de registrar a escala.
 
 Volte ao primeiro PowerShell e gere carga HTTP dentro do cluster:
 
@@ -378,4 +394,3 @@ kubectl -n oficina get deploy,svc,pods,hpa
 
 - [Metrics Server — instalação oficial](https://github.com/kubernetes-sigs/metrics-server)
 - [Fortio — documentação oficial de geração de carga](https://github.com/fortio/fortio/)
-
