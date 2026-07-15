@@ -37,6 +37,12 @@ spring.log
 # Docker
 docker/postgres/data/
 
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+infra/oficina-k8s-config
+
 # SonarScanner
 .scannerwork/
 
