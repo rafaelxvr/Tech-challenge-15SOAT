@@ -49,3 +49,6 @@ infra/oficina-k8s-config
 # OS
 .DS_Store
 Thumbs.db
+
+# Isolated development worktrees
+.worktrees/
