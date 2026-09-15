@@ -66,7 +66,7 @@ class ClienteIdentityTest {
     @Test void multipleIdentityFieldsAdvanceOneVersionAndExposeOnlyFieldNames() {
         Cliente c = Fixtures.cliente(Fixtures.CLIENTE_A);
         DadosIdentidadeCliente novos = new DadosIdentidadeCliente(TipoDocumento.CNPJ, "11.222.333/0001-81", "new@example.invalid", false);
-        assertThat(c.dadosIdentidade().camposAlterados(novos))
+        assertThat(c.camposIdentidadeAlterados(novos))
                 .containsExactlyInAnyOrder("tipo_documento", "documento", "email", "ativo");
         c.atualizarIdentidade(novos);
         assertThat(c.getVersaoIdentidade()).isEqualTo(2);

@@ -6,6 +6,7 @@ import com.oficina.dto.ClienteRequest;
 import com.oficina.entity.Cliente;
 import com.oficina.entity.TipoDocumento;
 import com.oficina.entity.Usuario;
+import com.oficina.exception.BusinessRuleException;
 import com.oficina.service.ClienteService;
 import com.oficina.support.Fixtures;
 import jakarta.persistence.EntityManagerFactory;
@@ -202,6 +203,64 @@ class ClienteIdentityPersistenceTest {
     @Test void databaseRejectsNonPositiveIdentityVersion() {
         assertThatThrownBy(() -> jdbc.update("UPDATE clientes SET versao_identidade = 0 WHERE id = ?", clienteId))
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test void legacyMismatchedDocumentTypeCanBeCorrectedWithAuditedVersionChange() {
+        seedLegacyMismatchedDocumentType();
+        ClienteRequest inconsistent = legacyRequest(TipoDocumento.CPF);
+        assertThatThrownBy(() -> service.atualizar(clienteId, inconsistent))
+                .isInstanceOf(BusinessRuleException.class);
+        assertThat(auditCount()).isZero();
+
+        service.atualizar(clienteId, legacyRequest(TipoDocumento.CNPJ));
+
+        Cliente corrected = clientes.findById(clienteId).orElseThrow();
+        assertThat(corrected.getTipoDocumento()).isEqualTo(TipoDocumento.CNPJ);
+        assertThat(corrected.getDocumento()).isEqualTo("11222333000181");
+        assertThat(corrected.getVersao()).isEqualTo(1);
+        assertThat(corrected.getVersaoIdentidade()).isEqualTo(2);
+        assertLegacyAudit("tipo_documento");
+        assertThat(jdbc.queryForList("SELECT id FROM auth_cliente_snapshot", UUID.class)).isEmpty();
+    }
+
+    @Test void legacyMismatchedDocumentTypeCanBeDeactivatedWithoutChangingItsDocument() {
+        seedLegacyMismatchedDocumentType();
+
+        service.desativar(clienteId);
+        service.desativar(clienteId);
+
+        Cliente deactivated = clientes.findById(clienteId).orElseThrow();
+        assertThat(deactivated.isAtivo()).isFalse();
+        assertThat(deactivated.getTipoDocumento()).isEqualTo(TipoDocumento.CPF);
+        assertThat(deactivated.getDocumento()).isEqualTo("11222333000181");
+        assertThat(deactivated.getVersao()).isEqualTo(1);
+        assertThat(deactivated.getVersaoIdentidade()).isEqualTo(2);
+        assertLegacyAudit("ativo");
+    }
+
+    private void seedLegacyMismatchedDocumentType() {
+        jdbc.update("DELETE FROM clientes WHERE id = ?", clienteId);
+        // V1 and the previous service allowed an explicit CPF type with a valid CNPJ number.
+        jdbc.update("""
+                INSERT INTO clientes (id, nome, tipo_documento, documento, email, telefone, ativo)
+                VALUES (?, 'Cliente legado', 'CPF', '11222333000181', 'cliente@example.invalid', '11999999999', true)
+                """, clienteId);
+    }
+
+    private static ClienteRequest legacyRequest(TipoDocumento tipo) {
+        return new ClienteRequest("Cliente legado", tipo, "11.222.333/0001-81", "cliente@example.invalid",
+                "11999999999", null, null, null, null, null, null, null);
+    }
+
+    private void assertLegacyAudit(String campo) {
+        assertThat(auditCount()).isEqualTo(1);
+        jdbc.query("SELECT * FROM cliente_identidade_auditoria WHERE cliente_id = ?", rs -> {
+            assertThat((String[]) rs.getArray("campos").getArray()).containsExactly(campo);
+            assertThat(rs.getObject("staff_id", UUID.class)).isEqualTo(staffId);
+            assertThat(rs.getLong("versao_anterior")).isEqualTo(1);
+            assertThat(rs.getLong("versao_nova")).isEqualTo(2);
+            assertThat(rs.getTimestamp("ocorrido_em").toInstant()).isEqualTo(NOW);
+        }, clienteId);
     }
 
     private int auditCount() {

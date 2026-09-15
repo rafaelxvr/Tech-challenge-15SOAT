@@ -89,7 +89,8 @@ public class ClienteService {
             throw new DuplicateEntityException(ENTIDADE, "documento", doc);
         }
 
-        atualizarIdentidade(cliente, identidade);
+        alterarIdentidade(cliente, cliente.camposIdentidadeAlterados(identidade),
+                () -> cliente.atualizarIdentidade(identidade));
         cliente.setNome(request.nome());
         cliente.setTelefone(request.telefone());
         cliente.setCep(request.cep());
@@ -107,17 +108,15 @@ public class ClienteService {
     public void desativar(UUID id) {
         Cliente cliente = clienteRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, id));
-        atualizarIdentidade(cliente, new DadosIdentidadeCliente(
-                cliente.getTipoDocumento(), cliente.getDocumento(), cliente.getEmail(), false));
+        alterarIdentidade(cliente, cliente.isAtivo() ? Set.of("ativo") : Set.of(), cliente::desativar);
     }
 
-    private void atualizarIdentidade(Cliente cliente, DadosIdentidadeCliente novos) {
-        Set<String> campos = cliente.dadosIdentidade().camposAlterados(novos);
+    private void alterarIdentidade(Cliente cliente, Set<String> campos, Runnable alteracao) {
         if (campos.isEmpty()) return;
         UUID staffId = SecurityUtils.usuarioAutenticadoId().orElseThrow(
                 () -> new AuthenticationCredentialsNotFoundException("Funcionário autenticado é obrigatório."));
         long anterior = cliente.getVersaoIdentidade();
-        cliente.atualizarIdentidade(novos);
+        alteracao.run();
         identityAuditRepository.registrar(cliente.getId(), staffId, campos,
                 anterior, cliente.getVersaoIdentidade(), clock.instant());
     }
