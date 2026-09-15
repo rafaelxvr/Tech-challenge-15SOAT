@@ -2,15 +2,12 @@ package com.oficina.contracts;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.oficina.controller.AuthController;
-import com.oficina.controller.ClienteController;
-import com.oficina.controller.MetricasAdminController;
-import com.oficina.controller.OrdemServicoController;
-import com.oficina.controller.PecaController;
-import com.oficina.controller.ServicoCatalogoController;
-import com.oficina.controller.VeiculoController;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.config.BeanDefinition;
+import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
 import org.springframework.core.annotation.AnnotatedElementUtils;
+import org.springframework.core.type.filter.AnnotationTypeFilter;
+import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
 
 import java.lang.reflect.Method;
@@ -19,7 +16,6 @@ import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -31,14 +27,6 @@ class Phase3ContractTest {
 
     private static final Path CONTRACTS = Path.of("contracts/phase3-v1");
     private static final ObjectMapper MAPPER = new ObjectMapper();
-    private static final List<Class<?>> CONTROLLERS = List.of(
-            AuthController.class,
-            ClienteController.class,
-            MetricasAdminController.class,
-            OrdemServicoController.class,
-            PecaController.class,
-            ServicoCatalogoController.class,
-            VeiculoController.class);
 
     private static final Map<String, String> PLANNED_BINDINGS = Map.of(
             "POST /api/auth/cpf/desafios", "CriarDesafioHandler",
@@ -46,34 +34,58 @@ class Phase3ContractTest {
             "GET /health", "ReadinessHealth",
             "POST /api/ordens-servico/{numero}/orcamento/decisao", "OrdemServicoController.decisaoOrcamento");
 
-    private static final Set<String> PUBLIC_ROUTES = Set.of(
-            "POST /api/auth/cpf/desafios",
-            "POST /api/auth/cpf/verificar",
-            "POST /api/auth/login",
-            "GET /health");
+    private static final Set<Grant> ANONYMOUS = Set.of(new Grant("anonymous", Set.of(), Set.of()));
+    private static final Set<Grant> STAFF = Set.of(new Grant("staff", Set.of("ADMIN", "MECANICO"), Set.of()));
+    private static final Set<Grant> ADMIN = Set.of(new Grant("staff", Set.of("ADMIN"), Set.of()));
+    private static final Set<Grant> CUSTOMER_DECIDE = Set.of(new Grant("customer", Set.of(), Set.of("orders:decide:self")));
+    private static final Set<Grant> CUSTOMER_READ_OR_STAFF = Set.of(
+            new Grant("customer", Set.of(), Set.of("orders:read:self")),
+            new Grant("staff", Set.of("ADMIN", "MECANICO"), Set.of()));
 
-    private static final Set<String> CUSTOMER_DECISION_ROUTES = Set.of(
-            "POST /api/ordens-servico/{numero}/orcamento/decisao",
-            "POST /api/ordens-servico/{numero}/orcamento/notificacao",
-            "POST /api/ordens-servico/{numero}/aprovar");
+    private static final Map<String, RoutePolicy> EXPECTED_POLICIES = Map.ofEntries(
+            Map.entry("POST /api/auth/cpf/desafios", allow("FUN", ANONYMOUS)),
+            Map.entry("POST /api/auth/cpf/verificar", allow("FUN", ANONYMOUS)),
+            Map.entry("POST /api/auth/login", allow("APP", ANONYMOUS)),
+            Map.entry("GET /health", allow("APP", ANONYMOUS)),
 
-    private static final String CUSTOMER_TRACKING_ROUTE =
-            "GET /api/ordens-servico/{numero}/acompanhamento";
-    private static final String RETIRED_EMAIL_ROUTE =
-            "POST /api/ordens-servico/email/atualizar-status";
+            Map.entry("GET /api/clientes", allow("APP", STAFF)),
+            Map.entry("GET /api/clientes/{id}", allow("APP", STAFF)),
+            Map.entry("POST /api/clientes", allow("APP", ADMIN)),
+            Map.entry("PUT /api/clientes/{id}", allow("APP", ADMIN)),
+            Map.entry("DELETE /api/clientes/{id}", allow("APP", ADMIN)),
 
-    private static final Set<String> ADMIN_ONLY_ROUTES = Set.of(
-            "POST /api/clientes",
-            "PUT /api/clientes/{id}",
-            "DELETE /api/clientes/{id}",
-            "DELETE /api/veiculos/{id}",
-            "POST /api/servicos",
-            "PUT /api/servicos/{id}",
-            "DELETE /api/servicos/{id}",
-            "POST /api/pecas",
-            "PUT /api/pecas/{id}",
-            "DELETE /api/pecas/{id}",
-            "GET /api/admin/metricas/tempo-execucao-servicos");
+            Map.entry("GET /api/veiculos", allow("APP", STAFF)),
+            Map.entry("GET /api/veiculos/{id}", allow("APP", STAFF)),
+            Map.entry("POST /api/veiculos", allow("APP", STAFF)),
+            Map.entry("PUT /api/veiculos/{id}", allow("APP", STAFF)),
+            Map.entry("DELETE /api/veiculos/{id}", allow("APP", ADMIN)),
+
+            Map.entry("GET /api/servicos", allow("APP", STAFF)),
+            Map.entry("GET /api/servicos/{id}", allow("APP", STAFF)),
+            Map.entry("POST /api/servicos", allow("APP", ADMIN)),
+            Map.entry("PUT /api/servicos/{id}", allow("APP", ADMIN)),
+            Map.entry("DELETE /api/servicos/{id}", allow("APP", ADMIN)),
+
+            Map.entry("GET /api/pecas", allow("APP", STAFF)),
+            Map.entry("GET /api/pecas/{id}", allow("APP", STAFF)),
+            Map.entry("POST /api/pecas", allow("APP", ADMIN)),
+            Map.entry("PUT /api/pecas/{id}", allow("APP", ADMIN)),
+            Map.entry("DELETE /api/pecas/{id}", allow("APP", ADMIN)),
+
+            Map.entry("POST /api/ordens-servico", allow("APP", STAFF)),
+            Map.entry("GET /api/ordens-servico", allow("APP", STAFF)),
+            Map.entry("GET /api/ordens-servico/{id}", allow("APP", STAFF)),
+            Map.entry("GET /api/ordens-servico/{numero}/acompanhamento", allow("APP", CUSTOMER_READ_OR_STAFF)),
+            Map.entry("POST /api/ordens-servico/{numero}/orcamento/decisao", allow("APP", CUSTOMER_DECIDE)),
+            Map.entry("POST /api/ordens-servico/{numero}/orcamento/notificacao", allow("APP", CUSTOMER_DECIDE)),
+            Map.entry("POST /api/ordens-servico/{numero}/aprovar", allow("APP", CUSTOMER_DECIDE)),
+            Map.entry("POST /api/ordens-servico/email/atualizar-status", deny("APP")),
+            Map.entry("POST /api/ordens-servico/{id}/iniciar-diagnostico", allow("APP", STAFF)),
+            Map.entry("POST /api/ordens-servico/{id}/enviar-orcamento", allow("APP", STAFF)),
+            Map.entry("POST /api/ordens-servico/{id}/finalizar", allow("APP", STAFF)),
+            Map.entry("POST /api/ordens-servico/{id}/entregar", allow("APP", STAFF)),
+
+            Map.entry("GET /api/admin/metricas/tempo-execucao-servicos", allow("APP", ADMIN)));
 
     @Test
     void eventContainsExactReferencesWithoutContactOrSecurityData() throws Exception {
@@ -125,6 +137,7 @@ class Phase3ContractTest {
         assertThat(controllerBindings.keySet()).doesNotContainAnyElementsOf(PLANNED_BINDINGS.keySet());
         Map<String, String> expectedBindings = new LinkedHashMap<>(controllerBindings);
         expectedBindings.putAll(PLANNED_BINDINGS);
+        assertThat(EXPECTED_POLICIES.keySet()).containsExactlyInAnyOrderElementsOf(expectedBindings.keySet());
 
         Map<String, JsonNode> routesByKey = new LinkedHashMap<>();
         for (JsonNode route : root.path("routes")) {
@@ -134,13 +147,11 @@ class Phase3ContractTest {
         }
         assertThat(routesByKey.keySet()).containsExactlyInAnyOrderElementsOf(expectedBindings.keySet());
 
-        expectedBindings.forEach((routeKey, operation) -> assertRoute(
-                routesByKey.get(routeKey),
-                routeKey,
-                expectedOwner(routeKey),
-                operation,
-                expectedDecision(routeKey),
-                expectedGrants(routeKey)));
+        expectedBindings.forEach((routeKey, operation) -> {
+            RoutePolicy policy = EXPECTED_POLICIES.get(routeKey);
+            assertRoute(routesByKey.get(routeKey), routeKey, policy.owner(), operation,
+                    policy.decision(), policy.grants());
+        });
     }
 
     private static void assertEnvironment(JsonNode environment, String name) {
@@ -173,8 +184,22 @@ class Phase3ContractTest {
     }
 
     private static Map<String, String> controllerBindings() {
+        ClassPathScanningCandidateComponentProvider scanner =
+                new ClassPathScanningCandidateComponentProvider(false);
+        scanner.addIncludeFilter(new AnnotationTypeFilter(Controller.class, true, true));
+
         Map<String, String> bindings = new LinkedHashMap<>();
-        for (Class<?> controller : CONTROLLERS) {
+        Set<BeanDefinition> candidates = scanner.findCandidateComponents("com.oficina.controller");
+        assertThat(candidates).as("discovered Spring controllers").isNotEmpty();
+        for (BeanDefinition candidate : candidates) {
+            String className = candidate.getBeanClassName();
+            assertThat(className).as("controller class name").isNotNull();
+            Class<?> controller;
+            try {
+                controller = Class.forName(className);
+            } catch (ClassNotFoundException exception) {
+                throw new AssertionError("Cannot load discovered controller " + className, exception);
+            }
             RequestMapping classMapping = AnnotatedElementUtils.findMergedAnnotation(controller, RequestMapping.class);
             assertThat(classMapping).as("class mapping for %s", controller.getSimpleName()).isNotNull();
             String basePath = singlePath(classMapping);
@@ -224,34 +249,12 @@ class Phase3ContractTest {
         return new Grant(grant.path("actor").textValue(), roles, scopes);
     }
 
-    private static String expectedOwner(String routeKey) {
-        return routeKey.equals("POST /api/auth/cpf/desafios")
-                || routeKey.equals("POST /api/auth/cpf/verificar") ? "FUN" : "APP";
+    private static RoutePolicy allow(String owner, Set<Grant> grants) {
+        return new RoutePolicy(owner, "ALLOW", grants);
     }
 
-    private static String expectedDecision(String routeKey) {
-        return routeKey.equals(RETIRED_EMAIL_ROUTE) ? "DENY" : "ALLOW";
-    }
-
-    private static Set<Grant> expectedGrants(String routeKey) {
-        if (routeKey.equals(RETIRED_EMAIL_ROUTE)) {
-            return Set.of();
-        }
-        if (PUBLIC_ROUTES.contains(routeKey)) {
-            return Set.of(new Grant("anonymous", Set.of(), Set.of()));
-        }
-        if (CUSTOMER_DECISION_ROUTES.contains(routeKey)) {
-            return Set.of(new Grant("customer", Set.of(), Set.of("orders:decide:self")));
-        }
-        if (routeKey.equals(CUSTOMER_TRACKING_ROUTE)) {
-            return Set.of(
-                    new Grant("customer", Set.of(), Set.of("orders:read:self")),
-                    new Grant("staff", Set.of("ADMIN", "MECANICO"), Set.of()));
-        }
-        Set<String> staffRoles = ADMIN_ONLY_ROUTES.contains(routeKey)
-                ? Set.of("ADMIN")
-                : Set.of("ADMIN", "MECANICO");
-        return Set.of(new Grant("staff", staffRoles, Set.of()));
+    private static RoutePolicy deny(String owner) {
+        return new RoutePolicy(owner, "DENY", Set.of());
     }
 
     private static Set<String> strings(JsonNode array) {
@@ -282,4 +285,6 @@ class Phase3ContractTest {
     }
 
     private record Grant(String actor, Set<String> roles, Set<String> scopes) {}
+
+    private record RoutePolicy(String owner, String decision, Set<Grant> grants) {}
 }
