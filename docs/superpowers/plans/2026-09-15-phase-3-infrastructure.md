@@ -36,7 +36,7 @@ Each owner publishes `outputs.v1.json` with `schemaVersion=1`, `environment`, `s
 
 Inputs include actual account ID/human deployment role, GitHub owner/repository identities/visibility, deployment-role names, operator email, verified SES identities, a concrete UTC cloud window and current credit/eligibility evidence. Obtain these from the user's account/confirmed destinations at execution; do not put invented account IDs, emails or active URLs into release files. Unknown required input fails before apply. PR validation uses separate synthetic fixture values.
 
-### I1: Implement protected state and federated bootstrap
+### Task 1 (I1): Implement protected state and federated bootstrap
 
 **Files:** K8S Create `infra/bootstrap/`, `infra/modules/bootstrap/`, `infra/modules/bootstrap/tests/bootstrap.tftest.hcl`, `scripts/check-deployment-inputs.ps1`, `contracts/deployment-inputs.schema.json`, `docs/bootstrap.md`.
 
@@ -69,7 +69,7 @@ Each root gets its own `key`; caller needs Get/Put state and Get/Put/Delete its 
 - [ ] **4 — Verify.** Run mock tests with wrong subject/absent required input cases, validate/fmt and inspect generated trust policies. No apply yet. Write the exact bootstrap/state-migration commands in `docs/bootstrap.md` with variables from the validated input file, never plaintext credentials.
 - [ ] **5 — Commit.** Stage bootstrap/scripts/contracts/docs in K8S; `git commit -m "infra: define protected state and OIDC bootstrap"`.
 
-### I2: Define network, fixed EKS capacity and private deployment executors
+### Task 2 (I2): Define network, fixed EKS capacity and private deployment executors
 
 **Files:** K8S Create `infra/foundation/`, `infra/modules/network/`, `infra/modules/cluster/`, `infra/modules/deployment-executor/`, `infra/modules/cluster/tests/capacity.tftest.hcl`, `infra/modules/network/tests/network.tftest.hcl`, `images/deployer/Dockerfile`, `docs/network-capacity.md`.
 
@@ -93,7 +93,7 @@ assert {
 - [ ] **4 — Verify.** Run provider tests/validate/fmt, output-schema tests, and calculate requests versus allocatable memory/CPU/pod ENI limits in the capacity report. Initial hypothesis remains total 3.25 CPU/9 GiB requests including two app surge pods; real verification occurs in R4. Exercise node-update sequencing in configuration checks, not live replacement during planning.
 - [ ] **5 — Commit.** Stage foundation/modules/tests/docs; `git commit -m "infra: define bounded EKS and private execution"`.
 
-### I3: Provision private managed PostgreSQL and role bootstrap contract
+### Task 3 (I3): Provision private managed PostgreSQL and role bootstrap contract
 
 **Files:** DB Create environment roots, `infra/modules/postgres/`, `infra/modules/postgres/tests/postgres.tftest.hcl`, `README.md`; APP Create `scripts/database/bootstrap-roles.sql`, `scripts/database/check-role-permissions.sql`, `src/test/java/com/oficina/repository/DatabaseRolesTest.java`.
 
@@ -116,7 +116,7 @@ assert {
 - [ ] **4 — Verify.** DB mock plan/validate/fmt; APP `DatabaseRolesTest` with real PostgreSQL. Calculate max app connections (5/pod including publisher/report use) plus migration/functions/warm churn against the actual RDS limit at R4. No timeout/connection guess is accepted as a measurement.
 - [ ] **5 — Commit.** Commit DB infra as `infra: define managed PostgreSQL environments`; APP role scripts/tests as `test: enforce database runtime privileges`.
 
-### I4: Define environment ingress, Kubernetes isolation and services
+### Task 4 (I4): Define environment ingress, Kubernetes isolation and services
 
 **Files:** K8S Create staging/production roots, `infra/modules/platform-environment/`, `k8s/platform/`, `infra/environments/staging/tests/platform.tftest.hcl`, `tests/namespace-isolation.ps1`; APP Create stable `k8s/base/service.yaml`.
 
@@ -137,7 +137,7 @@ The separate health integration overwrites path with `/api/actuator/health/readi
 - [ ] **4 — Verify.** Terraform tests/rendering and Kind isolation tests (with a policy-enforcing local CNI); do not call a deny policy tested if Kind's default networking ignores it. Record actual ALB readiness thresholds and test protected/public paths in R4. No claim of end-to-end TLS across the approved private HTTP segment.
 - [ ] **5 — Commit.** Stage platform/policy/isolation tests and APP Service in their owners; `git commit -m "infra: isolate environment ingress and workloads"`.
 
-### I5: Define functions, FIFO/DynamoDB resources and auth routes
+### Task 5 (I5): Define functions, FIFO/DynamoDB resources and auth routes
 
 **Files:** FUN Create environment roots, `infra/modules/functions/`, `infra/modules/functions/tests/functions.tftest.hcl`, `docs/runtime-permissions.md`.
 
@@ -149,7 +149,7 @@ The separate health integration overwrites path with `/api/actuator/health/readi
 - [ ] **4 — Verify.** Mock plan/validate/fmt and IAM policy assertions: auth lookup cannot mutate DB, notification can read/delete only its queue and update only its ledger, signer private key is scoped to verification, publisher can only SendMessage to its environment queue. Recount all secrets against the approved 16-secret allowance; no new role may silently broaden the credential bundle to hide a count excess.
 - [ ] **5 — Commit.** Stage function infra/tests/docs; `git commit -m "infra: define authenticated serverless delivery"`.
 
-### I6: Define application rollout, migrations and artifact bindings
+### Task 6 (I6): Define application rollout, migrations and artifact bindings
 
 **Files:** APP Create `infra/aws/staging/`, `infra/aws/production/`, `k8s/base/deployment.yaml`, `k8s/base/hpa.yaml`, `k8s/base/pdb.yaml`, environment overlays, `k8s/jobs/migrate.yaml`, `scripts/deploy-app.ps1`, `docs/runbooks/first-writer-cutover.md`; Modify Dockerfile and local Kind configuration; Test `tests/deployment-contract.ps1`.
 
@@ -161,7 +161,7 @@ The separate health integration overwrites path with `/api/actuator/health/readi
 - [ ] **4 — Verify.** Run `kubectl kustomize k8s/overlays/staging`, the manifest contract script, and a disposable Kind upgrade from V4 with old-writer drain. Verify the target Service/binding comes up, migration failure prevents app release, and no resource exceeds the combined capacity envelope at configured max/surge.
 - [ ] **5 — Commit.** Stage manifests/scripts/Dockerfile/tests/runbook; `git commit -m "deploy: sequence migrations and immutable app rollout"`.
 
-### I7: Implement branch-driven pipelines and verifiable output promotion
+### Task 7 (I7): Implement branch-driven pipelines and verifiable output promotion
 
 **Files:** Each repository Create/Modify `.github/workflows/ci-cd.yml`, `buildspec.deploy.yml`, `scripts/deploy.ps1`, `scripts/start-deploy.ps1`, `scripts/export-outputs.ps1`, `contracts/outputs-allowlist.json`, `tests/pipeline-contract.ps1`; K8S Create `scripts/check-cloud-window.ps1`, `docs/deployment-sequence.md` and branch-protection configuration/evidence instructions.
 

@@ -20,7 +20,7 @@ All paths in this document belong to APP. Keep existing `entity`, `service`, `co
 
 Create `support/PostgresIntegrationSupport.java` in A1: an abstract `@SpringBootTest` test base with a shared PostgreSQLContainer, `@DynamicPropertySource` JDBC settings, injected `JdbcTemplate`/`TransactionTemplate`, and Docker required. Each integration class seeds its own UUID fixtures inside PostgreSQL; no H2 substitution. Create `support/Fixtures.java` with `Cliente cliente(UUID id)`, `Veiculo veiculo(Cliente c)`, `OrdemServico ordem(Cliente c, StatusOrdemServico status)` using existing builders, plus `UUID` constants for two different synthetic customers and one staff member. Seed persisted fixtures through repositories so FKs and generated numbers are real.
 
-### A1: Version customer identity and expose the narrow auth view
+### Task 1 (A1): Version customer identity and expose the narrow auth view
 
 **Files:** Modify `entity/Cliente.java`, `service/ClienteService.java`, `repository/ClienteRepository.java`; Create `src/main/resources/db/migration/V5__versionar_identidade_cliente.sql`, `domain/identidade/DadosIdentidadeCliente.java`, `repository/ClienteIdentityAuditRepository.java`, `config/ClockConfiguration.java`, the support files above; Test `entity/ClienteIdentityTest.java`, `repository/ClienteIdentityPersistenceTest.java`.
 
@@ -54,7 +54,7 @@ Map `versao` with `@Version`. V5 also creates `cliente_identidade_auditoria(id U
 - [ ] **4 — Verify.** `./mvnw.cmd -B '-Dtest=ClienteIdentityTest,ClienteIdentityPersistenceTest,ClienteServiceTest' test`, then `verify`. A concurrent stale save must fail; the surviving identity version matches the committed record.
 - [ ] **5 — Commit.** Stage the named entity/service/view/test files; `git commit -m "feat: version customer identity changes"`.
 
-### A2: Add actor references, canonical history and optimistic aggregate versions
+### Task 2 (A2): Add actor references, canonical history and optimistic aggregate versions
 
 **Files:** Modify `entity/OrdemServico.java`, `entity/OsHistorico.java`, `entity/Peca.java`, `service/OrdemServicoService.java`, `exception/GlobalExceptionHandler.java`; Create `domain/identidade/Ator.java`, `domain/identidade/TipoAtor.java`, `src/main/resources/db/migration/V6__versionar_agregados_e_historico.sql`; consume A1 ClockConfiguration; Test `entity/HistoriaCanonicaTest.java`, `repository/ConcorrenciaAgregadosTest.java` and existing entity/service tests.
 
@@ -80,7 +80,7 @@ Map `versao` with `@Version`. V5 also creates `cliente_identidade_auditoria(id U
 - [ ] **4 — Verify clock and cutover.** `./mvnw.cmd -B '-Dtest=HistoriaCanonicaTest,ConcorrenciaAgregadosTest,OrdemServicoTest,PecaTest,GlobalExceptionHandlerTest' test`. Derive legacy compatibility timestamps from the supplied instant and an explicitly configured provenance-based zone; new synthetic cloud data uses documented UTC. A live legacy deployment with unknown provenance cannot run an invented backfill. Document old-writer drain/Recreate for this first migration in I6.
 - [ ] **5 — Commit.** Stage the listed files and adapted callers/tests; `git commit -m "feat: preserve actor and concurrent order history"`.
 
-### A3: Separate customer and staff trust in the API
+### Task 3 (A3): Separate customer and staff trust in the API
 
 **Files:** Modify `config/JwtService.java`, `config/JwtProperties.java`, `config/JwtAuthenticationFilter.java`, `config/SecurityUtils.java`, `config/SecurityConfig.java`; Create `security/TipoPrincipal.java`, `security/IdentidadeAutenticada.java`, `security/ValidadorToken.java`, `security/CustomerTokenValidator.java`, `security/StaffTokenValidator.java`, `security/AtorContexto.java`; Test `security/TokenTrustTest.java`, `config/JwtAuthenticationFilterTest.java`, `config/JwtServiceTest.java`.
 
@@ -101,7 +101,7 @@ Map `versao` with `@Version`. V5 also creates `cliente_identidade_auditoria(id U
 - [ ] **4 — Verify.** Run the three named test classes and existing auth/controller tests. Extend `JwtProperties` with trust configuration instead of hardcoded deployment secrets; test fixtures provide exact values. Staff must re-login after rollout, as already approved.
 - [ ] **5 — Commit.** Stage named validators/config/tests; `git commit -m "feat: isolate customer and staff token trust"`.
 
-### A4: Enforce owned customer reads/decisions and retire email mutation
+### Task 4 (A4): Enforce owned customer reads/decisions and retire email mutation
 
 **Files:** Modify `controller/OrdemServicoController.java`, `service/OrdemServicoService.java`, `config/SecurityConfig.java`, `dto/AcompanhamentoOsResponse.java`, `config/OpenApiConfig.java`; Create `dto/DecisaoClienteRequest.java`; Test `controller/CustomerOrderSecurityTest.java`, `service/CustomerOrderDecisionTest.java`; update existing controller/service tests and Postman examples.
 
@@ -125,7 +125,7 @@ Map `versao` with `@Version`. V5 also creates `cliente_identidade_auditoria(id U
 - [ ] **4 — Verify.** Run `CustomerOrderSecurityTest,CustomerOrderDecisionTest,OrdemServicoControllerTest,OrdemServicoServiceTest` then `verify`; assert one committed approval, one stock deduction and no cross-owner mutation. Update OpenAPI/examples/re-login release notes in this commit.
 - [ ] **5 — Commit.** Stage listed files, removed obsolete email mutation DTO/config only after all callers are removed, and tests; `git commit -m "feat: authorize customer order decisions"`.
 
-### A5: Persist notification intent inside the business transaction
+### Task 5 (A5): Persist notification intent inside the business transaction
 
 **Files:** Modify `application/port/out/NotificacaoPort.java`, `service/OrdemServicoService.java`, `adapter/out/mail/EmailNotificacaoAdapter.java`; Create `application/notificacao/StatusOrdemServicoRegistrado.java`, `adapter/out/outbox/OutboxNotificacaoAdapter.java`, `src/main/resources/db/migration/V7__criar_outbox_e_destinatario.sql`; Test `adapter/out/outbox/OutboxTransactionTest.java` and contract test.
 
@@ -151,7 +151,7 @@ Map `versao` with `@Version`. V5 also creates `cliente_identidade_auditoria(id U
 - [ ] **4 — Verify.** Run `OutboxTransactionTest,Phase3ContractTest,OrdemServicoServiceTest`; add rollback tests at stock/history/outbox boundaries and unique-event retry. Validate the recipient view with inactive/contact-version changes and CNPJ fixtures; its GRANT test follows I3/I6.
 - [ ] **5 — Commit.** Stage listed files/tests; `git commit -m "feat: persist transactional notification intent"`.
 
-### A6: Publish FIFO events without overtaking predecessors
+### Task 6 (A6): Publish FIFO events without overtaking predecessors
 
 **Files:** Create `application/notificacao/PublicadorFila.java`, `adapter/out/outbox/OutboxPublisher.java`, `adapter/out/sqs/SqsPublicadorFila.java`, `config/OutboxConfiguration.java`, `scripts/database/purge-published-outbox.sql`; Test `adapter/out/outbox/OutboxPublisherTest.java`, `adapter/out/sqs/SqsPublicadorFilaTest.java`; Modify APP `pom.xml` with the B1-pinned SDK SQS dependency.
 
@@ -184,7 +184,7 @@ Configure SDK API-call timeout 2 seconds and one total attempt. Schedule one bou
 - [ ] **4 — Verify.** Run both named tests and `verify`. Assert payload ≤8 KiB, safe error codes, no ordering bypass on delayed predecessor, and max five Hikari connections includes publisher use. Retention SQL selects only PUBLISHED rows older than 7 days; never purge PENDING/BLOCKED or delete referenced recovery audit implicitly. Provide preview/export before its maintenance deletion path, and test the age/state predicates with real PostgreSQL. Inspected BLOCKED retry/skip uses the R4 recovery command and audit table; no automatic skip.
 - [ ] **5 — Commit.** Stage publisher/SDK/config/test/POM changes; `git commit -m "feat: publish ordered notification events"`.
 
-### A7: Implement canonical SQL business reports
+### Task 7 (A7): Implement canonical SQL business reports
 
 **Files:** Create `application/relatorio/RelatoriosPort.java`, `application/relatorio/RelatorioPeriodo.java`, `application/relatorio/DuracaoStatus.java`, `application/relatorio/StatusAtual.java`, `adapter/out/relatorio/JdbcRelatoriosAdapter.java`, `controller/RelatoriosAdminController.java`, `src/main/resources/queries/relatorio-periodo.sql`, `src/main/resources/db/migration/V8__indexar_relatorios.sql`; Test `adapter/out/relatorio/RelatorioPeriodoTest.java`, `controller/RelatoriosAdminControllerTest.java`.
 

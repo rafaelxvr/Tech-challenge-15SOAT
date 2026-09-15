@@ -60,7 +60,7 @@ Each Java task follows one failing scenario at a time; a listed scenario matrix 
 
 For infrastructure, provider-mocked `terraform test` tests configuration semantics; they do not prove cloud permissions or service eligibility. A missing managed provider attribute is a dependency-compatibility failure to fix before apply. Commit provider lockfiles and exact image/chart/layer/source pins when resolved; no runtime `latest` selection. Use the installed Terraform 1.15.8 as the initial CLI pin, already above the S3-locking requirement; do not upgrade it as an unrelated task.
 
-### B1: Establish a Java 17 baseline and tool lock
+### Task 1 (B1): Establish a Java 17 baseline and tool lock
 
 **Files:** APP Create `mvnw`, `mvnw.cmd`, `.mvn/wrapper/maven-wrapper.properties`, `scripts/check-toolchain.ps1`, `toolchain.lock.json`, `docs/phase-3/evidence/baseline.md`; Modify `.github/workflows/ci-cd.yml`, `README.md`.
 
@@ -101,7 +101,7 @@ JSON encoder compatibility is an explicit check: release 9 migrates to Jackson3;
 - [ ] **4 — Verify.** Run `./mvnw.cmd -B verify` under Java 17 and the existing Kind job. Expected: current tests/coverage pass, or the evidence records a specific unresolved baseline failure and subsequent work that depends on it waits. A new integration-test job must successfully run `docker info` before Maven.
 - [ ] **5 — Commit exact files.** `git add -- mvnw mvnw.cmd .mvn/wrapper scripts/check-toolchain.ps1 toolchain.lock.json docs/phase-3/evidence/baseline.md .github/workflows/ci-cd.yml README.md`; `git commit -m "build: make phase 3 verification reproducible"`.
 
-### B2: Establish repository boundaries and executable wire fixtures
+### Task 2 (B2): Establish repository boundaries and executable wire fixtures
 
 **Files:** APP Create `contracts/phase3-v1/status-event.json`, `contracts/phase3-v1/token-claims.json`, `contracts/phase3-v1/routes.json`, `contracts/phase3-v1/lookup-views.md`, `contracts/phase3-v1/README.md`, `src/test/java/com/oficina/contracts/Phase3ContractTest.java`; FUN Create `pom.xml`, Maven wrapper files, `contracts/phase3-v1/`, `src/test/java/com/oficina/functions/contracts/Phase3ContractTest.java`; K8S/DB Create `.gitignore`, `README.md` and initial `infra/` directories.
 

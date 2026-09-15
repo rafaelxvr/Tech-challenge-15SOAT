@@ -18,7 +18,7 @@ New Relic Free, no paid features; telemetry allocation US$3; at most 3 GB combin
 
 R1/R2 add APP `adapter/out/observability`, `application/observability`, `config` and FUN `observability` adapters. K8S owns the New Relic `infra/monitoring` state, chart values and shared dashboards/topics; FUN owns its resource-dimensioned AWS alarms. APP hosts the documentation/evidence index and submission scripts. Other repositories keep their specific README/diagram details and link to that index.
 
-### R1: Instrument privacy-safe logs, trace boundaries and probes
+### Task 1 (R1): Instrument privacy-safe logs, trace boundaries and probes
 
 **Files:** APP Create `src/main/resources/logback-spring.xml`, `src/main/java/com/oficina/config/CorrelationFilter.java`, `src/main/java/com/oficina/adapter/out/observability/NewRelicOrderTelemetry.java`, `src/main/java/com/oficina/application/observability/OrderTelemetry.java`; Modify `application.yml`, cloud profiles, HTTP/use-case exception boundaries and Dockerfile. FUN Create `observability/JsonLogger.java`, `observability/TraceContextAdapter.java`; Modify handlers. Test APP `config/ObservabilityContractTest.java`, `config/HealthGroupsTest.java`; FUN `observability/TelemetryPrivacyTest.java`.
 
@@ -54,7 +54,7 @@ Startup liveness every 5 seconds/24 failures, normal liveness every10/3 failures
 - [ ] **4 — Verify.** Run named tests plus security/regression suites. DB outage must make readiness DOWN while liveness stays UP. Validate JSON/privacy across app logs, gateway allowlist and agent payloads, including exceptions. Pin standard sampled tracing and initial app span reservoir 500/harvest; Lambda layer equivalent is validated for the selected version. Measure cold starts later; no assertion that all error traces are retained.
 - [ ] **5 — Commit.** Stage named instrumentation/config/tests in APP/FUN; `git commit -m "feat: correlate private telemetry and health checks"`.
 
-### R2: Export business snapshots and provision dashboards/alerts
+### Task 2 (R2): Export business snapshots and provision dashboards/alerts
 
 **Files:** APP Create `src/main/java/com/oficina/adapter/out/observability/NewRelicSnapshotExporter.java`, `src/main/java/com/oficina/application/observability/SnapshotScheduler.java`, `src/test/java/com/oficina/adapter/out/observability/SnapshotExportTest.java`, `observability/dashboard-queries.json`; K8S Create `observability/newrelic-values.yaml`, `infra/monitoring/`, `infra/monitoring/tests/monitoring.tftest.hcl`; FUN Create `infra/modules/functions/alarms.tf` and alarm tests.
 
@@ -86,7 +86,7 @@ Install a minimal pinned nri-bundle with low-data mode, explicit 60-second targe
 - [ ] **4 — Green alerts/verify.** Reproduce every step 4C threshold: order technical failures, sustained uptime/error ratio, outbox BLOCKED/age, capacity/pending pods, integration failures, missing heartbeat/drop/usage. Native FUN alarms cover source age>300 seconds for2 one-minute periods, DLQ depth>0 and Lambda throttles; metric dimensions identify the exact environment resources. SNS topics/verified operator subscription handle native alarms; New Relic sends its own operator alerts. Missing AWS data is displayed as unknown, not proof of health. Run exporter tests, Terraform tests/fmt/validate and chart resource accounting; actual alert delivery/cold-start/volume checks remain R4.
 - [ ] **5 — Commit.** Stage export/query/chart/monitoring/alarms/tests per owner; `git commit -m "feat: expose business and infrastructure observability"`.
 
-### R3: Deliver architectural documents and runbooks with each feature
+### Task 3 (R3): Deliver architectural documents and runbooks with each feature
 
 **Files:** APP Create `docs/phase-3/README.md`, `docs/phase-3/architecture/components.md`, `authentication-sequence.md`, `order-opening-sequence.md`, `data-model.md`; `docs/rfcs/001-aws-profile.md`, `002-postgresql-model.md`, `003-cpf-authentication.md`, `004-notifications.md`, `005-observability.md`; `docs/adrs/001-modular-monolith.md`, `002-environment-scaling.md`, `003-token-trust.md`, `004-outbox-delivery.md`, `005-canonical-reporting.md`; update existing DDD/Postman docs after explicit file audit. All four repositories Modify README.md and create their `docs/architecture.md`. APP Create `scripts/check-doc-links.py` and contract snapshots under `docs/phase-3/api/`.
 
@@ -98,7 +98,7 @@ Install a minimal pinned nri-bundle with low-data mode, explicit 60-second targe
 - [ ] **4 — Verify.** `python scripts/check-doc-links.py docs README.md`; manually render Mermaid and compare labels/relationships with applied schemas/manifests. Export OpenAPI/Postman without credentials. Required generated outputs become committed artifacts or durable release attachments with verified links.
 - [ ] **5 — Commit.** Stage exact docs/checker/API exports; `git commit -m "docs: explain phase 3 architecture and operations"`.
 
-### R4: Rehearse AWS deployment, failure/recovery and credit limits
+### Task 4 (R4): Rehearse AWS deployment, failure/recovery and credit limits
 
 **Files:** APP Create `scripts/rehearsal/check-readiness.ps1`, `smoke.ps1`, `verify-evidence.ps1`, `recover-outbox.ps1`, `replay-notification.ps1`; `docs/phase-3/evidence/manifest.json`, `docs/phase-3/evidence/cloud-window.md`, `docs/runbooks/cleanup.md`; tests `tests/rehearsal-contract.ps1`. K8S/FUN/DB contribute their real outputs/plan/run evidence.
 
@@ -110,7 +110,7 @@ Install a minimal pinned nri-bundle with low-data mode, explicit 60-second targe
 - [ ] **4 — Export and measure.** Capture the 30/50/20-minute SQL/dashboard fixture, namespace denial, readiness-vs-liveness outage behavior, agent/JVM/collector memory, cold starts, connections, actual telemetry ingestion and AWS projected costs. Stop discretionary load at telemetry80%; preserve margin for delayed metering. For BLOCKED retry/skip, preview exact event/order/dependencies, execute only the reviewed action and append `outbox_recuperacoes`. DLQ replay retains original event ID and applies the approved stale policy; no automatic bulk redrive. Capture evidence before one-day logs expire.
 - [ ] **5 — Record the result and cleanup proposal.** Run `./scripts/rehearsal/verify-evidence.ps1`; fail if a required outcome is NOT_RUN/FAIL or a link/digest is absent. Commit redacted evidence metadata as `test: record phase 3 cloud acceptance`. Prepare the exact resource/export/retention/cost cleanup list for destructive-action confirmation; do not destroy or schedule an automation just because the window has an end. After separately authorized cleanup, disable pings/mute operational alerts and mark endpoints offline truthfully.
 
-### R5: Prepare the video and single submission PDF
+### Task 5 (R5): Prepare the video and single submission PDF
 
 **Files:** APP Create `docs/phase-3/submission/video-script.md`, `submission-manifest.json`, `scripts/submission/build_pdf.py`, `scripts/submission/check_submission.py`; output `artifacts/phase-3-submission.pdf` and the evidence/video source records. These scripts use a pinned local PDF library/runtime resolved at execution, not a paid cloud rendering service.
 

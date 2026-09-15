@@ -43,7 +43,7 @@ public record TokenResposta(String accessToken, String tokenType, int expiresIn)
 
 Records holding byte arrays copy them defensively. A missing/inactive customer's dummy challenge has no customer UUID and can never issue a token. Hashes of CPF/source identifiers are pseudonymous, not anonymous; keep them in the protected short-lived state store, never logs/metric labels. F1 also owns `AutenticacaoException(int status,String codigo)` for safe boundary errors and `OtpHasher.hash(String,byte[]): byte[]`/`verificar(String,byte[],byte[]): boolean`.
 
-### F1: Implement authentication use cases with deterministic tests
+### Task 1 (F1): Implement authentication use cases with deterministic tests
 
 **Files:** Create the records/ports above, `auth/Cpf.java`, `auth/CriarDesafio.java`, `auth/VerificarDesafio.java`, `auth/OtpHasher.java`, `auth/SecureCodigoGenerator.java`; Test `auth/CpfAuthenticationTest.java`, `auth/OtpHasherTest.java`, `support/InMemoryDesafioStore.java`.
 
@@ -66,7 +66,7 @@ Records holding byte arrays copy them defensively. A missing/inactive customer's
 - [ ] **4 — Verify.** Run `CpfAuthenticationTest,OtpHasherTest` and `verify`; assert generic response contains only opaque challenge ID/300 seconds, never email/UUID/token. Known and unknown syntactically valid CPF attempts use the same per-CPF issuance policy so cooldown status does not become a simple existence oracle. Do not claim constant-time network/database behavior.
 - [ ] **5 — Commit.** Stage auth/fixture tests; `git commit -m "feat: implement CPF challenge use cases"`.
 
-### F2: Implement atomic DynamoDB state and restricted customer lookup
+### Task 2 (F2): Implement atomic DynamoDB state and restricted customer lookup
 
 **Files:** Create `adapter/aws/DynamoDesafioStore.java`, `adapter/jdbc/JdbcClienteLookup.java`, `bootstrap/ConnectionProvider.java`; Test `adapter/aws/DynamoDesafioStoreTest.java`, `adapter/jdbc/JdbcClienteLookupTest.java`; Create `docs/challenge-state.md`.
 
@@ -86,7 +86,7 @@ assertThat(captor.getValue().transactItems().get(1).update().conditionExpression
 - [ ] **4 — Verify.** Run both named tests. Mark actual AWS conditional-transaction races as R4 cloud acceptance, because mocked request-shape tests alone do not establish DynamoDB semantics. Local in-memory atomic tests remain useful for use-case behavior.
 - [ ] **5 — Commit.** Stage adapters/tests/state contract; `git commit -m "feat: persist atomic authentication challenges"`.
 
-### F3: Issue customer tokens and authorize explicit routes
+### Task 3 (F3): Issue customer tokens and authorize explicit routes
 
 **Files:** Create `auth/RsaTokenSigner.java`, `auth/CustomerTokenVerifier.java`, `auth/StaffTokenVerifier.java`, `auth/RoutePolicy.java`, `auth/Authorizer.java`, `auth/VerifiedPrincipal.java`; Test `auth/TokenAndRoutePolicyTest.java`; consume B2 `token-claims.json`/`routes.json` and A3 fixtures semantically.
 
@@ -106,7 +106,7 @@ assertThat(routePolicy.permite(new VerifiedPrincipal("customer", customerId.toSt
 - [ ] **4 — Verify.** Run `TokenAndRoutePolicyTest,Phase3ContractTest`, and a contract fixture signed in FUN validated in APP's A3 test (public fixture keys only). Assert tampering/purpose/algorithm cases fail on both sides. Document public-key overlap through maximum JWT lifetime plus configured clock skew before retiring an old key.
 - [ ] **5 — Commit.** Stage signer/verifiers/policy/tests; `git commit -m "feat: sign customer tokens and enforce route policy"`.
 
-### F4: Adapt HTTP API events, SES OTP and Lambda packaging
+### Task 4 (F4): Adapt HTTP API events, SES OTP and Lambda packaging
 
 **Files:** Create `handler/CriarDesafioHandler.java`, `handler/VerificarDesafioHandler.java`, `handler/AuthorizerHandler.java`, `handler/HttpResponses.java`, `adapter/aws/SesEnviarCodigo.java`, `bootstrap/FunctionFactory.java`; Modify `pom.xml`; Test `handler/HttpHandlersTest.java`, `adapter/aws/SesEnviarCodigoTest.java`; Create `contracts/phase3-v1/http-events/` fixture JSON files.
 
@@ -127,7 +127,7 @@ assertThat(body.toString()).doesNotContain("123456", "example.invalid", "accessT
 - [ ] **4 — Verify.** Run both named tests and `verify`; inspect JAR entries with `jar tf target/oficina-functions.jar`. Expect the three authentication entry points now; F5 adds the fourth notification entry point before I5 deploys the package. Set the shaded artifact final name to `oficina-functions` in this task. R4 verifies actual managed gateway 401/403 behavior instead of assuming local response fixtures prove it.
 - [ ] **5 — Commit.** Stage handler/bootstrap/SES/package/fixture files; `git commit -m "feat: expose serverless authentication handlers"`.
 
-### F5: Consume notifications with leases, deduplication and stale suppression
+### Task 5 (F5): Consume notifications with leases, deduplication and stale suppression
 
 **Files:** Create `notification/StatusOrdemServicoRegistrado.java` (B2 wire record), `notification/Destinatario.java`, `notification/DestinatarioLookup.java`, `notification/DeliveryLedger.java`, `notification/ClaimResult.java`, `notification/StatusEmailSender.java`, `notification/NotificarStatus.java`, `adapter/aws/DynamoDeliveryLedger.java`, `adapter/aws/SesStatusEmailSender.java`, `adapter/jdbc/JdbcDestinatarioLookup.java`, `handler/NotificacaoHandler.java`; Test `notification/NotificarStatusTest.java`, `adapter/aws/DynamoDeliveryLedgerTest.java`, `handler/NotificacaoHandlerTest.java`.
 
