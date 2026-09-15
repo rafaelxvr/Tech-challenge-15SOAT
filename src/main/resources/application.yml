@@ -11,9 +11,9 @@ spring:
     password: ${DB_PASSWORD:oficina123}
     driver-class-name: org.postgresql.Driver
     hikari:
-      maximum-pool-size: 10
+      maximum-pool-size: 5
       minimum-idle: 2
-      connection-timeout: 30000
+      connection-timeout: 1000
       idle-timeout: 600000
       max-lifetime: 1800000
 
@@ -88,6 +88,10 @@ security:
       # Map each trusted kid to an X.509 SubjectPublicKeyInfo PEM RSA public key; no URL resolution.
 
 oficina:
+  outbox:
+    enabled: ${OUTBOX_ENABLED:false}
+    region: ${AWS_REGION:us-east-1}
+    queue-url: ${OUTBOX_QUEUE_URL:}
   historico:
     # Fresh synthetic installations use UTC. Existing deployments must supply a proven
     # compatibility zone; this setting NEVER backfills legacy canonical timestamps.
