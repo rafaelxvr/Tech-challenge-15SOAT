@@ -1,6 +1,9 @@
 package com.oficina.service;
 
 import com.oficina.dto.ClienteRequest;
+import com.oficina.config.SecurityUtils;
+import com.oficina.domain.identidade.DadosIdentidadeCliente;
+import com.oficina.repository.ClienteIdentityAuditRepository;
 import com.oficina.dto.ClienteResponse;
 import com.oficina.entity.Cliente;
 import com.oficina.entity.TipoDocumento;
@@ -12,9 +15,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
+import java.util.Set;
+import java.time.Clock;
 
 @Service
 @RequiredArgsConstructor
@@ -23,6 +29,8 @@ public class ClienteService {
     private static final String ENTIDADE = "Cliente";
 
     private final ClienteRepository clienteRepository;
+    private final ClienteIdentityAuditRepository identityAuditRepository;
+    private final Clock clock;
 
     @Transactional(readOnly = true)
     public Page<ClienteResponse> listar(Pageable pageable) {
@@ -39,11 +47,10 @@ public class ClienteService {
 
     @Transactional
     public ClienteResponse criar(ClienteRequest request) {
-        String doc = ValidadorDocumento.normalizarDigitos(request.documento());
-        ValidadorDocumento.validarCpfOuCnpj(doc);
-        TipoDocumento tipo = request.tipoDocumento() != null
-                ? request.tipoDocumento()
-                : ValidadorDocumento.inferirTipo(doc);
+        DadosIdentidadeCliente identidade = new DadosIdentidadeCliente(
+                request.tipoDocumento(), request.documento(), request.email(), true);
+        String doc = identidade.documento();
+        TipoDocumento tipo = identidade.tipoDocumento();
 
         if (clienteRepository.existsByDocumento(doc)) {
             throw new DuplicateEntityException(ENTIDADE, "documento", doc);
@@ -74,20 +81,16 @@ public class ClienteService {
                 .filter(Cliente::isAtivo)
                 .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, id));
 
-        String doc = ValidadorDocumento.normalizarDigitos(request.documento());
-        ValidadorDocumento.validarCpfOuCnpj(doc);
-        TipoDocumento tipo = request.tipoDocumento() != null
-                ? request.tipoDocumento()
-                : ValidadorDocumento.inferirTipo(doc);
+        DadosIdentidadeCliente identidade = new DadosIdentidadeCliente(
+                request.tipoDocumento(), request.documento(), request.email(), cliente.isAtivo());
+        String doc = identidade.documento();
 
         if (!doc.equals(cliente.getDocumento()) && clienteRepository.existsByDocumento(doc)) {
             throw new DuplicateEntityException(ENTIDADE, "documento", doc);
         }
 
+        atualizarIdentidade(cliente, identidade);
         cliente.setNome(request.nome());
-        cliente.setTipoDocumento(tipo);
-        cliente.setDocumento(doc);
-        cliente.setEmail(request.email());
         cliente.setTelefone(request.telefone());
         cliente.setCep(request.cep());
         cliente.setLogradouro(request.logradouro());
@@ -104,7 +107,19 @@ public class ClienteService {
     public void desativar(UUID id) {
         Cliente cliente = clienteRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, id));
-        cliente.setAtivo(false);
+        atualizarIdentidade(cliente, new DadosIdentidadeCliente(
+                cliente.getTipoDocumento(), cliente.getDocumento(), cliente.getEmail(), false));
+    }
+
+    private void atualizarIdentidade(Cliente cliente, DadosIdentidadeCliente novos) {
+        Set<String> campos = cliente.dadosIdentidade().camposAlterados(novos);
+        if (campos.isEmpty()) return;
+        UUID staffId = SecurityUtils.usuarioAutenticadoId().orElseThrow(
+                () -> new AuthenticationCredentialsNotFoundException("Funcionário autenticado é obrigatório."));
+        long anterior = cliente.getVersaoIdentidade();
+        cliente.atualizarIdentidade(novos);
+        identityAuditRepository.registrar(cliente.getId(), staffId, campos,
+                anterior, cliente.getVersaoIdentidade(), clock.instant());
     }
 
     @Transactional(readOnly = true)

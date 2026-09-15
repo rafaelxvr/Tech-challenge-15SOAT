@@ -217,7 +217,8 @@ class OrdemServicoServiceTest {
     @Test
     void aprovarPeloCliente_documentoDiverge_lanca() {
         Cliente cli = cliente(UUID.randomUUID());
-        cli.setDocumento("52998224725"); // outro CPF válido
+        cli.atualizarIdentidade(new com.oficina.domain.identidade.DadosIdentidadeCliente(
+                cli.getTipoDocumento(), "52998224725", cli.getEmail(), cli.isAtivo()));
         OrdemServico os = osBasica();
         os.setCliente(cli);
         os.setVeiculo(veiculo(cli));
@@ -533,7 +534,8 @@ class OrdemServicoServiceTest {
         Cliente cliente = cliente(clienteId);
         UUID outroCliente = UUID.randomUUID();
         Cliente donoVeiculo = cliente(outroCliente);
-        donoVeiculo.setDocumento("52998224725");
+        donoVeiculo.atualizarIdentidade(new com.oficina.domain.identidade.DadosIdentidadeCliente(
+                donoVeiculo.getTipoDocumento(), "52998224725", donoVeiculo.getEmail(), donoVeiculo.isAtivo()));
         Veiculo veiculo = veiculo(donoVeiculo);
 
         UUID sid = UUID.randomUUID();

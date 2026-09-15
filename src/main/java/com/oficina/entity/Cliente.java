@@ -1,5 +1,6 @@
 package com.oficina.entity;
 
+import com.oficina.domain.identidade.DadosIdentidadeCliente;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -12,9 +13,7 @@ import java.util.UUID;
 @Table(name = "clientes")
 @Getter
 @Setter
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Cliente {
 
     @Id
@@ -27,12 +26,15 @@ public class Cliente {
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(name = "tipo_documento", nullable = false, columnDefinition = "tipo_documento")
+    @Setter(AccessLevel.NONE)
     private TipoDocumento tipoDocumento;
 
     @Column(nullable = false, unique = true, length = 18)
+    @Setter(AccessLevel.NONE)
     private String documento;
 
     @Column(nullable = false)
+    @Setter(AccessLevel.NONE)
     private String email;
 
     @Column(nullable = false, length = 20)
@@ -49,7 +51,17 @@ public class Cliente {
     private String estado;
 
     @Column(nullable = false)
+    @Setter(AccessLevel.NONE)
     private boolean ativo;
+
+    @Version
+    @Column(nullable = false)
+    @Setter(AccessLevel.NONE)
+    private long versao;
+
+    @Column(name = "versao_identidade", nullable = false)
+    @Setter(AccessLevel.NONE)
+    private long versaoIdentidade = 1;
 
     @Column(name = "usuario_id")
     private UUID usuarioId;
@@ -59,6 +71,44 @@ public class Cliente {
 
     @Column(name = "atualizado_em", nullable = false)
     private LocalDateTime atualizadoEm;
+
+    @Builder
+    private Cliente(UUID id, String nome, TipoDocumento tipoDocumento, String documento, String email,
+                    String telefone, String cep, String logradouro, String numero, String complemento,
+                    String bairro, String cidade, String estado, boolean ativo, UUID usuarioId) {
+        DadosIdentidadeCliente identidade = new DadosIdentidadeCliente(tipoDocumento, documento, email, ativo);
+        this.id = id;
+        this.nome = nome;
+        this.tipoDocumento = identidade.tipoDocumento();
+        this.documento = identidade.documento();
+        this.email = identidade.email();
+        this.ativo = identidade.ativo();
+        this.telefone = telefone;
+        this.cep = cep;
+        this.logradouro = logradouro;
+        this.numero = numero;
+        this.complemento = complemento;
+        this.bairro = bairro;
+        this.cidade = cidade;
+        this.estado = estado;
+        this.usuarioId = usuarioId;
+    }
+
+    public DadosIdentidadeCliente dadosIdentidade() {
+        return new DadosIdentidadeCliente(tipoDocumento, documento, email, ativo);
+    }
+
+    public void atualizarIdentidade(DadosIdentidadeCliente novos) {
+        if (dadosIdentidade().camposAlterados(novos).isEmpty()) {
+            return;
+        }
+        long proximaVersao = Math.incrementExact(versaoIdentidade);
+        tipoDocumento = novos.tipoDocumento();
+        documento = novos.documento();
+        email = novos.email();
+        ativo = novos.ativo();
+        versaoIdentidade = proximaVersao;
+    }
 
     @PrePersist
     protected void onCreate() {
