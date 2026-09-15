@@ -10,7 +10,9 @@ info:
     **Roles disponíveis:**
     - `ADMIN`: Acesso total ao sistema
     - `MECANICO`: Acesso a ordens de serviço e execução
-    - `CLIENTE`: Consulta de status das suas OS
+    - Principal `customer`: CPF + código de email no gateway; JWT de 15 minutos, sem refresh.
+    - Leitura requer orders:read:self; decisão requer orders:decide:self e propriedade da OS.
+    - Tokens anteriores exigem novo login. Swagger/OpenAPI exigem staff.
   contact:
     name: Oficina Mecânica
     email: dev@oficina.com
@@ -505,7 +507,11 @@ paths:
     post:
       tags:
         - Ordens de serviço
-      summary: Recebe notificação externa de aprovação ou recusa do orçamento
+      summary: Alias autenticado de decisão do próprio orçamento
+      deprecated: true
+      description: Customer e orders:decide:self; documento deve concordar com o cliente autenticado. Não seleciona identidade.
+      security:
+        - bearerAuth: []
       operationId: notificacaoOrcamento
       parameters:
         - name: numero
@@ -521,17 +527,66 @@ paths:
               $ref: '#/components/schemas/DecisaoOrcamentoRequest'
         required: true
       responses:
+        '401':
+          description: Token ausente ou inválido
+        '403':
+          description: Tipo de principal ou escopo incorreto
+        '404':
+          description: Ordem inexistente ou pertencente a outro cliente
         '200':
           description: OK
           content:
             '*/*':
               schema:
-                $ref: '#/components/schemas/ApiResponseOrdemServicoDetalheResponse'
+                $ref: '#/components/schemas/ApiResponseAcompanhamentoOsResponse'
+  /ordens-servico/{numero}/orcamento/decisao:
+    post:
+      tags:
+        - Ordens de serviço
+      summary: Decidir sobre o próprio orçamento
+      description: Requer principal customer, orders:decide:self e propriedade da OS. A identidade vem exclusivamente do JWT.
+      operationId: decisaoOrcamento
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: numero
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DecisaoClienteRequest'
+      responses:
+        '200':
+          description: Decisão aplicada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseAcompanhamentoOsResponse'
+        '401':
+          description: Token ausente ou inválido
+        '403':
+          description: Tipo de principal ou escopo incorreto
+        '404':
+          description: Ordem inexistente ou pertencente a outro cliente
+        '409':
+          description: Alteração concorrente; consulte o estado atual
+        '422':
+          description: Transição não permitida ou estoque insuficiente
   /ordens-servico/{numero}/aprovar:
     post:
       tags:
         - Ordens de serviço
-      summary: Aprovar orçamento (cliente) — atalho compatível; preferir /orcamento/notificacao
+      summary: Alias autenticado de decisão do próprio orçamento
+      deprecated: true
+      description: Customer e orders:decide:self; documento deve concordar com o cliente autenticado. Não seleciona identidade.
+      security:
+        - bearerAuth: []
       operationId: aprovar
       parameters:
         - name: numero
@@ -547,12 +602,18 @@ paths:
               $ref: '#/components/schemas/AprovacaoClienteRequest'
         required: true
       responses:
+        '401':
+          description: Token ausente ou inválido
+        '403':
+          description: Tipo de principal ou escopo incorreto
+        '404':
+          description: Ordem inexistente ou pertencente a outro cliente
         '200':
           description: OK
           content:
             '*/*':
               schema:
-                $ref: '#/components/schemas/ApiResponseOrdemServicoDetalheResponse'
+                $ref: '#/components/schemas/ApiResponseAcompanhamentoOsResponse'
   /ordens-servico/{id}/iniciar-diagnostico:
     post:
       tags:
@@ -661,25 +722,6 @@ paths:
                 $ref: '#/components/schemas/ApiResponseOrdemServicoDetalheResponse'
       security:
         - bearerAuth: []
-  /ordens-servico/email/atualizar-status:
-    post:
-      tags:
-        - Ordens de serviço
-      summary: Atualização de status da OS via ferramenta de e-mail (token no link)
-      operationId: atualizarStatusViaEmail
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AtualizacaoStatusEmailRequest'
-        required: true
-      responses:
-        '200':
-          description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: '#/components/schemas/ApiResponseOrdemServicoDetalheResponse'
   /clientes:
     get:
       tags:
@@ -745,7 +787,10 @@ paths:
     get:
       tags:
         - Ordens de serviço
-      summary: Consulta de status da OS (Recebida, Diagnóstico, Aguardando Aprovação, Execução, Finalizada, Entregue)
+      summary: Status e orçamento da própria OS
+      description: Requer customer e orders:read:self; inexistente ou de outro cliente retorna 404. Sem identidade, contato ou notas internas.
+      security:
+        - bearerAuth: []
       operationId: acompanhamento
       parameters:
         - name: numero
@@ -1320,6 +1365,17 @@ components:
           type: string
         observacao:
           type: string
+    DecisaoClienteRequest:
+      required:
+        - decisao
+      type: object
+      properties:
+        decisao:
+          type: string
+          enum: [APROVADO, RECUSADO]
+        observacao:
+          type: string
+          maxLength: 2000
     AprovacaoClienteRequest:
       required:
         - documentoCliente
@@ -1330,29 +1386,6 @@ components:
     AcaoOrdemRequest:
       type: object
       properties:
-        observacao:
-          type: string
-    AtualizacaoStatusEmailRequest:
-      required:
-        - novoStatus
-        - numero
-        - token
-      type: object
-      properties:
-        numero:
-          type: integer
-          format: int64
-        novoStatus:
-          type: string
-          enum:
-            - RECEBIDA
-            - EM_DIAGNOSTICO
-            - AGUARDANDO_APROVACAO
-            - EM_EXECUCAO
-            - FINALIZADA
-            - ENTREGUE
-        token:
-          type: string
         observacao:
           type: string
     LoginRequest:
@@ -1660,14 +1693,42 @@ components:
         ultimaAtualizacaoStatusEm:
           type: string
           format: date-time
-        clienteNome:
-          type: string
-        placa:
-          type: string
+        servicos:
+          type: array
+          items:
+            $ref: '#/components/schemas/LinhaOrcamento'
+        pecas:
+          type: array
+          items:
+            $ref: '#/components/schemas/LinhaOrcamento'
         historico:
           type: array
           items:
-            $ref: '#/components/schemas/HistoricoStatusResponse'
+            $ref: '#/components/schemas/HistoricoCliente'
+    LinhaOrcamento:
+      type: object
+      properties:
+        descricao:
+          type: string
+        quantidade:
+          type: integer
+        valorUnitario:
+          type: number
+        valorTotal:
+          type: number
+    HistoricoCliente:
+      type: object
+      properties:
+        statusAnterior:
+          type: string
+        statusNovo:
+          type: string
+        criadoEm:
+          type: string
+          format: date-time
+        ocorridoEm:
+          type: string
+          format: date-time
     ApiResponseAcompanhamentoOsResponse:
       type: object
       properties:

@@ -39,8 +39,11 @@ class Phase3ContractTest {
     private static final Map<String, String> PLANNED_BINDINGS = Map.of(
             "POST /api/auth/cpf/desafios", "CriarDesafioHandler",
             "POST /api/auth/cpf/verificar", "VerificarDesafioHandler",
-            "GET /health", "ReadinessHealth",
-            "POST /api/ordens-servico/{numero}/orcamento/decisao", "OrdemServicoController.decisaoOrcamento");
+            "GET /health", "ReadinessHealth");
+
+    // Frozen DENY entries stay in the gateway contract, but must no longer have an APP controller mapping.
+    private static final Map<String, String> RETIRED_BINDINGS = Map.of(
+            "POST /api/ordens-servico/email/atualizar-status", "OrdemServicoController.atualizarStatusViaEmail");
 
     private static final Set<Grant> ANONYMOUS = Set.of(new Grant("anonymous", Set.of(), Set.of()));
     private static final Set<Grant> STAFF = Set.of(new Grant("staff", Set.of("ADMIN", "MECANICO"), Set.of()));
@@ -159,8 +162,12 @@ class Phase3ContractTest {
 
         Map<String, String> controllerBindings = controllerBindings();
         assertThat(controllerBindings.keySet()).doesNotContainAnyElementsOf(PLANNED_BINDINGS.keySet());
+        assertThat(controllerBindings.keySet()).doesNotContainAnyElementsOf(RETIRED_BINDINGS.keySet());
+        assertThat(controllerBindings).containsEntry("POST /api/ordens-servico/{numero}/orcamento/decisao",
+                "OrdemServicoController.decisaoOrcamento");
         Map<String, String> expectedBindings = new LinkedHashMap<>(controllerBindings);
         expectedBindings.putAll(PLANNED_BINDINGS);
+        expectedBindings.putAll(RETIRED_BINDINGS);
         assertThat(EXPECTED_POLICIES.keySet()).containsExactlyInAnyOrderElementsOf(expectedBindings.keySet());
 
         Map<String, JsonNode> routesByKey = new LinkedHashMap<>();

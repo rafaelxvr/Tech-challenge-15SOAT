@@ -95,7 +95,6 @@ oficina:
   mail:
     enabled: ${MAIL_ENABLED:true}
     from: ${MAIL_FROM:noreply@oficina.com}
-    status-token: ${MAIL_STATUS_TOKEN:oficina-email-status-token}
 
 # ========================
 #    OPENAPI / SWAGGER

@@ -5,7 +5,6 @@ import com.oficina.config.JwtService;
 import com.oficina.dto.AcaoOrdemRequest;
 import com.oficina.dto.AcompanhamentoOsResponse;
 import com.oficina.dto.AprovacaoClienteRequest;
-import com.oficina.dto.AtualizacaoStatusEmailRequest;
 import com.oficina.dto.CriarOrdemServicoRequest;
 import com.oficina.dto.DecisaoOrcamentoRequest;
 import com.oficina.dto.ItemServicoOsRequest;
@@ -42,8 +41,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(controllers = OrdemServicoController.class, excludeAutoConfiguration = SecurityAutoConfiguration.class)
-@Import(MethodSecurityTestConfig.class)
+@Import({MethodSecurityTestConfig.class, OrdemServicoControllerTest.PrincipalResolverConfig.class})
 class OrdemServicoControllerTest {
+
+    @org.springframework.boot.test.context.TestConfiguration
+    static class PrincipalResolverConfig implements org.springframework.web.servlet.config.annotation.WebMvcConfigurer {
+        @Override public void addArgumentResolvers(java.util.List<org.springframework.web.method.support.HandlerMethodArgumentResolver> resolvers) {
+            resolvers.add(new org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver());
+        }
+    }
 
     @Autowired
     MockMvc mockMvc;
@@ -128,61 +134,16 @@ class OrdemServicoControllerTest {
                 .andExpect(status().isOk());
     }
 
+    // Signed customer ownership and all compatibility routes use the real chain in CustomerOrderSecurityTest.
     @Test
-    void acompanhamento() throws Exception {
-        var ac = new AcompanhamentoOsResponse(
-                100L,
-                StatusOrdemServico.RECEBIDA,
-                BigDecimal.TEN,
-                LocalDateTime.now(),
-                LocalDateTime.now(),
-                "C",
-                "ABC1D23",
-                List.of());
-        when(ordemServicoService.acompanhamentoPublico(100L)).thenReturn(ac);
-
+    @WithMockUser(authorities = "SCOPE_orders:read:self")
+    void acompanhamentoDelegatesCustomerProjection() throws Exception {
+        var ac = new AcompanhamentoOsResponse(100L, StatusOrdemServico.RECEBIDA,
+                BigDecimal.TEN, LocalDateTime.now(), LocalDateTime.now(), List.of(), List.of(), List.of());
+        when(ordemServicoService.acompanhamentoDoCliente(eq(100L), isNull())).thenReturn(ac);
+        // Controller-only MockMvc deliberately omits the /api servlet context.
         mockMvc.perform(get("/ordens-servico/{numero}/acompanhamento", 100L))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.numero").value(100));
-    }
-
-    @Test
-    void aprovar() throws Exception {
-        when(ordemServicoService.aprovarPeloCliente(eq(100L), any(AprovacaoClienteRequest.class)))
-                .thenReturn(detalhe());
-
-        mockMvc.perform(post("/ordens-servico/{numero}/aprovar", 100L)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new AprovacaoClienteRequest("52998224725"))))
-                .andExpect(status().isOk());
-    }
-
-    @Test
-    void notificacaoOrcamentoAprovado() throws Exception {
-        when(ordemServicoService.processarDecisaoOrcamento(eq(100L), any(DecisaoOrcamentoRequest.class)))
-                .thenReturn(detalhe());
-
-        var body = new DecisaoOrcamentoRequest(
-                DecisaoOrcamentoRequest.DecisaoOrcamento.APROVADO, "52998224725", null);
-
-        mockMvc.perform(post("/ordens-servico/{numero}/orcamento/notificacao", 100L)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(body)))
-                .andExpect(status().isOk());
-    }
-
-    @Test
-    void atualizarStatusViaEmail() throws Exception {
-        when(ordemServicoService.atualizarStatusViaEmail(any(AtualizacaoStatusEmailRequest.class)))
-                .thenReturn(detalhe());
-
-        var body = new AtualizacaoStatusEmailRequest(
-                100L, StatusOrdemServico.EM_DIAGNOSTICO, "oficina-email-status-token", "via email");
-
-        mockMvc.perform(post("/ordens-servico/email/atualizar-status")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(body)))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.numero").value(100));
     }
 
     @Test

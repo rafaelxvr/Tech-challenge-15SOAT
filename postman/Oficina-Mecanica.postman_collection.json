@@ -2755,7 +2755,7 @@
                                             "name": "Recebe notificação externa de aprovação ou recusa do orçamento",
                                             "request": {
                                                 "name": "Recebe notificação externa de aprovação ou recusa do orçamento",
-                                                "description": {},
+                                                "description": "JWT customer do proprietário, obtido por CPF + código no gateway. Leitura: orders:read:self; decisão: orders:decide:self. Aliases legados apenas conferem documento; prefira /orcamento/decisao.",
                                                 "url": {
                                                     "path": [
                                                         "ordens-servico",
@@ -2801,80 +2801,18 @@
                                                         }
                                                     }
                                                 },
-                                                "auth": null
-                                            },
-                                            "response": [
-                                                {
-                                                    "id": "dd8ff6cd-fe6f-4d54-ae62-b217c205cd68",
-                                                    "name": "OK",
-                                                    "originalRequest": {
-                                                        "url": {
-                                                            "path": [
-                                                                "ordens-servico",
-                                                                ":numero",
-                                                                "orcamento",
-                                                                "notificacao"
-                                                            ],
-                                                            "host": [
-                                                                "{{baseUrl}}"
-                                                            ],
-                                                            "query": [],
-                                                            "variable": [
-                                                                {
-                                                                    "disabled": false,
-                                                                    "description": {
-                                                                        "content": "(Required) ",
-                                                                        "type": "text/plain"
-                                                                    },
-                                                                    "type": "any",
-                                                                    "value": "<long>",
-                                                                    "key": "numero"
-                                                                }
-                                                            ]
-                                                        },
-                                                        "header": [
-                                                            {
-                                                                "key": "Content-Type",
-                                                                "value": "application/json"
-                                                            },
-                                                            {
-                                                                "key": "Accept",
-                                                                "value": "*/*"
-                                                            },
-                                                            {
-                                                                "description": {
-                                                                    "content": "Added as a part of security scheme: bearer",
-                                                                    "type": "text/plain"
-                                                                },
-                                                                "key": "Authorization",
-                                                                "value": "Bearer <token>"
-                                                            }
-                                                        ],
-                                                        "method": "POST",
-                                                        "body": {
-                                                            "mode": "raw",
-                                                            "raw": "{\n  \"decisao\": \"APROVADO\",\n  \"documentoCliente\": \"<string>\",\n  \"observacao\": \"<string>\"\n}",
-                                                            "options": {
-                                                                "raw": {
-                                                                    "headerFamily": "json",
-                                                                    "language": "json"
-                                                                }
-                                                            }
-                                                        }
-                                                    },
-                                                    "status": "OK",
-                                                    "code": 200,
-                                                    "header": [
+                                                "auth": {
+                                                    "type": "bearer",
+                                                    "bearer": [
                                                         {
-                                                            "key": "Content-Type",
-                                                            "value": "*/*"
+                                                            "key": "token",
+                                                            "value": "{{customerToken}}",
+                                                            "type": "string"
                                                         }
-                                                    ],
-                                                    "body": "{\n  \"timestamp\": \"<dateTime>\",\n  \"success\": \"<boolean>\",\n  \"message\": \"<string>\",\n  \"data\": {\n    \"id\": \"<uuid>\",\n    \"numero\": \"<long>\",\n    \"status\": \"RECEBIDA\",\n    \"valorTotal\": \"<number>\",\n    \"observacoes\": \"<string>\",\n    \"aprovadoEm\": \"<dateTime>\",\n    \"iniciadoEm\": \"<dateTime>\",\n    \"finalizadoEm\": \"<dateTime>\",\n    \"entregueEm\": \"<dateTime>\",\n    \"criadoEm\": \"<dateTime>\",\n    \"cliente\": {\n      \"id\": \"<uuid>\",\n      \"nome\": \"<string>\",\n      \"documento\": \"<string>\"\n    },\n    \"veiculo\": {\n      \"id\": \"<uuid>\",\n      \"placa\": \"<string>\",\n      \"marca\": \"<string>\",\n      \"modelo\": \"<string>\",\n      \"ano\": \"<integer>\"\n    },\n    \"servicos\": [\n      {\n        \"id\": \"<uuid>\",\n        \"servicoId\": \"<uuid>\",\n        \"nomeServico\": \"<string>\",\n        \"quantidade\": \"<integer>\",\n        \"valorUnitario\": \"<number>\",\n        \"valorTotal\": \"<number>\",\n        \"observacao\": \"<string>\"\n      },\n      {\n        \"id\": \"<uuid>\",\n        \"servicoId\": \"<uuid>\",\n        \"nomeServico\": \"<string>\",\n        \"quantidade\": \"<integer>\",\n        \"valorUnitario\": \"<number>\",\n        \"valorTotal\": \"<number>\",\n        \"observacao\": \"<string>\"\n      }\n    ],\n    \"pecas\": [\n      {\n        \"id\": \"<uuid>\",\n        \"pecaId\": \"<uuid>\",\n        \"codigoPeca\": \"<string>\",\n        \"nomePeca\": \"<string>\",\n        \"quantidade\": \"<integer>\",\n        \"valorUnitario\": \"<number>\",\n        \"valorTotal\": \"<number>\"\n      },\n      {\n        \"id\": \"<uuid>\",\n        \"pecaId\": \"<uuid>\",\n        \"codigoPeca\": \"<string>\",\n        \"nomePeca\": \"<string>\",\n        \"quantidade\": \"<integer>\",\n        \"valorUnitario\": \"<number>\",\n        \"valorTotal\": \"<number>\"\n      }\n    ],\n    \"historico\": [\n      {\n        \"statusAnterior\": \"RECEBIDA\",\n        \"statusNovo\": \"EM_DIAGNOSTICO\",\n        \"observacao\": \"<string>\",\n        \"criadoEm\": \"<dateTime>\"\n      },\n      {\n        \"statusAnterior\": \"ENTREGUE\",\n        \"statusNovo\": \"ENTREGUE\",\n        \"observacao\": \"<string>\",\n        \"criadoEm\": \"<dateTime>\"\n      }\n    ]\n  }\n}",
-                                                    "cookie": [],
-                                                    "_postman_previewlanguage": "text"
+                                                    ]
                                                 }
-                                            ],
+                                            },
+                                            "response": [],
                                             "event": [],
                                             "protocolProfileBehavior": {
                                                 "disableBodyPruning": true
@@ -2890,10 +2828,10 @@
                             "item": [
                                 {
                                     "id": "451e8c6f-24fe-4311-9864-f3d2107eb80c",
-                                    "name": "Aprovar orçamento (cliente) — atalho compatível; preferir /orcamento/notificacao",
+                                    "name": "Aprovar orçamento (cliente) — atalho compatível; preferir /orcamento/decisao",
                                     "request": {
-                                        "name": "Aprovar orçamento (cliente) — atalho compatível; preferir /orcamento/notificacao",
-                                        "description": {},
+                                        "name": "Aprovar orçamento (cliente) — atalho compatível; preferir /orcamento/decisao",
+                                        "description": "JWT customer do proprietário, obtido por CPF + código no gateway. Leitura: orders:read:self; decisão: orders:decide:self. Aliases legados apenas conferem documento; prefira /orcamento/decisao.",
                                         "url": {
                                             "path": [
                                                 "ordens-servico",
@@ -2938,79 +2876,18 @@
                                                 }
                                             }
                                         },
-                                        "auth": null
-                                    },
-                                    "response": [
-                                        {
-                                            "id": "ea7a3853-6939-4b28-8756-629702cfe1dd",
-                                            "name": "OK",
-                                            "originalRequest": {
-                                                "url": {
-                                                    "path": [
-                                                        "ordens-servico",
-                                                        ":numero",
-                                                        "aprovar"
-                                                    ],
-                                                    "host": [
-                                                        "{{baseUrl}}"
-                                                    ],
-                                                    "query": [],
-                                                    "variable": [
-                                                        {
-                                                            "disabled": false,
-                                                            "description": {
-                                                                "content": "(Required) ",
-                                                                "type": "text/plain"
-                                                            },
-                                                            "type": "any",
-                                                            "value": "<long>",
-                                                            "key": "numero"
-                                                        }
-                                                    ]
-                                                },
-                                                "header": [
-                                                    {
-                                                        "key": "Content-Type",
-                                                        "value": "application/json"
-                                                    },
-                                                    {
-                                                        "key": "Accept",
-                                                        "value": "*/*"
-                                                    },
-                                                    {
-                                                        "description": {
-                                                            "content": "Added as a part of security scheme: bearer",
-                                                            "type": "text/plain"
-                                                        },
-                                                        "key": "Authorization",
-                                                        "value": "Bearer <token>"
-                                                    }
-                                                ],
-                                                "method": "POST",
-                                                "body": {
-                                                    "mode": "raw",
-                                                    "raw": "{\n  \"documentoCliente\": \"<string>\"\n}",
-                                                    "options": {
-                                                        "raw": {
-                                                            "headerFamily": "json",
-                                                            "language": "json"
-                                                        }
-                                                    }
-                                                }
-                                            },
-                                            "status": "OK",
-                                            "code": 200,
-                                            "header": [
+                                        "auth": {
+                                            "type": "bearer",
+                                            "bearer": [
                                                 {
-                                                    "key": "Content-Type",
-                                                    "value": "*/*"
+                                                    "key": "token",
+                                                    "value": "{{customerToken}}",
+                                                    "type": "string"
                                                 }
-                                            ],
-                                            "body": "{\n  \"timestamp\": \"<dateTime>\",\n  \"success\": \"<boolean>\",\n  \"message\": \"<string>\",\n  \"data\": {\n    \"id\": \"<uuid>\",\n    \"numero\": \"<long>\",\n    \"status\": \"RECEBIDA\",\n    \"valorTotal\": \"<number>\",\n    \"observacoes\": \"<string>\",\n    \"aprovadoEm\": \"<dateTime>\",\n    \"iniciadoEm\": \"<dateTime>\",\n    \"finalizadoEm\": \"<dateTime>\",\n    \"entregueEm\": \"<dateTime>\",\n    \"criadoEm\": \"<dateTime>\",\n    \"cliente\": {\n      \"id\": \"<uuid>\",\n      \"nome\": \"<string>\",\n      \"documento\": \"<string>\"\n    },\n    \"veiculo\": {\n      \"id\": \"<uuid>\",\n      \"placa\": \"<string>\",\n      \"marca\": \"<string>\",\n      \"modelo\": \"<string>\",\n      \"ano\": \"<integer>\"\n    },\n    \"servicos\": [\n      {\n        \"id\": \"<uuid>\",\n        \"servicoId\": \"<uuid>\",\n        \"nomeServico\": \"<string>\",\n        \"quantidade\": \"<integer>\",\n        \"valorUnitario\": \"<number>\",\n        \"valorTotal\": \"<number>\",\n        \"observacao\": \"<string>\"\n      },\n      {\n        \"id\": \"<uuid>\",\n        \"servicoId\": \"<uuid>\",\n        \"nomeServico\": \"<string>\",\n        \"quantidade\": \"<integer>\",\n        \"valorUnitario\": \"<number>\",\n        \"valorTotal\": \"<number>\",\n        \"observacao\": \"<string>\"\n      }\n    ],\n    \"pecas\": [\n      {\n        \"id\": \"<uuid>\",\n        \"pecaId\": \"<uuid>\",\n        \"codigoPeca\": \"<string>\",\n        \"nomePeca\": \"<string>\",\n        \"quantidade\": \"<integer>\",\n        \"valorUnitario\": \"<number>\",\n        \"valorTotal\": \"<number>\"\n      },\n      {\n        \"id\": \"<uuid>\",\n        \"pecaId\": \"<uuid>\",\n        \"codigoPeca\": \"<string>\",\n        \"nomePeca\": \"<string>\",\n        \"quantidade\": \"<integer>\",\n        \"valorUnitario\": \"<number>\",\n        \"valorTotal\": \"<number>\"\n      }\n    ],\n    \"historico\": [\n      {\n        \"statusAnterior\": \"RECEBIDA\",\n        \"statusNovo\": \"EM_DIAGNOSTICO\",\n        \"observacao\": \"<string>\",\n        \"criadoEm\": \"<dateTime>\"\n      },\n      {\n        \"statusAnterior\": \"ENTREGUE\",\n        \"statusNovo\": \"ENTREGUE\",\n        \"observacao\": \"<string>\",\n        \"criadoEm\": \"<dateTime>\"\n      }\n    ]\n  }\n}",
-                                            "cookie": [],
-                                            "_postman_previewlanguage": "text"
+                                            ]
                                         }
-                                    ],
+                                    },
+                                    "response": [],
                                     "event": [],
                                     "protocolProfileBehavior": {
                                         "disableBodyPruning": true
@@ -3027,7 +2904,7 @@
                                     "name": "Consulta de status da OS (Recebida, Diagnóstico, Aguardando Aprovação, Execução, Finalizada, Entregue)",
                                     "request": {
                                         "name": "Consulta de status da OS (Recebida, Diagnóstico, Aguardando Aprovação, Execução, Finalizada, Entregue)",
-                                        "description": {},
+                                        "description": "JWT customer do proprietário, obtido por CPF + código no gateway. Leitura: orders:read:self; decisão: orders:decide:self. Aliases legados apenas conferem documento; prefira /orcamento/decisao.",
                                         "url": {
                                             "path": [
                                                 "ordens-servico",
@@ -3059,66 +2936,18 @@
                                         ],
                                         "method": "GET",
                                         "body": {},
-                                        "auth": null
-                                    },
-                                    "response": [
-                                        {
-                                            "id": "863d17d4-8abc-494c-b52a-36d82e2ce15d",
-                                            "name": "OK",
-                                            "originalRequest": {
-                                                "url": {
-                                                    "path": [
-                                                        "ordens-servico",
-                                                        ":numero",
-                                                        "acompanhamento"
-                                                    ],
-                                                    "host": [
-                                                        "{{baseUrl}}"
-                                                    ],
-                                                    "query": [],
-                                                    "variable": [
-                                                        {
-                                                            "disabled": false,
-                                                            "description": {
-                                                                "content": "(Required) ",
-                                                                "type": "text/plain"
-                                                            },
-                                                            "type": "any",
-                                                            "value": "<long>",
-                                                            "key": "numero"
-                                                        }
-                                                    ]
-                                                },
-                                                "header": [
-                                                    {
-                                                        "key": "Accept",
-                                                        "value": "*/*"
-                                                    },
-                                                    {
-                                                        "description": {
-                                                            "content": "Added as a part of security scheme: bearer",
-                                                            "type": "text/plain"
-                                                        },
-                                                        "key": "Authorization",
-                                                        "value": "Bearer <token>"
-                                                    }
-                                                ],
-                                                "method": "GET",
-                                                "body": {}
-                                            },
-                                            "status": "OK",
-                                            "code": 200,
-                                            "header": [
+                                        "auth": {
+                                            "type": "bearer",
+                                            "bearer": [
                                                 {
-                                                    "key": "Content-Type",
-                                                    "value": "*/*"
+                                                    "key": "token",
+                                                    "value": "{{customerToken}}",
+                                                    "type": "string"
                                                 }
-                                            ],
-                                            "body": "{\n  \"timestamp\": \"<dateTime>\",\n  \"success\": \"<boolean>\",\n  \"message\": \"<string>\",\n  \"data\": {\n    \"numero\": \"<long>\",\n    \"status\": \"AGUARDANDO_APROVACAO\",\n    \"valorTotal\": \"<number>\",\n    \"criadoEm\": \"<dateTime>\",\n    \"ultimaAtualizacaoStatusEm\": \"<dateTime>\",\n    \"clienteNome\": \"<string>\",\n    \"placa\": \"<string>\",\n    \"historico\": [\n      {\n        \"statusAnterior\": \"ENTREGUE\",\n        \"statusNovo\": \"FINALIZADA\",\n        \"observacao\": \"<string>\",\n        \"criadoEm\": \"<dateTime>\"\n      },\n      {\n        \"statusAnterior\": \"EM_EXECUCAO\",\n        \"statusNovo\": \"ENTREGUE\",\n        \"observacao\": \"<string>\",\n        \"criadoEm\": \"<dateTime>\"\n      }\n    ]\n  }\n}",
-                                            "cookie": [],
-                                            "_postman_previewlanguage": "text"
+                                            ]
                                         }
-                                    ],
+                                    },
+                                    "response": [],
                                     "event": [],
                                     "protocolProfileBehavior": {
                                         "disableBodyPruning": true
@@ -3809,124 +3638,6 @@
                             }
                         }
                     ]
-                },
-                {
-                    "name": "email",
-                    "description": "",
-                    "item": [
-                        {
-                            "name": "atualizar-status",
-                            "description": "",
-                            "item": [
-                                {
-                                    "id": "8880defc-dae6-4f6b-ac05-4a3db88d14ce",
-                                    "name": "Atualização de status da OS via ferramenta de e-mail (token no link)",
-                                    "request": {
-                                        "name": "Atualização de status da OS via ferramenta de e-mail (token no link)",
-                                        "description": {},
-                                        "url": {
-                                            "path": [
-                                                "ordens-servico",
-                                                "email",
-                                                "atualizar-status"
-                                            ],
-                                            "host": [
-                                                "{{baseUrl}}"
-                                            ],
-                                            "query": [],
-                                            "variable": []
-                                        },
-                                        "header": [
-                                            {
-                                                "key": "Content-Type",
-                                                "value": "application/json"
-                                            },
-                                            {
-                                                "key": "Accept",
-                                                "value": "*/*"
-                                            }
-                                        ],
-                                        "method": "POST",
-                                        "body": {
-                                            "mode": "raw",
-                                            "raw": "{\n  \"novoStatus\": \"EM_DIAGNOSTICO\",\n  \"numero\": \"<long>\",\n  \"token\": \"<string>\",\n  \"observacao\": \"<string>\"\n}",
-                                            "options": {
-                                                "raw": {
-                                                    "headerFamily": "json",
-                                                    "language": "json"
-                                                }
-                                            }
-                                        },
-                                        "auth": null
-                                    },
-                                    "response": [
-                                        {
-                                            "id": "3ede09a9-f75e-4758-ac7d-8debadc434ff",
-                                            "name": "OK",
-                                            "originalRequest": {
-                                                "url": {
-                                                    "path": [
-                                                        "ordens-servico",
-                                                        "email",
-                                                        "atualizar-status"
-                                                    ],
-                                                    "host": [
-                                                        "{{baseUrl}}"
-                                                    ],
-                                                    "query": [],
-                                                    "variable": []
-                                                },
-                                                "header": [
-                                                    {
-                                                        "key": "Content-Type",
-                                                        "value": "application/json"
-                                                    },
-                                                    {
-                                                        "key": "Accept",
-                                                        "value": "*/*"
-                                                    },
-                                                    {
-                                                        "description": {
-                                                            "content": "Added as a part of security scheme: bearer",
-                                                            "type": "text/plain"
-                                                        },
-                                                        "key": "Authorization",
-                                                        "value": "Bearer <token>"
-                                                    }
-                                                ],
-                                                "method": "POST",
-                                                "body": {
-                                                    "mode": "raw",
-                                                    "raw": "{\n  \"novoStatus\": \"EM_DIAGNOSTICO\",\n  \"numero\": \"<long>\",\n  \"token\": \"<string>\",\n  \"observacao\": \"<string>\"\n}",
-                                                    "options": {
-                                                        "raw": {
-                                                            "headerFamily": "json",
-                                                            "language": "json"
-                                                        }
-                                                    }
-                                                }
-                                            },
-                                            "status": "OK",
-                                            "code": 200,
-                                            "header": [
-                                                {
-                                                    "key": "Content-Type",
-                                                    "value": "*/*"
-                                                }
-                                            ],
-                                            "body": "{\n  \"timestamp\": \"<dateTime>\",\n  \"success\": \"<boolean>\",\n  \"message\": \"<string>\",\n  \"data\": {\n    \"id\": \"<uuid>\",\n    \"numero\": \"<long>\",\n    \"status\": \"RECEBIDA\",\n    \"valorTotal\": \"<number>\",\n    \"observacoes\": \"<string>\",\n    \"aprovadoEm\": \"<dateTime>\",\n    \"iniciadoEm\": \"<dateTime>\",\n    \"finalizadoEm\": \"<dateTime>\",\n    \"entregueEm\": \"<dateTime>\",\n    \"criadoEm\": \"<dateTime>\",\n    \"cliente\": {\n      \"id\": \"<uuid>\",\n      \"nome\": \"<string>\",\n      \"documento\": \"<string>\"\n    },\n    \"veiculo\": {\n      \"id\": \"<uuid>\",\n      \"placa\": \"<string>\",\n      \"marca\": \"<string>\",\n      \"modelo\": \"<string>\",\n      \"ano\": \"<integer>\"\n    },\n    \"servicos\": [\n      {\n        \"id\": \"<uuid>\",\n        \"servicoId\": \"<uuid>\",\n        \"nomeServico\": \"<string>\",\n        \"quantidade\": \"<integer>\",\n        \"valorUnitario\": \"<number>\",\n        \"valorTotal\": \"<number>\",\n        \"observacao\": \"<string>\"\n      },\n      {\n        \"id\": \"<uuid>\",\n        \"servicoId\": \"<uuid>\",\n        \"nomeServico\": \"<string>\",\n        \"quantidade\": \"<integer>\",\n        \"valorUnitario\": \"<number>\",\n        \"valorTotal\": \"<number>\",\n        \"observacao\": \"<string>\"\n      }\n    ],\n    \"pecas\": [\n      {\n        \"id\": \"<uuid>\",\n        \"pecaId\": \"<uuid>\",\n        \"codigoPeca\": \"<string>\",\n        \"nomePeca\": \"<string>\",\n        \"quantidade\": \"<integer>\",\n        \"valorUnitario\": \"<number>\",\n        \"valorTotal\": \"<number>\"\n      },\n      {\n        \"id\": \"<uuid>\",\n        \"pecaId\": \"<uuid>\",\n        \"codigoPeca\": \"<string>\",\n        \"nomePeca\": \"<string>\",\n        \"quantidade\": \"<integer>\",\n        \"valorUnitario\": \"<number>\",\n        \"valorTotal\": \"<number>\"\n      }\n    ],\n    \"historico\": [\n      {\n        \"statusAnterior\": \"RECEBIDA\",\n        \"statusNovo\": \"EM_DIAGNOSTICO\",\n        \"observacao\": \"<string>\",\n        \"criadoEm\": \"<dateTime>\"\n      },\n      {\n        \"statusAnterior\": \"ENTREGUE\",\n        \"statusNovo\": \"ENTREGUE\",\n        \"observacao\": \"<string>\",\n        \"criadoEm\": \"<dateTime>\"\n      }\n    ]\n  }\n}",
-                                            "cookie": [],
-                                            "_postman_previewlanguage": "text"
-                                        }
-                                    ],
-                                    "event": [],
-                                    "protocolProfileBehavior": {
-                                        "disableBodyPruning": true
-                                    }
-                                }
-                            ]
-                        }
-                    ]
                 }
             ]
         },
@@ -4154,6 +3865,50 @@
                     ]
                 }
             ]
+        },
+        {
+            "name": "Cliente - Decidir orçamento da própria OS",
+            "request": {
+                "method": "POST",
+                "auth": {
+                    "type": "bearer",
+                    "bearer": [
+                        {
+                            "key": "token",
+                            "value": "{{customerToken}}",
+                            "type": "string"
+                        }
+                    ]
+                },
+                "description": "Após staff enviar o orçamento e o cliente fazer login pelo gateway, use o número retornado pela criação da OS. Defina customerToken no ambiente. Body sem identidade.",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "url": {
+                    "raw": "{{baseUrl}}/ordens-servico/{{osNumero}}/orcamento/decisao",
+                    "host": [
+                        "{{baseUrl}}"
+                    ],
+                    "path": [
+                        "ordens-servico",
+                        "{{osNumero}}",
+                        "orcamento",
+                        "decisao"
+                    ]
+                },
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"decisao\": \"APROVADO\",\n  \"observacao\": \"Autorizo este orçamento\"\n}",
+                    "options": {
+                        "raw": {
+                            "language": "json"
+                        }
+                    }
+                }
+            }
         }
     ],
     "auth": {
@@ -4177,9 +3932,6 @@
         "_postman_id": "ee6a92ff-a71a-4acc-85cf-fa03242c98e3",
         "name": "Oficina Mecânica API",
         "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-        "description": {
-            "content": "Sistema Integrado de Atendimento e Execução de Serviços para Oficina Mecânica.\n\n**Autenticação:** Use o endpoint `/auth/login` para obter um token JWT.\nInsira o token no botão **Authorize** acima com o prefixo `Bearer`.\n\n**Roles disponíveis:**\n- `ADMIN`: Acesso total ao sistema\n- `MECANICO`: Acesso a ordens de serviço e execução\n- `CLIENTE`: Consulta de status das suas OS\n\n\nContact Support:\n Name: Oficina Mecânica\n Email: dev@oficina.com",
-            "type": "text/plain"
-        }
+        "description": " Fase 3: customerToken exige novo login CPF + código no gateway para o cliente dono da OS; não use bearerToken staff em operações customer. Endpoint de mutação por email removido."
     }
 }

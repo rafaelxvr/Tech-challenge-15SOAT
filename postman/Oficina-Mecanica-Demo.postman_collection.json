@@ -2,13 +2,17 @@
   "info": {
     "_postman_id": "7dc2a31b-9cbc-46df-b4fb-9956d8ebde2f",
     "name": "Oficina Mecânica - Roteiro Demo",
-    "description": "Fluxo curto para o vídeo: health, autenticação, cadastros, abertura e acompanhamento de OS e métricas administrativas.",
+    "description": "Fluxo curto para o vídeo: health, autenticação, cadastros, abertura e acompanhamento de OS e métricas administrativas. Fase 3: customerToken exige novo login CPF + código no gateway para o cliente dono da OS; não use bearerToken staff em operações customer. Endpoint de mutação por email removido. Antes de executar, configure demoDocumento com um CPF válido do cliente sintético e demoEmail com sua caixa de teste. O script não inventa CPF válido.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
     "type": "bearer",
     "bearer": [
-      { "key": "token", "value": "{{bearerToken}}", "type": "string" }
+      {
+        "key": "token",
+        "value": "{{bearerToken}}",
+        "type": "string"
+      }
     ]
   },
   "event": [
@@ -20,8 +24,7 @@
           "if (!pm.environment.get('demoRunId')) {",
           "  const runId = Date.now().toString().slice(-8);",
           "  pm.environment.set('demoRunId', runId);",
-          "  pm.environment.set('demoDocumento', `900${runId}`);",
-          "  pm.environment.set('demoEmail', `cliente.${runId}@oficina.com`);",
+          "  if (!pm.environment.get('demoEmail')) pm.environment.set('demoEmail', `cliente.${runId}@oficina.com`);",
           "  pm.environment.set('demoPlaca', `D${runId.slice(-6)}`);",
           "  pm.environment.set('demoChassi', `9BWZZZ377VT${runId.slice(-6)}`);",
           "}"
@@ -33,13 +36,20 @@
     {
       "name": "01 - Health",
       "request": {
-        "auth": { "type": "noauth" },
+        "auth": {
+          "type": "noauth"
+        },
         "method": "GET",
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/actuator/health",
-          "host": ["{{baseUrl}}"],
-          "path": ["actuator", "health"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "actuator",
+            "health"
+          ]
         }
       },
       "event": [
@@ -60,17 +70,29 @@
     {
       "name": "02 - Login administrador",
       "request": {
-        "auth": { "type": "noauth" },
+        "auth": {
+          "type": "noauth"
+        },
         "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
         "body": {
           "mode": "raw",
           "raw": "{\n  \"email\": \"admin@oficina.com\",\n  \"senha\": \"Admin@123\"\n}"
         },
         "url": {
           "raw": "{{baseUrl}}/auth/login",
-          "host": ["{{baseUrl}}"],
-          "path": ["auth", "login"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "login"
+          ]
         }
       },
       "event": [
@@ -95,15 +117,24 @@
       "name": "03 - Cadastrar cliente",
       "request": {
         "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
         "body": {
           "mode": "raw",
           "raw": "{\n  \"nome\": \"Cliente Demonstração\",\n  \"tipoDocumento\": \"CPF\",\n  \"documento\": \"{{demoDocumento}}\",\n  \"email\": \"{{demoEmail}}\",\n  \"telefone\": \"11999999999\",\n  \"cep\": \"01310-100\",\n  \"logradouro\": \"Avenida Paulista\",\n  \"numero\": \"1000\",\n  \"bairro\": \"Bela Vista\",\n  \"cidade\": \"São Paulo\",\n  \"estado\": \"SP\"\n}"
         },
         "url": {
           "raw": "{{baseUrl}}/clientes",
-          "host": ["{{baseUrl}}"],
-          "path": ["clientes"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "clientes"
+          ]
         }
       },
       "event": [
@@ -126,15 +157,24 @@
       "name": "04 - Cadastrar veículo",
       "request": {
         "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
         "body": {
           "mode": "raw",
           "raw": "{\n  \"placa\": \"{{demoPlaca}}\",\n  \"marca\": \"Fiat\",\n  \"modelo\": \"Argo\",\n  \"ano\": 2024,\n  \"cor\": \"Prata\",\n  \"chassi\": \"{{demoChassi}}\",\n  \"clienteId\": \"{{clienteId}}\"\n}"
         },
         "url": {
           "raw": "{{baseUrl}}/veiculos",
-          "host": ["{{baseUrl}}"],
-          "path": ["veiculos"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "veiculos"
+          ]
         }
       },
       "event": [
@@ -160,9 +200,18 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/servicos?size=20",
-          "host": ["{{baseUrl}}"],
-          "path": ["servicos"],
-          "query": [{ "key": "size", "value": "20" }]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "servicos"
+          ],
+          "query": [
+            {
+              "key": "size",
+              "value": "20"
+            }
+          ]
         }
       },
       "event": [
@@ -189,9 +238,18 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/pecas?size=20",
-          "host": ["{{baseUrl}}"],
-          "path": ["pecas"],
-          "query": [{ "key": "size", "value": "20" }]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "pecas"
+          ],
+          "query": [
+            {
+              "key": "size",
+              "value": "20"
+            }
+          ]
         }
       },
       "event": [
@@ -215,15 +273,24 @@
       "name": "07 - Abrir ordem de serviço",
       "request": {
         "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
         "body": {
           "mode": "raw",
           "raw": "{\n  \"documentoCliente\": \"{{demoDocumento}}\",\n  \"placaVeiculo\": \"{{demoPlaca}}\",\n  \"servicos\": [\n    {\n      \"servicoId\": \"{{servicoId}}\",\n      \"quantidade\": 1,\n      \"observacao\": \"Serviço selecionado na demonstração\"\n    }\n  ],\n  \"pecas\": [\n    {\n      \"pecaId\": \"{{pecaId}}\",\n      \"quantidade\": 1\n    }\n  ],\n  \"observacoes\": \"OS criada durante o vídeo demonstrativo\"\n}"
         },
         "url": {
           "raw": "{{baseUrl}}/ordens-servico",
-          "host": ["{{baseUrl}}"],
-          "path": ["ordens-servico"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "ordens-servico"
+          ]
         }
       },
       "event": [
@@ -245,16 +312,32 @@
       ]
     },
     {
-      "name": "08 - Acompanhamento público da OS",
+      "name": "08 - Acompanhamento autenticado da OS",
       "request": {
-        "auth": { "type": "noauth" },
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{customerToken}}",
+              "type": "string"
+            }
+          ]
+        },
         "method": "GET",
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/ordens-servico/{{osNumero}}/acompanhamento",
-          "host": ["{{baseUrl}}"],
-          "path": ["ordens-servico", "{{osNumero}}", "acompanhamento"]
-        }
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "ordens-servico",
+            "{{osNumero}}",
+            "acompanhamento"
+          ]
+        },
+        "description": "JWT customer do proprietário, obtido por CPF + código no gateway. Leitura: orders:read:self; decisão: orders:decide:self. Aliases legados apenas conferem documento; prefira /orcamento/decisao."
       },
       "event": [
         {
@@ -262,14 +345,15 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test('Acompanhamento público disponível', function () {",
+              "pm.test('Acompanhamento autenticado disponível', function () {",
               "  pm.response.to.have.status(200);",
               "  pm.expect(pm.response.json().data.numero).to.eql(Number(pm.environment.get('osNumero')));",
               "});"
             ]
           }
         }
-      ]
+      ],
+      "response": []
     },
     {
       "name": "09 - Métricas administrativas",
@@ -278,8 +362,14 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/admin/metricas/tempo-execucao-servicos",
-          "host": ["{{baseUrl}}"],
-          "path": ["admin", "metricas", "tempo-execucao-servicos"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "admin",
+            "metricas",
+            "tempo-execucao-servicos"
+          ]
         }
       },
       "event": [
@@ -295,6 +385,50 @@
           }
         }
       ]
+    },
+    {
+      "name": "Cliente - Decidir orçamento da própria OS",
+      "request": {
+        "method": "POST",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{customerToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "description": "Após staff enviar o orçamento e o cliente fazer login pelo gateway, use o número retornado pela criação da OS. Defina customerToken no ambiente. Body sem identidade.",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/ordens-servico/{{osNumero}}/orcamento/decisao",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "ordens-servico",
+            "{{osNumero}}",
+            "orcamento",
+            "decisao"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"decisao\": \"APROVADO\",\n  \"observacao\": \"Autorizo este orçamento\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
     }
   ]
 }

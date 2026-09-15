@@ -245,52 +245,40 @@ Detalhes: [`infra/README.md`](infra/README.md).
 
 ---
 
-## APIs de Ordem de Serviço (Fase 2)
+## APIs de Ordem de Serviço (Fase 3)
 
 Base: **http://localhost:8080/api** (Compose) ou **http://localhost:30080/api** (Kind).
 
-| Método | Caminho | Descrição |
+| Método | Caminho | Autorização |
 |---|---|---|
-| POST | `/ordens-servico` | Abertura de OS (cliente, veículo, serviços, peças) → retorna id/número |
-| GET | `/ordens-servico/{numero}/acompanhamento` | Consulta de status (público) |
-| POST | `/ordens-servico/{numero}/orcamento/notificacao` | Notificação externa **APROVADO** / **RECUSADO** |
-| GET | `/ordens-servico` | Listagem: prioridade Execução > Aguardando > Diagnóstico > Recebida; mais antigas primeiro; **sem** FINALIZADA/ENTREGUE |
-| POST | `/ordens-servico/email/atualizar-status` | Atualização de status via ferramenta de e-mail (token) |
+| POST / GET | `/ordens-servico` | Staff ADMIN/MECANICO: abertura e listagem operacional |
+| GET | `/ordens-servico/{numero}/acompanhamento` | Customer, `orders:read:self`, própria OS |
+| POST | `/ordens-servico/{numero}/orcamento/decisao` | Customer, `orders:decide:self`, própria OS |
+| POST | `/ordens-servico/{numero}/aprovar` | Alias autenticado de aprovação; documento deve concordar com o cliente do JWT |
+| POST | `/ordens-servico/{numero}/orcamento/notificacao` | Alias autenticado de decisão; documento deve concordar com o cliente do JWT |
 
-Collection / contrato interativo: **Swagger UI** → http://localhost:8080/api/swagger-ui.html  
-OpenAPI JSON: http://localhost:8080/api/v3/api-docs  
+Use o **número retornado pela criação da OS**, não um número fixo. Ordem inexistente ou pertencente a outro cliente retorna 404. A resposta inclui valores e itens do orçamento e histórico de status, sem nome, documento, placa, contato, identificadores de atores ou observações internas.
 
-### Login seed
+O cliente obtém seu token no fluxo CPF + código de email do gateway. O token customer dura 15 minutos e não tem refresh. O login staff continua em `POST /api/auth/login`; ele não autentica o cliente. Tokens anteriores à atualização exigem **novo login**. Veja [migração das operações de cliente](docs/runbooks/customer-order-access.md).
 
-```json
-POST /api/auth/login
-{ "email": "admin@oficina.com", "senha": "Admin@123" }
-```
+### Exemplo — decisão autenticada
 
-### Exemplo — notificação de orçamento
+```http
+POST /api/ordens-servico/{{osNumero}}/orcamento/decisao
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
 
-```json
-POST /api/ordens-servico/1/orcamento/notificacao
 {
   "decisao": "APROVADO",
-  "documentoCliente": "39053344705",
-  "observacao": "Aprovado pelo app do cliente"
+  "observacao": "Autorizo este orçamento"
 }
 ```
 
-### Exemplo — status via e-mail
+Para recusar, envie `"decisao": "RECUSADO"`. O corpo canônico não recebe identidade. Os aliases legados exigem `documentoCliente`, apenas como conferência do cliente já autenticado.
 
-```json
-POST /api/ordens-servico/email/atualizar-status
-{
-  "numero": 1,
-  "novoStatus": "EM_DIAGNOSTICO",
-  "token": "oficina-email-status-token",
-  "observacao": "Clique no link do e-mail"
-}
-```
+`/ordens-servico/email/atualizar-status` foi removido: retorna 404 inclusive com o antigo token compartilhado e não executa serviços. Emails são notificações; a decisão exige login do cliente. A variável `MAIL_STATUS_TOKEN` não é mais consumida pela aplicação.
 
-Após mudanças de status, confira a mensagem no **MailHog** (http://localhost:8025).
+Swagger UI em `/api/swagger-ui.html` e OpenAPI em `/api/v3/api-docs` exigem JWT staff. Somente `POST /api/auth/login` e `GET /api/actuator/health` permitem acesso anônimo na APP. O fluxo CPF do gateway pertence ao serviço de autenticação separado.
 
 ---
 
@@ -351,7 +339,6 @@ O PDF contém:
 | `JWT_SECRET` | Obrigatório | Segredo staff com pelo menos 32 bytes UTF-8 e entropia aleatória; emissores, audiências, IDs e chaves públicas também são obrigatórios. Veja [configuração de confiança JWT](docs/runbooks/jwt-trust.md). |
 | `MAIL_HOST` / `MAIL_PORT` | localhost:1025 | SMTP (MailHog) |
 | `MAIL_ENABLED` | true | Liga/desliga envio |
-| `MAIL_STATUS_TOKEN` | `oficina-email-status-token` | Token do endpoint via e-mail |
 | `HISTORICO_ZONA_COMPATIBILIDADE` | obrigatório; `UTC` nos dados sintéticos novos | Zona comprovada para horários de compatibilidade; veja [primeiro cutover](docs/runbooks/first-writer-cutover.md) |
 
 ---

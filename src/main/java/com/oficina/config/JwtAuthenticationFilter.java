@@ -29,6 +29,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request, @NonNull HttpServletResponse response,
                                     @NonNull FilterChain chain) throws ServletException, IOException {
+        // Retired integration tombstone: no authentication or business service can revive this path.
+        String applicationPath = request.getRequestURI().substring(request.getContextPath().length());
+        if ("/ordens-servico/email/atualizar-status".equals(applicationPath)) {
+            response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+            return;
+        }
         String header = request.getHeader("Authorization");
         if (header == null) {
             chain.doFilter(request, response);

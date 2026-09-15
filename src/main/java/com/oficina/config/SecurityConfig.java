@@ -2,6 +2,11 @@ package com.oficina.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oficina.security.CustomerTokenValidator;
+import com.oficina.security.IdentidadeAutenticada;
+import com.oficina.security.TipoPrincipal;
+import org.springframework.security.authorization.AuthorizationDecision;
+import org.springframework.security.authorization.AuthorizationManager;
+import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
 import com.oficina.security.StaffTokenValidator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -33,15 +38,6 @@ public class SecurityConfig {
     private final StaffTokenValidator staffValidator;
     private final ObjectMapper objectMapper;
 
-    // Endpoints públicos - sem autenticação
-    private static final String[] PUBLIC_URLS = {
-            "/auth/**",
-            "/v3/api-docs/**",
-            "/swagger-ui/**",
-            "/swagger-ui.html",
-            "/actuator/health"
-    };
-
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
@@ -54,14 +50,13 @@ public class SecurityConfig {
                     response.getWriter().write("{\"error\":\"UNAUTHORIZED\"}");
                 }))
                 .authorizeHttpRequests(auth -> auth
-                        // Endpoints públicos
-                        .requestMatchers(PUBLIC_URLS).permitAll()
-
-                        // Consulta e aprovação de OS pelo cliente (sem JWT)
-                        .requestMatchers(HttpMethod.GET, "/ordens-servico/*/acompanhamento").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/ordens-servico/*/aprovar").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/ordens-servico/*/orcamento/notificacao").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/ordens-servico/email/atualizar-status").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/auth/login").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/ordens-servico/*/acompanhamento")
+                            .access(clienteComEscopo("SCOPE_orders:read:self"))
+                        .requestMatchers(HttpMethod.POST, "/ordens-servico/*/aprovar",
+                                "/ordens-servico/*/orcamento/notificacao", "/ordens-servico/*/orcamento/decisao")
+                            .access(clienteComEscopo("SCOPE_orders:decide:self"))
 
                         // Gestão administrativa - somente ADMIN
                         .requestMatchers(HttpMethod.DELETE, "/**").hasRole("ADMIN")
@@ -75,6 +70,15 @@ public class SecurityConfig {
                         UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
+    }
+
+    private static AuthorizationManager<RequestAuthorizationContext> clienteComEscopo(String escopo) {
+        return (authentication, context) -> {
+            var auth = authentication.get();
+            return new AuthorizationDecision(auth.isAuthenticated()
+                    && auth.getPrincipal() instanceof IdentidadeAutenticada cliente
+                    && cliente.tipo() == TipoPrincipal.CUSTOMER && cliente.permissoes().contains(escopo));
+        };
     }
 
     @Bean

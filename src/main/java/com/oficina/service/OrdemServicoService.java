@@ -9,6 +9,9 @@ import com.oficina.exception.BusinessRuleException;
 import com.oficina.exception.EntityNotFoundException;
 import com.oficina.repository.OrdemServicoRepository;
 import com.oficina.validation.ValidadorDocumento;
+import com.oficina.security.IdentidadeAutenticada;
+import com.oficina.security.TipoPrincipal;
+import org.springframework.security.access.AccessDeniedException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -62,9 +65,6 @@ public class OrdemServicoService {
     private Ator atorAtual() {
         return SecurityUtils.usuarioAutenticadoId().map(Ator::staff).orElseGet(Ator::sistema);
     }
-
-    @Value("${oficina.mail.status-token:oficina-email-status-token}")
-    private String emailStatusToken;
 
     @Transactional
     public OrdemServicoDetalheResponse criar(CriarOrdemServicoRequest request) {
@@ -142,37 +142,29 @@ public class OrdemServicoService {
     }
 
     @Transactional(readOnly = true)
-    public AcompanhamentoOsResponse acompanhamentoPublico(Long numero) {
+    public AcompanhamentoOsResponse acompanhamentoDoCliente(Long numero, IdentidadeAutenticada cliente) {
+        exigirCliente(cliente, "SCOPE_orders:read:self");
         OrdemServico os = ordemServicoRepository.findDetalheAcompanhamentoPorNumero(numero)
                 .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, numero));
+        exigirProprietario(os, numero, cliente);
+        return montarAcompanhamento(os);
+    }
 
-        os.getHistorico().size();
-        List<OrdemServicoDetalheResponse.HistoricoStatusResponse> historico = os.getHistorico().stream()
-                .sorted(ORDEM_HISTORICO)
-                .map(h -> new OrdemServicoDetalheResponse.HistoricoStatusResponse(
-                        h.getStatusAnterior(),
-                        h.getStatusNovo(),
-                        h.getObservacao(),
-                        h.getCriadoEm(),
-                        h.getOcorridoEm()
-                ))
+    private AcompanhamentoOsResponse montarAcompanhamento(OrdemServico os) {
+        var historico = os.getHistorico().stream().sorted(ORDEM_HISTORICO)
+                .map(h -> new AcompanhamentoOsResponse.HistoricoCliente(
+                        h.getStatusAnterior(), h.getStatusNovo(), h.getCriadoEm(), h.getOcorridoEm()))
                 .toList();
-
-        LocalDateTime ultimo = os.getHistorico().stream()
-                .max(ORDEM_HISTORICO)
-                .map(OsHistorico::getCriadoEm)
-                .orElse(os.getCriadoEm());
-
-        return new AcompanhamentoOsResponse(
-                os.getNumero(),
-                os.getStatus(),
-                os.getValorTotal(),
-                os.getCriadoEm(),
-                ultimo,
-                os.getCliente().getNome(),
-                os.getVeiculo().getPlaca(),
-                historico
-        );
+        LocalDateTime ultimo = os.getHistorico().stream().max(ORDEM_HISTORICO)
+                .map(OsHistorico::getCriadoEm).orElse(os.getCriadoEm());
+        var servicos = os.getServicos().stream()
+                .map(s -> new AcompanhamentoOsResponse.LinhaOrcamento(s.getServico().getNome(),
+                        s.getQuantidade(), s.getValorUnitario(), s.getValorTotal())).toList();
+        var pecas = os.getPecas().stream()
+                .map(p -> new AcompanhamentoOsResponse.LinhaOrcamento(p.getPeca().getNome(),
+                        p.getQuantidade(), p.getValorUnitario(), p.getValorTotal())).toList();
+        return new AcompanhamentoOsResponse(os.getNumero(), os.getStatus(), os.getValorTotal(),
+                os.getCriadoEm(), ultimo, servicos, pecas, historico);
     }
 
     @Transactional
@@ -204,93 +196,55 @@ public class OrdemServicoService {
     }
 
     @Transactional
-    public OrdemServicoDetalheResponse processarDecisaoOrcamento(Long numero, DecisaoOrcamentoRequest request) {
-        return switch (request.decisao()) {
-            case APROVADO -> aprovarPeloCliente(numero, new AprovacaoClienteRequest(request.documentoCliente()));
-            case RECUSADO -> recusarPeloCliente(numero, request);
-        };
+    public AcompanhamentoOsResponse decidirComoCliente(Long numero, IdentidadeAutenticada cliente,
+                                                     DecisaoClienteRequest pedido) {
+        return executarDecisaoCliente(numero, cliente, pedido, null);
     }
 
+    /** Compatibility input can only agree with the owner already selected by the signed principal. */
     @Transactional
-    public OrdemServicoDetalheResponse aprovarPeloCliente(Long numero, AprovacaoClienteRequest request) {
+    public AcompanhamentoOsResponse decidirComoClienteLegado(Long numero, IdentidadeAutenticada cliente,
+                                                           DecisaoOrcamentoRequest pedido) {
+        return executarDecisaoCliente(numero, cliente,
+                new DecisaoClienteRequest(pedido.decisao(), pedido.observacao()), pedido.documentoCliente());
+    }
+
+    private AcompanhamentoOsResponse executarDecisaoCliente(Long numero, IdentidadeAutenticada cliente,
+                                                          DecisaoClienteRequest pedido, String documentoLegado) {
+        exigirCliente(cliente, "SCOPE_orders:decide:self");
         OrdemServico os = ordemServicoRepository.findComPecasEClientePorNumero(numero)
                 .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, numero));
-
-        validarDocumentoCliente(os, request.documentoCliente());
-        validarEstoqueDisponivel(os);
+        exigirProprietario(os, numero, cliente);
+        if (documentoLegado != null) validarDocumentoCliente(os, documentoLegado);
 
         StatusOrdemServico anterior = os.getStatus();
-        Ator ator = atorAtual();
+        Ator ator = Ator.cliente(cliente.id());
         Instant ocorridoEm = prepararHistorico(os);
-        os.aprovarExecucaoCliente(ator, ocorridoEm, "Orçamento aprovado pelo cliente");
-
-        for (OsPecaItem item : os.getPecas()) {
-            item.getPeca().baixarEstoque(item.getQuantidade());
+        boolean aprovado = pedido.decisao() == DecisaoOrcamentoRequest.DecisaoOrcamento.APROVADO;
+        String observacao = pedido.observacao() != null ? pedido.observacao()
+                : aprovado ? "Orçamento aprovado pelo cliente" : "Orçamento recusado pelo cliente";
+        if (aprovado) {
+            validarEstoqueDisponivel(os);
+            os.aprovarExecucaoCliente(ator, ocorridoEm, observacao);
+            for (OsPecaItem item : os.getPecas()) item.getPeca().baixarEstoque(item.getQuantidade());
+        } else {
+            os.recusarOrcamentoCliente(ator, ocorridoEm, observacao);
         }
-
         OrdemServico salva = ordemServicoRepository.save(os);
-        notificacaoPort.notificarAtualizacaoStatus(salva, anterior, "Orçamento aprovado pelo cliente");
-        return montarDetalhe(salva);
+        notificacaoPort.notificarAtualizacaoStatus(salva, anterior, observacao);
+        return montarAcompanhamento(salva);
     }
 
-    @Transactional
-    public OrdemServicoDetalheResponse recusarPeloCliente(Long numero, DecisaoOrcamentoRequest request) {
-        OrdemServico os = ordemServicoRepository.findComPecasEClientePorNumero(numero)
-                .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, numero));
-
-        validarDocumentoCliente(os, request.documentoCliente());
-
-        StatusOrdemServico anterior = os.getStatus();
-        Ator ator = atorAtual();
-        Instant ocorridoEm = prepararHistorico(os);
-        String obs = request.observacao() != null ? request.observacao() : "Orçamento recusado pelo cliente";
-        os.recusarOrcamentoCliente(ator, ocorridoEm, obs);
-
-        OrdemServico salva = ordemServicoRepository.save(os);
-        notificacaoPort.notificarAtualizacaoStatus(salva, anterior, obs);
-        return montarDetalhe(salva);
+    private void exigirCliente(IdentidadeAutenticada cliente, String permissao) {
+        if (cliente == null || cliente.tipo() != TipoPrincipal.CUSTOMER || !cliente.permissoes().contains(permissao)) {
+            throw new AccessDeniedException("Identidade de cliente e escopo próprio obrigatórios.");
+        }
     }
 
-    /**
-     * Atualiza status da OS a partir de ferramenta de e-mail (link/token no corpo da mensagem).
-     * Transições permitidas seguem o mesmo fluxo operacional da oficina.
-     */
-    @Transactional
-    public OrdemServicoDetalheResponse atualizarStatusViaEmail(AtualizacaoStatusEmailRequest request) {
-        if (!emailStatusToken.equals(request.token())) {
-            throw new BusinessRuleException("Token de atualização por e-mail inválido.");
+    private void exigirProprietario(OrdemServico os, Long numero, IdentidadeAutenticada cliente) {
+        if (!os.getCliente().getId().equals(cliente.id())) {
+            throw new EntityNotFoundException(ENTIDADE, numero);
         }
-
-        StatusOrdemServico destino = request.novoStatus();
-        OrdemServico os = (destino == StatusOrdemServico.EM_EXECUCAO)
-                ? ordemServicoRepository.findComPecasEClientePorNumero(request.numero())
-                    .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, request.numero()))
-                : ordemServicoRepository.findByNumero(request.numero())
-                    .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, request.numero()));
-
-        StatusOrdemServico anterior = os.getStatus();
-        String obs = request.observacao() != null ? request.observacao() : "Atualização via e-mail";
-        Ator ator = atorAtual();
-        Instant ocorridoEm = prepararHistorico(os);
-
-        switch (destino) {
-            case EM_DIAGNOSTICO -> os.iniciarDiagnostico(ator, ocorridoEm, obs);
-            case AGUARDANDO_APROVACAO -> os.enviarOrcamentoParaAprovacao(ator, ocorridoEm, obs);
-            case EM_EXECUCAO -> {
-                validarEstoqueDisponivel(os);
-                os.aprovarExecucaoCliente(ator, ocorridoEm, obs);
-                for (OsPecaItem item : os.getPecas()) {
-                    item.getPeca().baixarEstoque(item.getQuantidade());
-                }
-            }
-            case FINALIZADA -> os.finalizarServico(ator, ocorridoEm, obs);
-            case ENTREGUE -> os.registrarEntrega(ator, ocorridoEm, obs);
-            case RECEBIDA -> throw new BusinessRuleException("Não é possível retornar para RECEBIDA via e-mail.");
-        }
-
-        OrdemServico salva = ordemServicoRepository.save(os);
-        notificacaoPort.notificarAtualizacaoStatus(salva, anterior, obs);
-        return montarDetalhe(salva);
     }
 
     @Transactional

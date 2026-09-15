@@ -4,6 +4,7 @@ import com.oficina.entity.StatusOrdemServico;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 
 public record AcompanhamentoOsResponse(
@@ -12,7 +13,13 @@ public record AcompanhamentoOsResponse(
         BigDecimal valorTotal,
         LocalDateTime criadoEm,
         LocalDateTime ultimaAtualizacaoStatusEm,
-        String clienteNome,
-        String placa,
-        List<OrdemServicoDetalheResponse.HistoricoStatusResponse> historico
-) {}
+        List<LinhaOrcamento> servicos,
+        List<LinhaOrcamento> pecas,
+        List<HistoricoCliente> historico
+) {
+    public record LinhaOrcamento(String descricao, Integer quantidade,
+                                BigDecimal valorUnitario, BigDecimal valorTotal) {}
+    /** Free-form internal notes and actor identifiers are never part of the customer projection. */
+    public record HistoricoCliente(StatusOrdemServico statusAnterior, StatusOrdemServico statusNovo,
+                                   LocalDateTime criadoEm, Instant ocorridoEm) {}
+}
