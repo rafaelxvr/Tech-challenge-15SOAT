@@ -16,7 +16,7 @@ RUN mvn clean package -DskipTests -B
 # ========================
 # STAGE 2: Runtime
 # ========================
-FROM eclipse-temurin:17-jre-alpine AS runtime
+FROM eclipse-temurin:17-jre-alpine@sha256:27cc0849148c0fd32ee8e95988917becf9bc96a3182a24f99d9763aa8e90f8cb AS runtime
 
 # Criar usuário não-root por segurança
 RUN addgroup -S oficina && adduser -S oficina -G oficina
