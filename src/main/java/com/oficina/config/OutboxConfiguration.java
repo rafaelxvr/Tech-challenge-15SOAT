@@ -13,10 +13,15 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
+import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
+import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.retries.StandardRetryStrategy;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.sqs.SqsClient;
+import software.amazon.awssdk.services.sts.StsClient;
+import software.amazon.awssdk.services.sts.auth.StsWebIdentityTokenFileCredentialsProvider;
+import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.concurrent.*;
@@ -30,10 +35,31 @@ public class OutboxConfiguration {
                 .retryStrategy(StandardRetryStrategy.builder().maxAttempts(1).build()).build();
     }
 
-    @Bean(destroyMethod = "close") SqsClient outboxSqsClient(@Value("${oficina.outbox.region}") String region) {
+    @Bean(destroyMethod = "close") SdkHttpClient outboxHttpClient() {
+        return UrlConnectionHttpClient.builder().connectionTimeout(Duration.ofSeconds(1))
+                .socketTimeout(Duration.ofSeconds(2)).build();
+    }
+
+    @Bean(destroyMethod = "close") public StsClient outboxStsClient(
+            @Value("${oficina.outbox.region}") String region, SdkHttpClient outboxHttpClient) {
+        // AssumeRoleWithWebIdentity is unsigned. Never recurse into the default credentials chain.
+        return StsClient.builder().region(Region.of(region)).credentialsProvider(AnonymousCredentialsProvider.create())
+                .overrideConfiguration(sdkLimits()).httpClient(outboxHttpClient).build();
+    }
+
+    @Bean(destroyMethod = "close") public StsWebIdentityTokenFileCredentialsProvider outboxIrsaCredentials(
+            StsClient outboxStsClient, @Value("${AWS_ROLE_ARN}") String roleArn,
+            @Value("${AWS_WEB_IDENTITY_TOKEN_FILE}") String tokenFile) {
+        // Explicit client ownership bounds cold acquisition AND refresh; no implicit STS client or background refresh.
+        return StsWebIdentityTokenFileCredentialsProvider.builder().stsClient(outboxStsClient)
+                .roleArn(roleArn).roleSessionName("oficina-outbox").webIdentityTokenFile(Path.of(tokenFile))
+                .asyncCredentialUpdateEnabled(false).build();
+    }
+
+    @Bean(destroyMethod = "close") public SqsClient outboxSqsClient(@Value("${oficina.outbox.region}") String region,
+            StsWebIdentityTokenFileCredentialsProvider outboxIrsaCredentials, SdkHttpClient outboxHttpClient) {
         return SqsClient.builder().region(Region.of(region)).overrideConfiguration(sdkLimits())
-                .httpClientBuilder(UrlConnectionHttpClient.builder().connectionTimeout(Duration.ofSeconds(1))
-                        .socketTimeout(Duration.ofSeconds(2))).build();
+                .credentialsProvider(outboxIrsaCredentials).httpClient(outboxHttpClient).build();
     }
 
     @Bean PublicadorFila publicadorFila(SqsClient outboxSqsClient, ObjectMapper mapper,

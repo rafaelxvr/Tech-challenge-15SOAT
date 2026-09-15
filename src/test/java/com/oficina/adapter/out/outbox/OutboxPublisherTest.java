@@ -146,6 +146,39 @@ class OutboxPublisherTest extends PostgresIntegrationSupport {
         assertThat(publisher.publicarProximo()).isTrue();
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void coldOrExpiredIrsaTimeoutReturnsAndReleasesClaim(boolean expired, @org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) throws Exception {
+        var first = event(order(), 1);
+        var token = java.nio.file.Files.writeString(directory.resolve("web-identity-token"), "synthetic-token");
+        var config = new com.oficina.config.OutboxConfiguration();
+        var transport = new com.oficina.support.StallingStsHttpClient(expired);
+        var sqsTransport = org.mockito.Mockito.mock(software.amazon.awssdk.http.SdkHttpClient.class);
+        try (var sts = config.outboxStsClient("us-east-1", transport);
+             var credentials = config.outboxIrsaCredentials(sts, "arn:aws:iam::123456789012:role/synthetic", token.toString());
+             var sqs = config.outboxSqsClient("us-east-1", credentials, sqsTransport)) {
+            if (expired) credentials.resolveCredentials();
+            publisher = new OutboxPublisher(jdbc, transaction,
+                    new com.oficina.adapter.out.sqs.SqsPublicadorFila(sqs, "https://sqs.us-east-1.amazonaws.com/123456789012/synthetic.fifo", mapper), clock);
+            org.junit.jupiter.api.Assertions.assertTimeout(Duration.ofSeconds(3), () -> assertThat(publisher.publicarProximo()).isTrue());
+            assertThat(transport.stalledAttempts).hasValue(1);
+            // The enclosing SQS deadline can interrupt the nested STS call before STS's own abort callback.
+            assertThat(transport.abortedAttempts.get() + transport.interruptedAttempts.get()).isPositive();
+            org.mockito.Mockito.verify(sqsTransport, org.mockito.Mockito.never()).prepareRequest(org.mockito.ArgumentMatchers.any());
+            assertThat(jdbc.queryForMap("SELECT estado,tentativas,ultimo_erro_codigo FROM outbox_eventos WHERE event_id=?", first.eventId()))
+                    .containsEntry("estado", "PENDING").containsEntry("tentativas", 1).containsEntry("ultimo_erro_codigo", "QUEUE_SEND_FAILED");
+            // Another physical connection can immediately claim the same row: timeout released its lock.
+            try (var connection = jdbc.getDataSource().getConnection()) {
+                connection.setAutoCommit(false);
+                try (var claim = connection.prepareStatement("SELECT event_id FROM outbox_eventos WHERE event_id=? FOR UPDATE NOWAIT")) {
+                    claim.setObject(1, first.eventId());
+                    try (var result = claim.executeQuery()) { assertThat(result.next()).isTrue(); }
+                } finally { connection.rollback(); }
+            }
+            assertThat(jdbc.getDataSource().unwrap(com.zaxxer.hikari.HikariDataSource.class).getHikariPoolMXBean().getActiveConnections()).isZero();
+        }
+    }
+
     @Test void psqlDefaultsToPreviewAndRequiresSuccessfulExportBeforeDeletion() throws Exception {
         var old = event(order(), 1); var pending = event(order(), 1);
         jdbc.update("UPDATE outbox_eventos SET estado='PUBLISHED',publicado_em=CURRENT_TIMESTAMP - INTERVAL '8 days' WHERE event_id=?", old.eventId());

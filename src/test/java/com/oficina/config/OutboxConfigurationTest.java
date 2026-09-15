@@ -24,15 +24,21 @@ class OutboxConfigurationTest {
         assertThat(poller.isRunning()).isFalse();
     }
 
-    @Test void sdkAndAdaptersConstructWithoutAwsCalls() {
+    @Test void sdkAndAdaptersConstructWithoutAwsCalls(@org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) throws Exception {
         var config = new OutboxConfiguration();
-        try (var client = config.outboxSqsClient("us-east-1")) {
+        var token = java.nio.file.Files.writeString(directory.resolve("token"), "synthetic-token");
+        try (var http = config.outboxHttpClient();
+             var sts = config.outboxStsClient("us-east-1", http);
+             var credentials = config.outboxIrsaCredentials(sts, "arn:aws:iam::123456789012:role/synthetic", token.toString());
+             var client = config.outboxSqsClient("us-east-1", credentials, http)) {
             assertThat(client.serviceClientConfiguration().overrideConfiguration().apiCallTimeout()).contains(java.time.Duration.ofSeconds(2));
+            var stsLimits = sts.serviceClientConfiguration().overrideConfiguration();
+            assertThat(stsLimits.apiCallTimeout()).contains(java.time.Duration.ofSeconds(2));
+            assertThat(stsLimits.apiCallAttemptTimeout()).contains(java.time.Duration.ofSeconds(2));
+            assertThat(stsLimits.retryStrategy().orElseThrow().maxAttempts()).isEqualTo(1);
             assertThat(config.publicadorFila(client, new ObjectMapper(), "https://sqs.us-east-1.amazonaws.com/123456789012/events.fifo")).isNotNull();
         }
         assertThat(config.outboxPublisher(mock(JdbcTemplate.class), mock(PlatformTransactionManager.class),
                 mock(PublicadorFila.class), Clock.systemUTC())).isNotNull();
-        // IRSA's reflective credentials provider needs this SDK module at runtime.
-        assertThat(software.amazon.awssdk.services.sts.StsClient.class).isNotNull();
     }
 }
