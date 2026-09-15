@@ -1,8 +1,8 @@
 # Phase 3 — step 5 acceptance and implementation readiness
 
-Status: final design section awaiting approval. Steps 1–4 are approved. Parent: [Phase 3 specification](2026-09-14-phase-3-design.md). This section defines how completion will be proved; its acceptance criteria have not yet been executed.
+Status: approved by the user ("approved, proceed", 2026-09-15), including the complete linked specification. All five design steps are approved. Parent: [Phase 3 specification](2026-09-14-phase-3-design.md). This section defines how completion will be proved; its acceptance criteria have not yet been executed.
 
-## Five decisions for final review
+## Five approved acceptance decisions
 
 1. Mark an assignment requirement complete only when its implementation, automated checks and applicable AWS demonstration evidence agree.
 2. Implement in five bounded work packages using the approved DDD boundaries and TDD, preserving the existing Java/PostgreSQL foundation and coverage gate.
@@ -10,7 +10,7 @@ Status: final design section awaiting approval. Steps 1–4 are approved. Parent
 4. Produce a demonstration targeting 14 minutes and one submission PDF linking the four repositories, video, documentation and confirmed `soat-architecture` access.
 5. Complete this written-spec review, then use Superpowers writing-plans to create executable tasks. Cloud rehearsal remains subject to the approved free-account, capacity and 48-hour operating limits.
 
-Approval of this section also serves as the final review of the linked specification set. It moves the work to implementation planning without another duplicate section-approval round. It does not turn unexecuted checks into passes, grant permission to change repository visibility, or authorize destructive cleanup.
+The user's approval of this section completes the final review of the linked specification set. The [executable implementation plan](../plans/2026-09-15-phase-3-implementation.md) is now written. Unexecuted checks remain unexecuted; repository visibility changes and destructive cleanup still require their specific authorization.
 
 ## Sources and decision precedence
 
@@ -130,6 +130,6 @@ Cleanup must name the actual resources, data exports/backups, retention choices 
 
 The design covers the supplied mandatory requirements and the approved serverless-notification objective. Implementation, cloud resource creation, functional verification, finished architecture deliverables and submission evidence remain future work. This turn reviews documentation; it does not claim new runtime tests passed.
 
-After final approval, Superpowers writing-plans will turn the five work packages into executable tasks with file ownership, dependencies, exact verification commands, expected failures/results and evidence outputs. Local preparation can proceed while account-specific deployment prerequisites remain pending; no additional architecture round is needed for routine choices already covered here.
+Superpowers writing-plans has turned the five work packages into [26 executable tasks](../plans/2026-09-15-phase-3-implementation.md) with file ownership, dependencies, exact verification commands, expected failures/results and evidence outputs. Local preparation can proceed while account-specific deployment prerequisites remain pending; no additional architecture round is needed for routine choices already covered here.
 
-Next action (under 1 minute): approve the five opening decisions and the complete linked specification so the executable TDD implementation plan can be written.
+Next action (under 1 minute): open the [implementation plan](../plans/2026-09-15-phase-3-implementation.md) and choose subagent-driven or inline execution.

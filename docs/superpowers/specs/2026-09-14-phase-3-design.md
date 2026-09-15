@@ -1,6 +1,6 @@
-# Phase 3 design specification — approval draft
+# Phase 3 design specification — approved
 
-Status: steps 1–4 are approved by the user. Step 5 and the complete written specification are ready for final review. This is a design specification, not an executable implementation plan or a claim that Phase 3 is complete.
+Status: all five design steps and the complete linked specification are approved by the user (final approval: "approved, proceed", 2026-09-15). The [executable TDD implementation plan](../plans/2026-09-15-phase-3-implementation.md) translates this approved design into tasks. Implementation and acceptance evidence remain outstanding.
 
 AWS login was confirmed with a read-only STS check on 2026-09-14: profile `study`, region `us-east-1`, root identity. A read-only Free Tier check confirmed an active FREE account plan, US$100 remaining credits and plan expiration on 2027-03-14. No account identifier or credentials are recorded here. AWS is the intended final deployment target; Kind remains available for local development and CI. The user requires US$0 out of pocket using the free account only. Resource sizing, creation eligibility and deployment quotas still require validation. Deployment will use dedicated roles rather than the root session.
 
@@ -12,9 +12,9 @@ AWS login was confirmed with a read-only STS check on 2026-09-14: profile `study
 | 2 | CPF authentication, customer/staff permissions and integration contracts | Approved: permissions, CPF + email code, token lifecycle and contracts |
 | 3 | AWS infrastructure, four repositories and staging/production delivery | Approved: 3A and [3B sizing, costs and delivery](2026-09-14-phase-3-aws-design.md) |
 | 4 | Data changes, notifications and observability | [4A data](2026-09-14-phase-3-data-design.md), [4B notifications](2026-09-14-phase-3-notifications-design.md) and [4C observability](2026-09-14-phase-3-observability-design.md) approved |
-| 5 | Acceptance evidence, documentation and implementation readiness | [Final acceptance specification](2026-09-14-phase-3-acceptance-design.md) ready for review |
+| 5 | Acceptance evidence, documentation and implementation readiness | [Final acceptance specification](2026-09-14-phase-3-acceptance-design.md) approved on 2026-09-15 |
 
-We record approvals explicitly. The final written-spec review includes step 5; after approval, use Superpowers writing-plans to produce executable TDD tasks. Earlier `PHASE_3_*PLAN.md` files provide historical research and candidate approaches; this specification and its approved companions are the implementation design authority.
+The final approval includes step 5 and the complete linked specification. Superpowers writing-plans has produced the [executable TDD tasks](../plans/2026-09-15-phase-3-implementation.md). Earlier `PHASE_3_*PLAN.md` files provide historical research and candidate approaches; this specification and its approved companions are the implementation design authority.
 
 ## Source and current architecture
 
@@ -314,7 +314,7 @@ These approved companions amend their named contracts and define implementation 
 
 ## Step 5 — acceptance and implementation readiness
 
-The [final acceptance specification](2026-09-14-phase-3-acceptance-design.md) maps the PDF requirements to pass conditions and evidence, defines the documentation/submission inventory and divides implementation into five work packages. Step 5 and the complete written specification are ready for final review; the next activity is Superpowers writing-plans after that approval.
+The approved [final acceptance specification](2026-09-14-phase-3-acceptance-design.md) maps the PDF requirements to pass conditions and evidence, defines the documentation/submission inventory and divides implementation into five work packages. The [implementation plan](../plans/2026-09-15-phase-3-implementation.md) supplies task dependencies, exact files, test scenarios, verification commands and evidence outputs.
 
 ## Phase 3 completion coverage
 
@@ -338,7 +338,7 @@ The introduction also asks for serverless notifications. Its detailed mandatory 
 | AWS final deployment and local Kind development | User direction carried forward |
 | Step 1 recommendation and standards | Approved by user: "approved, proceed" |
 | Technical design | Steps 2A–2C, 3A–3B and 4A–4C approved |
-| Final design review | Step 5 and the complete written specification await approval; executable TDD implementation planning follows |
+| Final design review | Step 5 and the complete written specification approved on 2026-09-15; executable TDD implementation plan written |
 | Implementation/provisioning | Not started by this specification |
 
-Next action (under 1 minute): approve [step 5's five opening decisions](2026-09-14-phase-3-acceptance-design.md) and the complete linked specification so the executable TDD plan can be written. Provisioning has not started.
+Next action (under 1 minute): open the [implementation plan](../plans/2026-09-15-phase-3-implementation.md) and choose subagent-driven or inline execution. Provisioning has not started.

@@ -173,4 +173,4 @@ TDD and cloud acceptance:
 4. Inject worker failure after SES acceptance and before ledger completion; demonstrate the documented duplicate possibility rather than claiming exactly-once delivery. Verify retries, five-receive DLQ routing and selected recovery with actual AWS behavior during the approved window.
 5. Demonstrate a status email, an OTP login while notifications are pending, correlated request/event logs and a controlled notification-failure alert. Verify both environments' limits and the credit allocation.
 
-Next action (under 1 minute): review [step 5's final acceptance and documentation decisions](2026-09-14-phase-3-acceptance-design.md). Steps 4A–4C are approved; implementation has not started.
+Next action (under 1 minute): open the [implementation plan](../plans/2026-09-15-phase-3-implementation.md) and choose subagent-driven or inline execution. All five design steps are approved; implementation has not started.

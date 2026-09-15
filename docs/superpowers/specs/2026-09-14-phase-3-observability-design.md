@@ -147,4 +147,4 @@ Implementation acceptance requires:
 4. **Failure and recovery:** demonstrate technical order failure with rollback, outbox lag/BLOCKED, retry/DLQ, source throttling and email delivery to the operator; verify recovery. Routine business rejection must not trigger a technical-failure alert.
 5. **Capacity and evidence:** measure agent overhead/cold starts, report-query time, collector resources and actual ingestion/cost projections inside the approved envelope; save dashboard, trace, log and alert/recovery evidence before cleanup. Local/CI tests use fakes/captured exporter payloads and Kind where needed, with no New Relic secret required for ordinary test runs.
 
-Next action (under 1 minute): review [step 5's final acceptance and documentation decisions](2026-09-14-phase-3-acceptance-design.md). Step 4C is approved.
+Next action (under 1 minute): open the [implementation plan](../plans/2026-09-15-phase-3-implementation.md) and choose subagent-driven or inline execution. All five design steps are approved.

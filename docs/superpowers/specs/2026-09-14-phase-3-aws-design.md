@@ -1,6 +1,6 @@
 # Phase 3 — step 3B AWS sizing and delivery design
 
-Status: approved by the user ("approved, proceed"), including the two-HTTP-API amendment and US$35 window allowance. Step 3A (temporary shared EKS, local Kind, free-plan credits only) is also approved. This is design approval; implementation follows completion of the remaining design reviews. Parent: [Phase 3 specification](2026-09-14-phase-3-design.md).
+Status: approved by the user ("approved, proceed"), including the two-HTTP-API amendment and US$35 window allowance. Step 3A (temporary shared EKS, local Kind, free-plan credits only) is also approved. All five design reviews are complete; execution follows the [implementation plan](../plans/2026-09-15-phase-3-implementation.md). Parent: [Phase 3 specification](2026-09-14-phase-3-design.md).
 
 ## Approved design decision
 
@@ -143,10 +143,10 @@ Outside a cloud window, CI continues but CD is explicitly blocked. Opening a new
 
 ## Before deployment can be called ready
 
-1. Steps 1–4 are approved. Complete step 5 and the final specification review before executable implementation planning.
+1. All five design steps are approved. Follow the [implementation plan](../plans/2026-09-15-phase-3-implementation.md); complete its local checks and deployment prerequisites before provisioning.
 2. Choose the actual cloud window around the submission/review deadline, recheck the active Free plan and quotas, and confirm that no selected service/configuration requires a paid upgrade.
 3. Verify the node allocation, pod/IP capacity, JVM memory, database connections, cold starts and gateway throttling with the implemented configuration. Revise limits and prices when measurement contradicts the draft.
 4. Verify the four repository identities/protections, AWS human/CI access, SES identities, runtime secrets, protected Terraform states and dependency outputs. Do not treat workflow files alone as proof these settings exist.
 5. Capture staging/production deployment and authenticated smoke-test evidence, measured credit consumption and the reviewed export/cleanup plan. Confirm remaining retained-resource costs within the reserve.
 
-Next action (under 1 minute): review [step 5's final acceptance and documentation decisions](2026-09-14-phase-3-acceptance-design.md); steps 1–4 are approved. No AWS resources or GitHub settings were changed by this design review.
+Next action (under 1 minute): open the [implementation plan](../plans/2026-09-15-phase-3-implementation.md) and choose subagent-driven or inline execution. No AWS resources or GitHub settings were changed by this design review.

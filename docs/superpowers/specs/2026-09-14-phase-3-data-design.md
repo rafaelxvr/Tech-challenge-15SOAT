@@ -136,4 +136,4 @@ Inspect the live database's index definitions and representative query plans bef
 4. A rollback produces no outbox event; a committed transition retains its event when external delivery is unavailable. Publication/delivery failure tests follow in 4B.
 5. PostgreSQL fixtures prove the 30/50/20-minute example, diagnosis re-entry, empty samples, incomplete histories and business-day boundaries. Migration tests verify both fresh and upgrade paths, using the existing meaningful coverage gate rather than mocking database concurrency.
 
-Next action (under 1 minute): review [step 5's final acceptance and documentation decisions](2026-09-14-phase-3-acceptance-design.md); steps 4A–4C are approved.
+Next action (under 1 minute): open the [implementation plan](../plans/2026-09-15-phase-3-implementation.md) and choose subagent-driven or inline execution. All five design steps are approved.
