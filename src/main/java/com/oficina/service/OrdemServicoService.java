@@ -1,6 +1,7 @@
 package com.oficina.service;
 
 import com.oficina.application.port.out.NotificacaoPort;
+import com.oficina.application.notificacao.StatusOrdemServicoRegistrado;
 import com.oficina.config.SecurityUtils;
 import com.oficina.domain.identidade.Ator;
 import com.oficina.dto.*;
@@ -111,9 +112,8 @@ public class OrdemServicoService {
 
         os.recalcularValorTotal();
         ordemServicoRepository.save(os);
-        ordemServicoRepository.flush();
-        OrdemServico salva = ordemServicoRepository.findById(os.getId()).orElseThrow();
-        notificacaoPort.notificarAtualizacaoStatus(salva, null, "Abertura da ordem de serviço");
+        OrdemServico salva = os;
+        registrarNotificacao(salva);
         return montarDetalhe(salva);
     }
 
@@ -171,13 +171,12 @@ public class OrdemServicoService {
     public OrdemServicoDetalheResponse iniciarDiagnostico(UUID id, AcaoOrdemRequest acao) {
         OrdemServico os = ordemServicoRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, id));
-        StatusOrdemServico anterior = os.getStatus();
         Ator ator = atorAtual();
         Instant ocorridoEm = prepararHistorico(os);
         String obs = acao != null ? acao.observacao() : null;
         os.iniciarDiagnostico(ator, ocorridoEm, obs);
         OrdemServico salva = ordemServicoRepository.save(os);
-        notificacaoPort.notificarAtualizacaoStatus(salva, anterior, obs != null ? obs : "Diagnóstico iniciado");
+        registrarNotificacao(salva);
         return montarDetalhe(salva);
     }
 
@@ -185,13 +184,12 @@ public class OrdemServicoService {
     public OrdemServicoDetalheResponse enviarOrcamento(UUID id, AcaoOrdemRequest acao) {
         OrdemServico os = ordemServicoRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, id));
-        StatusOrdemServico anterior = os.getStatus();
         Ator ator = atorAtual();
         Instant ocorridoEm = prepararHistorico(os);
         String obs = acao != null ? acao.observacao() : "Orçamento enviado ao cliente";
         os.enviarOrcamentoParaAprovacao(ator, ocorridoEm, obs);
         OrdemServico salva = ordemServicoRepository.save(os);
-        notificacaoPort.notificarAtualizacaoStatus(salva, anterior, obs);
+        registrarNotificacao(salva);
         return montarDetalhe(salva);
     }
 
@@ -217,7 +215,6 @@ public class OrdemServicoService {
         exigirProprietario(os, numero, cliente);
         if (documentoLegado != null) validarDocumentoCliente(os, documentoLegado);
 
-        StatusOrdemServico anterior = os.getStatus();
         Ator ator = Ator.cliente(cliente.id());
         Instant ocorridoEm = prepararHistorico(os);
         boolean aprovado = pedido.decisao() == DecisaoOrcamentoRequest.DecisaoOrcamento.APROVADO;
@@ -231,7 +228,7 @@ public class OrdemServicoService {
             os.recusarOrcamentoCliente(ator, ocorridoEm, observacao);
         }
         OrdemServico salva = ordemServicoRepository.save(os);
-        notificacaoPort.notificarAtualizacaoStatus(salva, anterior, observacao);
+        registrarNotificacao(salva);
         return montarAcompanhamento(salva);
     }
 
@@ -251,13 +248,12 @@ public class OrdemServicoService {
     public OrdemServicoDetalheResponse finalizar(UUID id, AcaoOrdemRequest acao) {
         OrdemServico os = ordemServicoRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, id));
-        StatusOrdemServico anterior = os.getStatus();
         Ator ator = atorAtual();
         Instant ocorridoEm = prepararHistorico(os);
         String obs = acao != null ? acao.observacao() : null;
         os.finalizarServico(ator, ocorridoEm, obs);
         OrdemServico salva = ordemServicoRepository.save(os);
-        notificacaoPort.notificarAtualizacaoStatus(salva, anterior, obs != null ? obs : "Serviço finalizado");
+        registrarNotificacao(salva);
         return montarDetalhe(salva);
     }
 
@@ -265,14 +261,27 @@ public class OrdemServicoService {
     public OrdemServicoDetalheResponse registrarEntrega(UUID id, AcaoOrdemRequest acao) {
         OrdemServico os = ordemServicoRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, id));
-        StatusOrdemServico anterior = os.getStatus();
         Ator ator = atorAtual();
         Instant ocorridoEm = prepararHistorico(os);
         String obs = acao != null ? acao.observacao() : null;
         os.registrarEntrega(ator, ocorridoEm, obs);
         OrdemServico salva = ordemServicoRepository.save(os);
-        notificacaoPort.notificarAtualizacaoStatus(salva, anterior, obs != null ? obs : "Veículo entregue");
+        registrarNotificacao(salva);
         return montarDetalhe(salva);
+    }
+
+    private void registrarNotificacao(OrdemServico os) {
+        // Persist generated order number, optimistic versions and canonical history before JDBC insertion.
+        ordemServicoRepository.flush();
+        OsHistorico historico = os.getHistorico().stream()
+                .filter(h -> h.getSequencia() != null && h.getSequencia() == os.getSequenciaHistorico())
+                .findFirst().orElseThrow(() -> new IllegalStateException("Canonical history required"));
+        notificacaoPort.notificarAtualizacaoStatus(new StatusOrdemServicoRegistrado(
+                UUID.randomUUID(), StatusOrdemServicoRegistrado.EVENT_TYPE,
+                StatusOrdemServicoRegistrado.SCHEMA_VERSION, os.getId(), os.getNumero(),
+                os.getCliente().getId(), os.getCliente().getVersaoIdentidade(), historico.getSequencia(),
+                historico.getStatusAnterior() == null ? null : historico.getStatusAnterior().name(),
+                historico.getStatusNovo().name(), historico.getOcorridoEm(), UUID.randomUUID().toString(), null));
     }
 
     private void validarDocumentoCliente(OrdemServico os, String documentoInformado) {

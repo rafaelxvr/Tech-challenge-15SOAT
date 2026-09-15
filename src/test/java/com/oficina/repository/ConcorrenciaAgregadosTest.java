@@ -27,6 +27,8 @@ class ConcorrenciaAgregadosTest extends PostgresIntegrationSupport {
     private UUID segundaOrdem;
 
     @BeforeEach void prepare() {
+        jdbc.update("DELETE FROM outbox_recuperacoes");
+        jdbc.update("DELETE FROM outbox_eventos");
         jdbc.update("DELETE FROM os_historico");
         jdbc.update("DELETE FROM os_pecas");
         jdbc.update("DELETE FROM os_servicos");

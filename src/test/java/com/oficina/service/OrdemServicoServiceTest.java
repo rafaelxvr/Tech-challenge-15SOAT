@@ -99,10 +99,10 @@ class OrdemServicoServiceTest {
         when(ordemServicoRepository.save(any(OrdemServico.class))).thenAnswer(inv -> {
             OrdemServico os = inv.getArgument(0);
             os.setId(UUID.randomUUID());
+            os.setNumero(1001L);
             holder[0] = os;
             return os;
         });
-        when(ordemServicoRepository.findById(any(UUID.class))).thenAnswer(inv -> Optional.ofNullable(holder[0]));
 
         CriarOrdemServicoRequest req = new CriarOrdemServicoRequest(
                 CPF,
@@ -268,10 +268,10 @@ class OrdemServicoServiceTest {
         when(ordemServicoRepository.save(any(OrdemServico.class))).thenAnswer(inv -> {
             OrdemServico os = inv.getArgument(0);
             os.setId(UUID.randomUUID());
+            os.setNumero(1001L);
             holder[0] = os;
             return os;
         });
-        when(ordemServicoRepository.findById(any(UUID.class))).thenAnswer(inv -> Optional.ofNullable(holder[0]));
 
         CriarOrdemServicoRequest req = new CriarOrdemServicoRequest(
                 CPF,
@@ -518,10 +518,10 @@ class OrdemServicoServiceTest {
         when(ordemServicoRepository.save(any(OrdemServico.class))).thenAnswer(inv -> {
             OrdemServico o = inv.getArgument(0);
             o.setId(UUID.randomUUID());
+            o.setNumero(1001L);
             holder[0] = o;
             return o;
         });
-        when(ordemServicoRepository.findById(any(UUID.class))).thenAnswer(inv -> Optional.ofNullable(holder[0]));
 
         CriarOrdemServicoRequest req = new CriarOrdemServicoRequest(
                 CPF,
@@ -678,6 +678,7 @@ class OrdemServicoServiceTest {
         Veiculo v = veiculo(c);
         OrdemServico os = OrdemServico.builder()
                 .id(UUID.randomUUID())
+                .numero(1001L)
                 .cliente(c)
                 .veiculo(v)
                 .status(StatusOrdemServico.RECEBIDA)

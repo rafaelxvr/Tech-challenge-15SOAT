@@ -35,6 +35,7 @@ class CustomerOrderDecisionTest {
         ReflectionTestUtils.setField(service, "zonaCompatibilidade", "UTC");
         order = Fixtures.ordem(Fixtures.cliente(ownerId), StatusOrdemServico.AGUARDANDO_APROVACAO);
         order.setNumero(77L);
+        order.setId(UUID.randomUUID());
     }
 
     static IdentidadeAutenticada identity(TipoPrincipal type, UUID id, String... scopes) {

@@ -27,6 +27,28 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class Phase3ContractTest {
 
+    @Test
+    void applicationRecordRoundTripsFrozenEventExactly() throws Exception {
+        var mapper = new ObjectMapper().registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())
+                .disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        var json = mapper.readTree(CONTRACTS.resolve("status-event.json").toFile());
+        var event = mapper.treeToValue(json, com.oficina.application.notificacao.StatusOrdemServicoRegistrado.class);
+        JsonNode roundTrip = mapper.readTree(mapper.writeValueAsBytes(event));
+        assertThat(roundTrip).isEqualTo(json);
+        assertThat(java.util.Arrays.stream(event.getClass().getRecordComponents()).map(java.lang.reflect.RecordComponent::getName))
+                .containsExactlyInAnyOrderElementsOf(fieldNames(json));
+        assertThat(mapper.writeValueAsBytes(event)).hasSizeLessThanOrEqualTo(8192);
+        var invalid = json.deepCopy();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) invalid).put("schemaVersion", 2);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> mapper.treeToValue(invalid,
+                com.oficina.application.notificacao.StatusOrdemServicoRegistrado.class))
+                .isInstanceOf(com.fasterxml.jackson.databind.JsonMappingException.class);
+        ((com.fasterxml.jackson.databind.node.ObjectNode) invalid).put("schemaVersion", 1).put("correlationId", "private@example.invalid");
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> mapper.treeToValue(invalid,
+                com.oficina.application.notificacao.StatusOrdemServicoRegistrado.class))
+                .isInstanceOf(com.fasterxml.jackson.databind.JsonMappingException.class);
+    }
+
     private static final Path CONTRACTS = Path.of("contracts/phase3-v1");
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final Map<String, String> CANONICAL_SHA256 = Map.of(

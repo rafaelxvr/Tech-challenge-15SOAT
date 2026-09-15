@@ -90,7 +90,7 @@ flowchart TB
 | Domínio | `entity`, `exception`, `validation` | Regras e modelo de negócio (OS, estoque, transições) |
 | Aplicação | `service`, `application.port.out` | Casos de uso; portas de saída (ex.: `NotificacaoPort`) |
 | Adaptadores de entrada | `controller`, `dto` | REST / OpenAPI |
-| Adaptadores de saída | `repository`, `adapter.out.mail` | JPA/Postgres, e-mail SMTP |
+| Adaptadores de saída | `repository`, `adapter.out.outbox` | JPA/Postgres e intenção de notificação transacional |
 | Configuração | `config` | Security JWT, OpenAPI, wiring Spring |
 
 Classe de entrada: `OficinaApplication`.
@@ -103,7 +103,7 @@ Classe de entrada: `OficinaApplication`.
 | Banco | `k8s/postgres.yaml` | PostgreSQL 16 + PVC; schema via Flyway na API |
 | API | `k8s/app.yaml` | Deployment (2 réplicas), Service, HPA |
 | Config | `k8s/configmap.yaml` + `secret.yaml` | Variáveis e segredos (JWT, senhas, token e-mail) |
-| E-mail | MailHog (Compose profile `tools` / K8s) | Visualização de notificações de status |
+| E-mail local | MailHog (Compose profile `tools`) | Destino de testes do consumidor; ativação explícita com `local-mailhog` |
 
 ### Fluxo de deploy
 
@@ -123,7 +123,7 @@ Classe de entrada: `OficinaApplication`.
 | PostgreSQL | 16 | Banco |
 | Flyway | (Boot) | Migrações |
 | Spring Security + JWT | jjwt 0.12.x | API stateless |
-| Spring Mail + MailHog | — | Notificação / atualização de status via e-mail |
+| Spring Mail + MailHog | — | Testes locais de entrega após commit |
 | Kubernetes | Kind / manifests em `/k8s` | Orquestração + HPA |
 | Terraform | 1.15.8 | Provisionamento do cluster + apply |
 | GitHub Actions | `.github/workflows/ci-cd.yml` | CI/CD |
@@ -337,8 +337,8 @@ O PDF contém:
 |---|---|---|
 | `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` | ver Compose | JDBC |
 | `JWT_SECRET` | Obrigatório | Segredo staff com pelo menos 32 bytes UTF-8 e entropia aleatória; emissores, audiências, IDs e chaves públicas também são obrigatórios. Veja [configuração de confiança JWT](docs/runbooks/jwt-trust.md). |
-| `MAIL_HOST` / `MAIL_PORT` | localhost:1025 | SMTP (MailHog) |
-| `MAIL_ENABLED` | true | Liga/desliga envio |
+| `MAIL_HOST` / `MAIL_PORT` | localhost:1025 | SMTP para testes do consumidor com perfil `local-mailhog` |
+| `MAIL_ENABLED` | legado | Não seleciona mais a notificação; toda transição grava no [outbox transacional](docs/runbooks/transactional-notifications.md) |
 | `HISTORICO_ZONA_COMPATIBILIDADE` | obrigatório; `UTC` nos dados sintéticos novos | Zona comprovada para horários de compatibilidade; veja [primeiro cutover](docs/runbooks/first-writer-cutover.md) |
 
 ---

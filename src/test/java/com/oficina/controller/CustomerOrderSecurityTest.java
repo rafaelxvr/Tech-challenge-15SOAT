@@ -71,7 +71,8 @@ class CustomerOrderSecurityTest {
     @Autowired MockMvc mvc;
     @Autowired ClienteRepository clientes;
     @Autowired VeiculoRepository veiculos;
-    @Autowired OrdemServicoRepository ordens;
+    @SpyBean OrdemServicoRepository ordens;
+    @jakarta.persistence.PersistenceContext jakarta.persistence.EntityManager entityManager;
     @Autowired PecaRepository pecas;
     @Autowired ServicoRepository servicos;
     @Autowired UsuarioRepository usuarios;
@@ -285,8 +286,8 @@ class CustomerOrderSecurityTest {
 
     @Test void simultaneousAuthorizedApprovalsCommitOneHistoryAndOneStockDeduction() throws Exception {
         var rendezvous = new CyclicBarrier(2);
-        doAnswer(call -> { rendezvous.await(15, TimeUnit.SECONDS); return null; })
-                .when(notifications).notificarAtualizacaoStatus(any(), any(), any());
+        doAnswer(call -> { rendezvous.await(15, TimeUnit.SECONDS); entityManager.flush(); return null; })
+                .when(ordens).flush();
         ExecutorService pool = Executors.newFixedThreadPool(2);
         try {
             Callable<Integer> approve = () -> mvc.perform(post(decisionPath("/orcamento/decisao"))
