@@ -13,7 +13,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
 import java.util.HashSet;
+import java.util.HexFormat;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -27,6 +29,12 @@ class Phase3ContractTest {
 
     private static final Path CONTRACTS = Path.of("contracts/phase3-v1");
     private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final Map<String, String> CANONICAL_SHA256 = Map.of(
+            "README.md", "22c9c2586e35646ea338983d02665f831eb18fae7859cf8dba5085c2227d0c9a",
+            "lookup-views.md", "53e0cd213b6984d50e721707fb8f1b6e4207181a7eb864a86af142a5d97348bc",
+            "routes.json", "af9de55d8f8250e452850cabc5334fbde296779e37ba8ca7e6961a7f4b95db68",
+            "status-event.json", "dfa194654f6da1a8dc43f7ef0fed1ebf7817c39d99bcc9e60754838aaf362059",
+            "token-claims.json", "d4251348bd258134a58c1a01da7913bcf08a3aeb45baa909fed9b732c1c0cf6a");
 
     private static final Map<String, String> PLANNED_BINDINGS = Map.of(
             "POST /api/auth/cpf/desafios", "CriarDesafioHandler",
@@ -124,6 +132,22 @@ class Phase3ContractTest {
 
         assertEnvironment(root.path("environments").path("staging"), "staging");
         assertEnvironment(root.path("environments").path("production"), "production");
+    }
+
+    @Test
+    void canonicalContractFilesMatchFrozenSha256Set() throws Exception {
+        try (var files = Files.list(CONTRACTS)) {
+            assertThat(files.filter(Files::isRegularFile)
+                    .map(path -> path.getFileName().toString()))
+                    .containsExactlyInAnyOrderElementsOf(CANONICAL_SHA256.keySet());
+        }
+
+        MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
+        for (Map.Entry<String, String> canonical : CANONICAL_SHA256.entrySet()) {
+            String actual = HexFormat.of().formatHex(
+                    sha256.digest(Files.readAllBytes(CONTRACTS.resolve(canonical.getKey()))));
+            assertThat(actual).as("SHA-256 for %s", canonical.getKey()).isEqualTo(canonical.getValue());
+        }
     }
 
     @Test

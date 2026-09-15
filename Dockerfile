@@ -1,7 +1,7 @@
 # ========================
 # STAGE 1: Build
 # ========================
-FROM maven:3.9.6-eclipse-temurin-17-alpine AS builder
+FROM maven@sha256:880934ae394bf91bc3e57d573e4fc04774f064f3c4df7ccd7cc10b3b126737bf AS builder
 
 WORKDIR /app
 
