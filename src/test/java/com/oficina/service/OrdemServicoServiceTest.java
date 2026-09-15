@@ -21,6 +21,9 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -58,6 +61,9 @@ class OrdemServicoServiceTest {
     @Mock
     private NotificacaoPort notificacaoPort;
 
+    @org.mockito.Spy
+    private Clock clock = Clock.fixed(Instant.parse("2026-09-15T12:00:00Z"), ZoneOffset.UTC);
+
     @InjectMocks
     private OrdemServicoService ordemServicoService;
 
@@ -68,6 +74,7 @@ class OrdemServicoServiceTest {
 
     @org.junit.jupiter.api.BeforeEach
     void setToken() {
+        ReflectionTestUtils.setField(ordemServicoService, "zonaCompatibilidade", "UTC");
         ReflectionTestUtils.setField(ordemServicoService, "emailStatusToken", "oficina-email-status-token");
     }
 
@@ -112,6 +119,12 @@ class OrdemServicoServiceTest {
         OrdemServicoDetalheResponse resp = ordemServicoService.criar(req);
 
         assertThat(resp.valorTotal()).isEqualByComparingTo(new BigDecimal("100.00"));
+        assertThat(resp.historico()).hasSize(1);
+        assertThat(resp.historico().get(0).ocorridoEm()).isEqualTo(Instant.parse("2026-09-15T12:00:00Z"));
+        assertThat(resp.historico().get(0).criadoEm()).isEqualTo(LocalDateTime.of(2026, 9, 15, 12, 0));
+        assertThat(holder[0].getCriadoEmUtc()).isEqualTo(resp.historico().get(0).ocorridoEm());
+        assertThat(holder[0].getSequenciaHistorico()).isEqualTo(1);
+        verify(clock).instant();
         verify(ordemServicoRepository).flush();
     }
 

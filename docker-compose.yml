@@ -50,6 +50,7 @@ services:
       MAIL_PORT: 1025
       MAIL_ENABLED: "true"
       MAIL_STATUS_TOKEN: ${MAIL_STATUS_TOKEN:-oficina-email-status-token}
+      HISTORICO_ZONA_COMPATIBILIDADE: ${HISTORICO_ZONA_COMPATIBILIDADE:?Defina a zona conforme docs/runbooks/first-writer-cutover.md}
     ports:
       - "8080:8080"
     healthcheck:

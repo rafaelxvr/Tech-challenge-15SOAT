@@ -21,6 +21,11 @@ public class Peca {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @Version
+    @Setter(AccessLevel.NONE)
+    @Column(name = "versao", nullable = false)
+    private long versao;
+
     @Column(nullable = false, unique = true, length = 50)
     private String codigo;
 

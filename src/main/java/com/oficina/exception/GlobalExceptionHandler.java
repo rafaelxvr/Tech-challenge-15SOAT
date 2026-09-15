@@ -1,6 +1,9 @@
 package com.oficina.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,6 +22,29 @@ import java.util.Map;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<ErrorResponse> handleOptimisticLock(
+            ObjectOptimisticLockingFailureException ex, HttpServletRequest request) {
+        return concurrentModification(request);
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleIntegrityViolation(
+            DataIntegrityViolationException ex, HttpServletRequest request) {
+        for (Throwable cause = ex; cause != null; cause = cause.getCause()) {
+            if (cause instanceof ConstraintViolationException constraint
+                    && "uk_os_historico_os_sequencia".equals(constraint.getConstraintName())) {
+                return concurrentModification(request);
+            }
+        }
+        return handleGenericException(ex, request);
+    }
+
+    private ResponseEntity<ErrorResponse> concurrentModification(HttpServletRequest request) {
+        return buildResponse(HttpStatus.CONFLICT, "CONCURRENT_MODIFICATION",
+                "O recurso foi alterado por outra operação. Consulte o estado atual e tente novamente.", request);
+    }
 
     // ========================
     //    DOMAIN EXCEPTIONS

@@ -2,6 +2,7 @@ package com.oficina.service;
 
 import com.oficina.application.port.out.NotificacaoPort;
 import com.oficina.config.SecurityUtils;
+import com.oficina.domain.identidade.Ator;
 import com.oficina.dto.*;
 import com.oficina.entity.*;
 import com.oficina.exception.BusinessRuleException;
@@ -17,7 +18,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
@@ -29,6 +33,9 @@ import java.util.UUID;
 public class OrdemServicoService {
 
     private static final String ENTIDADE = "Ordem de serviço";
+    private static final Comparator<OsHistorico> ORDEM_HISTORICO = Comparator
+            .comparing(OsHistorico::getSequencia, Comparator.nullsFirst(Comparator.naturalOrder()))
+            .thenComparing(OsHistorico::getCriadoEm);
 
     /** Status excluídos logicamente da listagem operacional (não são apagados do banco). */
     private static final Set<StatusOrdemServico> STATUS_EXCLUIDOS_LISTAGEM = EnumSet.of(
@@ -42,6 +49,19 @@ public class OrdemServicoService {
     private final ServicoService servicoService;
     private final PecaService pecaService;
     private final NotificacaoPort notificacaoPort;
+    private final Clock clock;
+
+    @Value("${oficina.historico.zona-compatibilidade}")
+    private String zonaCompatibilidade;
+
+    private Instant prepararHistorico(OrdemServico os) {
+        os.setZonaCompatibilidade(ZoneId.of(zonaCompatibilidade));
+        return clock.instant();
+    }
+
+    private Ator atorAtual() {
+        return SecurityUtils.usuarioAutenticadoId().map(Ator::staff).orElseGet(Ator::sistema);
+    }
 
     @Value("${oficina.mail.status-token:oficina-email-status-token}")
     private String emailStatusToken;
@@ -59,8 +79,9 @@ public class OrdemServicoService {
                 .valorTotal(BigDecimal.ZERO)
                 .build();
 
-        UUID usuarioId = SecurityUtils.usuarioAutenticadoId().orElse(null);
-        os.registrarHistoricoInicial(usuarioId, "Abertura da ordem de serviço");
+        Ator ator = atorAtual();
+        Instant ocorridoEm = prepararHistorico(os);
+        os.registrarHistoricoInicial(ator, ocorridoEm, "Abertura da ordem de serviço");
 
         for (ItemServicoOsRequest item : request.servicos()) {
             var servico = servicoService.obterAtivo(item.servicoId());
@@ -127,18 +148,19 @@ public class OrdemServicoService {
 
         os.getHistorico().size();
         List<OrdemServicoDetalheResponse.HistoricoStatusResponse> historico = os.getHistorico().stream()
-                .sorted(Comparator.comparing(OsHistorico::getCriadoEm))
+                .sorted(ORDEM_HISTORICO)
                 .map(h -> new OrdemServicoDetalheResponse.HistoricoStatusResponse(
                         h.getStatusAnterior(),
                         h.getStatusNovo(),
                         h.getObservacao(),
-                        h.getCriadoEm()
+                        h.getCriadoEm(),
+                        h.getOcorridoEm()
                 ))
                 .toList();
 
         LocalDateTime ultimo = os.getHistorico().stream()
+                .max(ORDEM_HISTORICO)
                 .map(OsHistorico::getCriadoEm)
-                .max(Comparator.naturalOrder())
                 .orElse(os.getCriadoEm());
 
         return new AcompanhamentoOsResponse(
@@ -158,9 +180,10 @@ public class OrdemServicoService {
         OrdemServico os = ordemServicoRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, id));
         StatusOrdemServico anterior = os.getStatus();
-        UUID usuarioId = SecurityUtils.usuarioAutenticadoId().orElse(null);
+        Ator ator = atorAtual();
+        Instant ocorridoEm = prepararHistorico(os);
         String obs = acao != null ? acao.observacao() : null;
-        os.iniciarDiagnostico(usuarioId, obs);
+        os.iniciarDiagnostico(ator, ocorridoEm, obs);
         OrdemServico salva = ordemServicoRepository.save(os);
         notificacaoPort.notificarAtualizacaoStatus(salva, anterior, obs != null ? obs : "Diagnóstico iniciado");
         return montarDetalhe(salva);
@@ -171,9 +194,10 @@ public class OrdemServicoService {
         OrdemServico os = ordemServicoRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, id));
         StatusOrdemServico anterior = os.getStatus();
-        UUID usuarioId = SecurityUtils.usuarioAutenticadoId().orElse(null);
+        Ator ator = atorAtual();
+        Instant ocorridoEm = prepararHistorico(os);
         String obs = acao != null ? acao.observacao() : "Orçamento enviado ao cliente";
-        os.enviarOrcamentoParaAprovacao(usuarioId, obs);
+        os.enviarOrcamentoParaAprovacao(ator, ocorridoEm, obs);
         OrdemServico salva = ordemServicoRepository.save(os);
         notificacaoPort.notificarAtualizacaoStatus(salva, anterior, obs);
         return montarDetalhe(salva);
@@ -196,8 +220,9 @@ public class OrdemServicoService {
         validarEstoqueDisponivel(os);
 
         StatusOrdemServico anterior = os.getStatus();
-        UUID usuarioId = SecurityUtils.usuarioAutenticadoId().orElse(null);
-        os.aprovarExecucaoCliente(usuarioId, "Orçamento aprovado pelo cliente");
+        Ator ator = atorAtual();
+        Instant ocorridoEm = prepararHistorico(os);
+        os.aprovarExecucaoCliente(ator, ocorridoEm, "Orçamento aprovado pelo cliente");
 
         for (OsPecaItem item : os.getPecas()) {
             item.getPeca().baixarEstoque(item.getQuantidade());
@@ -216,9 +241,10 @@ public class OrdemServicoService {
         validarDocumentoCliente(os, request.documentoCliente());
 
         StatusOrdemServico anterior = os.getStatus();
-        UUID usuarioId = SecurityUtils.usuarioAutenticadoId().orElse(null);
+        Ator ator = atorAtual();
+        Instant ocorridoEm = prepararHistorico(os);
         String obs = request.observacao() != null ? request.observacao() : "Orçamento recusado pelo cliente";
-        os.recusarOrcamentoCliente(usuarioId, obs);
+        os.recusarOrcamentoCliente(ator, ocorridoEm, obs);
 
         OrdemServico salva = ordemServicoRepository.save(os);
         notificacaoPort.notificarAtualizacaoStatus(salva, anterior, obs);
@@ -244,20 +270,21 @@ public class OrdemServicoService {
 
         StatusOrdemServico anterior = os.getStatus();
         String obs = request.observacao() != null ? request.observacao() : "Atualização via e-mail";
-        UUID usuarioId = SecurityUtils.usuarioAutenticadoId().orElse(null);
+        Ator ator = atorAtual();
+        Instant ocorridoEm = prepararHistorico(os);
 
         switch (destino) {
-            case EM_DIAGNOSTICO -> os.iniciarDiagnostico(usuarioId, obs);
-            case AGUARDANDO_APROVACAO -> os.enviarOrcamentoParaAprovacao(usuarioId, obs);
+            case EM_DIAGNOSTICO -> os.iniciarDiagnostico(ator, ocorridoEm, obs);
+            case AGUARDANDO_APROVACAO -> os.enviarOrcamentoParaAprovacao(ator, ocorridoEm, obs);
             case EM_EXECUCAO -> {
                 validarEstoqueDisponivel(os);
-                os.aprovarExecucaoCliente(usuarioId, obs);
+                os.aprovarExecucaoCliente(ator, ocorridoEm, obs);
                 for (OsPecaItem item : os.getPecas()) {
                     item.getPeca().baixarEstoque(item.getQuantidade());
                 }
             }
-            case FINALIZADA -> os.finalizarServico(usuarioId, obs);
-            case ENTREGUE -> os.registrarEntrega(usuarioId, obs);
+            case FINALIZADA -> os.finalizarServico(ator, ocorridoEm, obs);
+            case ENTREGUE -> os.registrarEntrega(ator, ocorridoEm, obs);
             case RECEBIDA -> throw new BusinessRuleException("Não é possível retornar para RECEBIDA via e-mail.");
         }
 
@@ -271,9 +298,10 @@ public class OrdemServicoService {
         OrdemServico os = ordemServicoRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, id));
         StatusOrdemServico anterior = os.getStatus();
-        UUID usuarioId = SecurityUtils.usuarioAutenticadoId().orElse(null);
+        Ator ator = atorAtual();
+        Instant ocorridoEm = prepararHistorico(os);
         String obs = acao != null ? acao.observacao() : null;
-        os.finalizarServico(usuarioId, obs);
+        os.finalizarServico(ator, ocorridoEm, obs);
         OrdemServico salva = ordemServicoRepository.save(os);
         notificacaoPort.notificarAtualizacaoStatus(salva, anterior, obs != null ? obs : "Serviço finalizado");
         return montarDetalhe(salva);
@@ -284,9 +312,10 @@ public class OrdemServicoService {
         OrdemServico os = ordemServicoRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, id));
         StatusOrdemServico anterior = os.getStatus();
-        UUID usuarioId = SecurityUtils.usuarioAutenticadoId().orElse(null);
+        Ator ator = atorAtual();
+        Instant ocorridoEm = prepararHistorico(os);
         String obs = acao != null ? acao.observacao() : null;
-        os.registrarEntrega(usuarioId, obs);
+        os.registrarEntrega(ator, ocorridoEm, obs);
         OrdemServico salva = ordemServicoRepository.save(os);
         notificacaoPort.notificarAtualizacaoStatus(salva, anterior, obs != null ? obs : "Veículo entregue");
         return montarDetalhe(salva);
@@ -394,12 +423,13 @@ public class OrdemServicoService {
                 .toList();
 
         List<OrdemServicoDetalheResponse.HistoricoStatusResponse> historico = os.getHistorico().stream()
-                .sorted(Comparator.comparing(OsHistorico::getCriadoEm))
+                .sorted(ORDEM_HISTORICO)
                 .map(h -> new OrdemServicoDetalheResponse.HistoricoStatusResponse(
                         h.getStatusAnterior(),
                         h.getStatusNovo(),
                         h.getObservacao(),
-                        h.getCriadoEm()
+                        h.getCriadoEm(),
+                        h.getOcorridoEm()
                 ))
                 .toList();
 

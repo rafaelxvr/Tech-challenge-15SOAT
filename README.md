@@ -352,6 +352,7 @@ O PDF contém:
 | `MAIL_HOST` / `MAIL_PORT` | localhost:1025 | SMTP (MailHog) |
 | `MAIL_ENABLED` | true | Liga/desliga envio |
 | `MAIL_STATUS_TOKEN` | `oficina-email-status-token` | Token do endpoint via e-mail |
+| `HISTORICO_ZONA_COMPATIBILIDADE` | obrigatório; `UTC` nos dados sintéticos novos | Zona comprovada para horários de compatibilidade; veja [primeiro cutover](docs/runbooks/first-writer-cutover.md) |
 
 ---
 

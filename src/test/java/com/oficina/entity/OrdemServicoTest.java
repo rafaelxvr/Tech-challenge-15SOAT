@@ -1,6 +1,9 @@
 package com.oficina.entity;
 
 import com.oficina.entity.Cliente;
+import com.oficina.domain.identidade.Ator;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import com.oficina.exception.BusinessRuleException;
 import com.oficina.entity.Peca;
 import com.oficina.entity.Servico;
@@ -27,12 +30,13 @@ class OrdemServicoTest {
                 .veiculo(veiculo)
                 .status(StatusOrdemServico.RECEBIDA)
                 .valorTotal(BigDecimal.ZERO)
+                .zonaCompatibilidade(ZoneOffset.UTC)
                 .build();
     }
 
     @Test
     void registrarHistoricoInicial_adicionaEvento() {
-        ordem.registrarHistoricoInicial(null, "Abertura");
+        ordem.registrarHistoricoInicial(Ator.sistema(), Instant.parse("2026-09-15T12:00:00Z"), "Abertura");
         assertThat(ordem.getHistorico()).hasSize(1);
         assertThat(ordem.getHistorico().get(0).getStatusNovo()).isEqualTo(StatusOrdemServico.RECEBIDA);
     }
@@ -69,35 +73,35 @@ class OrdemServicoTest {
 
     @Test
     void fluxoFeliz_ateEntregue() {
-        ordem.iniciarDiagnostico(null, null);
+        ordem.iniciarDiagnostico(Ator.sistema(), Instant.parse("2026-09-15T12:00:00Z"), null);
         assertThat(ordem.getStatus()).isEqualTo(StatusOrdemServico.EM_DIAGNOSTICO);
 
-        ordem.enviarOrcamentoParaAprovacao(null, null);
+        ordem.enviarOrcamentoParaAprovacao(Ator.sistema(), Instant.parse("2026-09-15T12:00:00Z"), null);
         assertThat(ordem.getStatus()).isEqualTo(StatusOrdemServico.AGUARDANDO_APROVACAO);
 
-        ordem.aprovarExecucaoCliente(null, null);
+        ordem.aprovarExecucaoCliente(Ator.sistema(), Instant.parse("2026-09-15T12:00:00Z"), null);
         assertThat(ordem.getStatus()).isEqualTo(StatusOrdemServico.EM_EXECUCAO);
 
-        ordem.finalizarServico(null, null);
+        ordem.finalizarServico(Ator.sistema(), Instant.parse("2026-09-15T12:00:00Z"), null);
         assertThat(ordem.getStatus()).isEqualTo(StatusOrdemServico.FINALIZADA);
 
-        ordem.registrarEntrega(null, null);
+        ordem.registrarEntrega(Ator.sistema(), Instant.parse("2026-09-15T12:00:00Z"), null);
         assertThat(ordem.getStatus()).isEqualTo(StatusOrdemServico.ENTREGUE);
     }
 
     @Test
     void recusarOrcamento_voltaParaDiagnostico() {
-        ordem.iniciarDiagnostico(null, null);
-        ordem.enviarOrcamentoParaAprovacao(null, null);
-        ordem.recusarOrcamentoCliente(null, "Cliente recusou");
+        ordem.iniciarDiagnostico(Ator.sistema(), Instant.parse("2026-09-15T12:00:00Z"), null);
+        ordem.enviarOrcamentoParaAprovacao(Ator.sistema(), Instant.parse("2026-09-15T12:00:00Z"), null);
+        ordem.recusarOrcamentoCliente(Ator.sistema(), Instant.parse("2026-09-15T12:00:00Z"), "Cliente recusou");
         assertThat(ordem.getStatus()).isEqualTo(StatusOrdemServico.EM_DIAGNOSTICO);
     }
 
     @Test
     void recusarOrcamento_semObservacao_usaMensagemPadrao() {
-        ordem.iniciarDiagnostico(null, null);
-        ordem.enviarOrcamentoParaAprovacao(null, null);
-        ordem.recusarOrcamentoCliente(null, null);
+        ordem.iniciarDiagnostico(Ator.sistema(), Instant.parse("2026-09-15T12:00:00Z"), null);
+        ordem.enviarOrcamentoParaAprovacao(Ator.sistema(), Instant.parse("2026-09-15T12:00:00Z"), null);
+        ordem.recusarOrcamentoCliente(Ator.sistema(), Instant.parse("2026-09-15T12:00:00Z"), null);
         assertThat(ordem.getStatus()).isEqualTo(StatusOrdemServico.EM_DIAGNOSTICO);
         assertThat(ordem.getHistorico().get(ordem.getHistorico().size() - 1).getObservacao())
                 .contains("recusado");
@@ -105,7 +109,7 @@ class OrdemServicoTest {
 
     @Test
     void transicaoInvalida_lancaExcecao() {
-        assertThatThrownBy(() -> ordem.enviarOrcamentoParaAprovacao(null, null))
+        assertThatThrownBy(() -> ordem.enviarOrcamentoParaAprovacao(Ator.sistema(), Instant.parse("2026-09-15T12:00:00Z"), null))
                 .isInstanceOf(BusinessRuleException.class);
     }
 }

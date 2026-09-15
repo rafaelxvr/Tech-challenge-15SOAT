@@ -4,6 +4,7 @@ import com.oficina.entity.StatusOrdemServico;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -52,6 +53,7 @@ public record OrdemServicoDetalheResponse(
             StatusOrdemServico statusAnterior,
             StatusOrdemServico statusNovo,
             String observacao,
-            LocalDateTime criadoEm
+            LocalDateTime criadoEm,
+            Instant ocorridoEm
     ) {}
 }

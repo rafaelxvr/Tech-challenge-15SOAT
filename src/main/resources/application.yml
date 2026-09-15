@@ -79,6 +79,10 @@ security:
     refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000}  # 7 dias em ms
 
 oficina:
+  historico:
+    # Fresh synthetic installations use UTC. Existing deployments must supply a proven
+    # compatibility zone; this setting NEVER backfills legacy canonical timestamps.
+    zona-compatibilidade: ${HISTORICO_ZONA_COMPATIBILIDADE}
   mail:
     enabled: ${MAIL_ENABLED:true}
     from: ${MAIL_FROM:noreply@oficina.com}
