@@ -125,7 +125,7 @@ Classe de entrada: `OficinaApplication`.
 | Spring Security + JWT | jjwt 0.12.x | API stateless |
 | Spring Mail + MailHog | — | Notificação / atualização de status via e-mail |
 | Kubernetes | Kind / manifests em `/k8s` | Orquestração + HPA |
-| Terraform | ≥ 1.5 | Provisionamento do cluster + apply |
+| Terraform | 1.15.8 | Provisionamento do cluster + apply |
 | GitHub Actions | `.github/workflows/ci-cd.yml` | CI/CD |
 | SpringDoc OpenAPI | 2.5 | Swagger |
 | Testcontainers | 1.19.x | Testes com Postgres |
@@ -134,8 +134,17 @@ Classe de entrada: `OficinaApplication`.
 
 ## Pré-requisitos
 
-- **Java 17+**, **Maven 3.9+**, **Docker Desktop** ativo
-- Para K8s local: **kubectl**, **kind**, **Terraform ≥ 1.5**
+- **Java 17**, **Docker Desktop** ativo; Maven 3.9.16 é fornecido pelo wrapper
+- Para K8s local: **kubectl**, **Kind 0.33.0**, **Terraform 1.15.8**
+
+Versões e checksums reproduzíveis estão em [`toolchain.lock.json`](toolchain.lock.json). No PowerShell, selecione um JDK 17 para a sessão e valide o ambiente:
+
+```powershell
+$env:JAVA_HOME = 'C:\Program Files\Eclipse Adoptium\jdk-17.0.20.101-hotspot'
+$env:PATH = "$env:JAVA_HOME\bin;$env:PATH"
+.\scripts\check-toolchain.ps1
+.\mvnw.cmd -B verify
+```
 
 ---
 
@@ -166,7 +175,7 @@ docker compose logs -f app
 ```bash
 docker compose up -d postgres
 docker compose --profile tools up -d mailhog
-mvn spring-boot:run -Dspring-boot.run.profiles=dev
+./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
 ```
 
 ---
@@ -288,8 +297,8 @@ Após mudanças de status, confira a mensagem no **MailHog** (http://localhost:8
 ## Testes
 
 ```bash
-mvn test
-mvn test jacoco:report
+./mvnw test
+./mvnw test jacoco:report
 ```
 
 Abrir: `target/site/jacoco/index.html`. Testcontainers exige Docker.

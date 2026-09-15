@@ -19,10 +19,11 @@ target/
 *.swp
 *.swo
 
-# Spring Boot
-.mvn/
-mvnw
-mvnw.cmd
+# Maven wrapper (track only the reproducible wrapper configuration)
+.mvn/*
+!.mvn/wrapper/
+.mvn/wrapper/*
+!.mvn/wrapper/maven-wrapper.properties
 
 # Environment
 .env
