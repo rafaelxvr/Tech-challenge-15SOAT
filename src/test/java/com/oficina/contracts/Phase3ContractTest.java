@@ -49,12 +49,20 @@ class Phase3ContractTest {
                 .isInstanceOf(com.fasterxml.jackson.databind.JsonMappingException.class);
     }
 
-    private static final Path CONTRACTS = Path.of("contracts/phase3-v1");
+    private static final Path CONTRACTS = Path.of("contracts/phase3-v2");
+    private static final Path FROZEN_V1 = Path.of("contracts/phase3-v1");
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final Map<String, String> CANONICAL_SHA256 = Map.of(
             "README.md", "22c9c2586e35646ea338983d02665f831eb18fae7859cf8dba5085c2227d0c9a",
             "lookup-views.md", "53e0cd213b6984d50e721707fb8f1b6e4207181a7eb864a86af142a5d97348bc",
             "routes.json", "af9de55d8f8250e452850cabc5334fbde296779e37ba8ca7e6961a7f4b95db68",
+            "status-event.json", "dfa194654f6da1a8dc43f7ef0fed1ebf7817c39d99bcc9e60754838aaf362059",
+            "token-claims.json", "d4251348bd258134a58c1a01da7913bcf08a3aeb45baa909fed9b732c1c0cf6a");
+
+    private static final Map<String, String> V2_SHA256 = Map.of(
+            "README.md", "aa3205fb2be28215279c1b0bc342d9d1115b561e10a733ec7bcb2847c0b80d9b",
+            "lookup-views.md", "53e0cd213b6984d50e721707fb8f1b6e4207181a7eb864a86af142a5d97348bc",
+            "routes.json", "7e1cff5e6c57174af792bb44b33e63572f885698ab5ef2f24d5aeebda883c1a8",
             "status-event.json", "dfa194654f6da1a8dc43f7ef0fed1ebf7817c39d99bcc9e60754838aaf362059",
             "token-claims.json", "d4251348bd258134a58c1a01da7913bcf08a3aeb45baa909fed9b732c1c0cf6a");
 
@@ -118,7 +126,8 @@ class Phase3ContractTest {
             Map.entry("POST /api/ordens-servico/{id}/finalizar", allow("APP", STAFF)),
             Map.entry("POST /api/ordens-servico/{id}/entregar", allow("APP", STAFF)),
 
-            Map.entry("GET /api/admin/metricas/tempo-execucao-servicos", allow("APP", ADMIN)));
+            Map.entry("GET /api/admin/metricas/tempo-execucao-servicos", allow("APP", ADMIN)),
+            Map.entry("GET /api/admin/relatorios/ordens", allow("APP", ADMIN)));
 
     @Test
     void eventContainsExactReferencesWithoutContactOrSecurityData() throws Exception {
@@ -161,7 +170,7 @@ class Phase3ContractTest {
 
     @Test
     void canonicalContractFilesMatchFrozenSha256Set() throws Exception {
-        try (var files = Files.list(CONTRACTS)) {
+        try (var files = Files.list(FROZEN_V1)) {
             assertThat(files.filter(Files::isRegularFile)
                     .map(path -> path.getFileName().toString()))
                     .containsExactlyInAnyOrderElementsOf(CANONICAL_SHA256.keySet());
@@ -170,9 +179,36 @@ class Phase3ContractTest {
         MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
         for (Map.Entry<String, String> canonical : CANONICAL_SHA256.entrySet()) {
             String actual = HexFormat.of().formatHex(
-                    sha256.digest(Files.readAllBytes(CONTRACTS.resolve(canonical.getKey()))));
+                    sha256.digest(Files.readAllBytes(FROZEN_V1.resolve(canonical.getKey()))));
             assertThat(actual).as("SHA-256 for %s", canonical.getKey()).isEqualTo(canonical.getValue());
         }
+    }
+
+    @Test
+    void v2IsCompleteSnapshotAndAddsOnlyAdminReportingRoute() throws Exception {
+        try (var files = Files.list(CONTRACTS)) {
+            assertThat(files.filter(Files::isRegularFile).map(path -> path.getFileName().toString()))
+                    .containsExactlyInAnyOrderElementsOf(CANONICAL_SHA256.keySet());
+        }
+        MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
+        for (Map.Entry<String,String> canonical : V2_SHA256.entrySet()) {
+            assertThat(HexFormat.of().formatHex(sha256.digest(Files.readAllBytes(CONTRACTS.resolve(canonical.getKey())))))
+                    .as("v2 SHA-256 for %s",canonical.getKey()).isEqualTo(canonical.getValue());
+        }
+        for (String unchanged : new String[]{"status-event.json","token-claims.json","lookup-views.md"}) {
+            assertThat(Files.readAllBytes(CONTRACTS.resolve(unchanged)))
+                    .isEqualTo(Files.readAllBytes(FROZEN_V1.resolve(unchanged)));
+        }
+        var oldMatrix = MAPPER.readTree(FROZEN_V1.resolve("routes.json").toFile());
+        var newMatrix = MAPPER.readTree(CONTRACTS.resolve("routes.json").toFile());
+        var oldRoutes = oldMatrix.path("routes");
+        var newRoutes = newMatrix.path("routes");
+        assertThat(newRoutes.size()).isEqualTo(oldRoutes.size()+1);
+        for (int i=0;i<oldRoutes.size();i++) assertThat(newRoutes.get(i)).isEqualTo(oldRoutes.get(i));
+        assertRoute(newRoutes.get(newRoutes.size()-1), "GET /api/admin/relatorios/ordens",
+                "APP", "RelatoriosAdminController.consultar", "ALLOW", ADMIN);
+        assertThat(newMatrix.path("schemaVersion")).isEqualTo(oldMatrix.path("schemaVersion"));
+        assertThat(newMatrix.path("defaultDecision")).isEqualTo(oldMatrix.path("defaultDecision"));
     }
 
     @Test

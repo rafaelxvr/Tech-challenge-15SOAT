@@ -1,2 +1,4 @@
 mvnw text eol=lf
 .mvn/wrapper/maven-wrapper.properties text eol=lf
+# Contract SHA-256 checks must survive checkout on Windows and Linux.
+contracts/phase3-v*/* text eol=lf
