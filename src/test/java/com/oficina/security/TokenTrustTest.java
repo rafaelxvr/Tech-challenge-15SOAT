@@ -151,6 +151,18 @@ class TokenTrustTest {
         verify(usuarios, times(5)).findByEmail(TokenFixtures.STAFF_EMAIL);
     }
 
+    @ParameterizedTest @ValueSource(strings = {"scopes", "identity_version", "both"})
+    void rejectsExternallySignedStaffTokensWithCustomerOnlyClaimsBeforeLookup(String injectedClaim) {
+        var claims = tokenFixtures.claims("staffAccess", "staging");
+        if (!injectedClaim.equals("identity_version")) claims.put("scopes", List.of("orders:read:self"));
+        if (!injectedClaim.equals("scopes")) claims.put("identity_version", 1);
+        // Sign directly with the trusted fixture key; bypass JwtService's reserved-claim removal.
+        String token = tokenFixtures.signStaff(claims, Map.of("kid", TokenFixtures.STAFF_KID));
+        assertThatThrownBy(() -> staffValidator.validar(token))
+                .isInstanceOf(BadCredentialsException.class).hasMessage("Invalid credentials");
+        verifyNoInteractions(usuarios, clientes);
+    }
+
     @Test void rejectsAlgorithmConfusionAndCrossTrust() {
         assertThatThrownBy(() -> customerValidator.validar(tokenFixtures.wrongAlgorithm())).isInstanceOf(BadCredentialsException.class);
         assertThatThrownBy(() -> staffValidator.validar(tokenFixtures.staffWrongAlgorithm())).isInstanceOf(BadCredentialsException.class);

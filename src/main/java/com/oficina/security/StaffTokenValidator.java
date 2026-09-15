@@ -16,6 +16,9 @@ public class StaffTokenValidator implements ValidadorToken {
 
     @Override public IdentidadeAutenticada validar(String token) {
         var claims = jwtService.validarAccessToken(token);
+        if (claims.containsKey("scopes") || claims.containsKey("identity_version")) {
+            throw TokenVerification.invalid();
+        }
         Usuario usuario = usuarios.findByEmail(claims.getSubject()).orElseThrow(TokenVerification::invalid);
         if (!usuario.isAtivo() || usuario.getId() == null
                 || (usuario.getRole() != Usuario.Role.ADMIN && usuario.getRole() != Usuario.Role.MECANICO)) {
