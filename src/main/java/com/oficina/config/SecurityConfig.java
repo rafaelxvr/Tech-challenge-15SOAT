@@ -1,5 +1,8 @@
 package com.oficina.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.oficina.security.CustomerTokenValidator;
+import com.oficina.security.StaffTokenValidator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -25,8 +28,10 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-    private final JwtAuthenticationFilter jwtAuthFilter;
     private final UserDetailsService userDetailsService;
+    private final CustomerTokenValidator customerValidator;
+    private final StaffTokenValidator staffValidator;
+    private final ObjectMapper objectMapper;
 
     // Endpoints públicos - sem autenticação
     private static final String[] PUBLIC_URLS = {
@@ -43,6 +48,11 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(errors -> errors.authenticationEntryPoint((request, response, exception) -> {
+                    response.setStatus(401);
+                    response.setContentType("application/json");
+                    response.getWriter().write("{\"error\":\"UNAUTHORIZED\"}");
+                }))
                 .authorizeHttpRequests(auth -> auth
                         // Endpoints públicos
                         .requestMatchers(PUBLIC_URLS).permitAll()
@@ -58,10 +68,11 @@ public class SecurityConfig {
                         .requestMatchers("/admin/**").hasRole("ADMIN")
 
                         // Demais endpoints - autenticados
-                        .anyRequest().authenticated()
+                        .anyRequest().hasAnyRole("ADMIN", "MECANICO")
                 )
                 .authenticationProvider(authenticationProvider())
-                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(new JwtAuthenticationFilter(customerValidator, staffValidator, objectMapper),
+                        UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

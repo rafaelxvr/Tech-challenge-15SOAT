@@ -348,7 +348,7 @@ O PDF contém:
 | Variável | Padrão | Descrição |
 |---|---|---|
 | `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` | ver Compose | JDBC |
-| `JWT_SECRET` | — | Mín. 32 caracteres em produção |
+| `JWT_SECRET` | Obrigatório | Segredo staff com pelo menos 32 bytes UTF-8 e entropia aleatória; emissores, audiências, IDs e chaves públicas também são obrigatórios. Veja [configuração de confiança JWT](docs/runbooks/jwt-trust.md). |
 | `MAIL_HOST` / `MAIL_PORT` | localhost:1025 | SMTP (MailHog) |
 | `MAIL_ENABLED` | true | Liga/desliga envio |
 | `MAIL_STATUS_TOKEN` | `oficina-email-status-token` | Token do endpoint via e-mail |

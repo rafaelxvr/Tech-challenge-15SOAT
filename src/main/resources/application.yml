@@ -74,9 +74,18 @@ server:
 # ========================
 security:
   jwt:
-    secret: ${JWT_SECRET:3cTp9vQzXkN8mR2jL5wY7aB4fH6dE1iU0oP}
+    secret: ${JWT_SECRET}
     expiration: ${JWT_EXPIRATION:86400000}  # 24 horas em ms
     refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000}  # 7 dias em ms
+    staff:
+      issuer: ${JWT_STAFF_ISSUER}
+      audience: ${JWT_STAFF_AUDIENCE}
+      key-id: ${JWT_STAFF_KEY_ID}
+    customer:
+      issuer: ${JWT_CUSTOMER_ISSUER}
+      audience: ${JWT_CUSTOMER_AUDIENCE}
+      # Supply security.jwt.customer.public-keys via a config file or SPRING_APPLICATION_JSON.
+      # Map each trusted kid to an X.509 SubjectPublicKeyInfo PEM RSA public key; no URL resolution.
 
 oficina:
   historico:
