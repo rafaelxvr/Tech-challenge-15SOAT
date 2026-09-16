@@ -2,6 +2,12 @@
 
 Back-end para gestão de ordens de serviço, clientes, veículos, catálogo e métricas, evoluído na **Fase 2** com foco em qualidade, resiliência, containerização, Kubernetes, IaC (Terraform) e CI/CD.
 
+## Fase 3: reviewed architecture
+
+The Phase 3 component, authentication, order-delivery, and relational-model evidence is in [the architecture index](docs/phase-3/README.md). Use the committed, credential-free [OpenAPI and Postman snapshots](docs/phase-3/api/contracts.md) for local contract review. They document source revision `7ca6e2948e423ea171c252eddeaca266179bd153`; they do not claim an active cloud endpoint. Run `./mvnw.cmd -q test` locally; the protected-cloud handoff remains an authorized R4 action.
+
+Run `./mvnw.cmd -B verify`, `python scripts/check-doc-links.py docs README.md`, and `python scripts/verify-api-snapshots.py` from this repository root. CI is [`.github/workflows/ci-cd.yml`](.github/workflows/ci-cd.yml): it runs on push and pull request for `main`, `master`, and `develop`, plus manual dispatch. Its image/deployment stages require their configured environment and do not make a cloud deployment claim in this document.
+
 ---
 
 ## Objetivos desta fase
@@ -346,3 +352,6 @@ O PDF contém:
 ## Licença
 
 Projeto privado — todos os direitos reservados.
+# Phase 3 documentation
+
+See [architecture and operations](docs/phase-3/README.md). The repository records reviewed source artifacts; no cloud deployment is represented as active.

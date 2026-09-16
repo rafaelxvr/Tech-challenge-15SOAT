@@ -1,0 +1,1831 @@
+openapi: 3.0.1
+info:
+  title: Oficina Mecânica API
+  description: |
+    Sistema Integrado de Atendimento e Execução de Serviços para Oficina Mecânica.
+
+    **Autenticação:** Use o endpoint `/auth/login` para obter um token JWT.
+    Insira o token no botão **Authorize** acima com o prefixo `Bearer`.
+
+    **Roles disponíveis:**
+    - `ADMIN`: Acesso total ao sistema
+    - `MECANICO`: Acesso a ordens de serviço e execução
+    - Principal `customer`: CPF + código de email no gateway; JWT de 15 minutos, sem refresh.
+    - Leitura requer orders:read:self; decisão requer orders:decide:self e propriedade da OS.
+    - Tokens anteriores exigem novo login. Swagger/OpenAPI exigem staff.
+  contact:
+    name: Oficina Mecânica
+    email: dev@oficina.com
+  license:
+    name: Privado
+    url: '#'
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080/api
+    description: Servidor Local (Dev)
+security:
+  - bearerAuth: []
+tags:
+  - name: Ordens de serviço
+    description: Fluxo de OS, orçamento e acompanhamento
+  - name: Serviços (catálogo)
+    description: CRUD do catálogo de serviços da oficina
+  - name: Métricas administrativas
+    description: Indicadores operacionais
+  - name: Veículos
+    description: CRUD de veículos
+  - name: Peças e estoque
+    description: CRUD de peças com controle de estoque
+  - name: Autenticação
+    description: Endpoints de autenticação e geração de token JWT
+  - name: Clientes
+    description: CRUD de clientes
+paths:
+  /veiculos/{id}:
+    get:
+      tags:
+        - Veículos
+      summary: Buscar veículo por id
+      operationId: buscar
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseVeiculoResponse'
+      security:
+        - bearerAuth: []
+    put:
+      tags:
+        - Veículos
+      summary: Atualizar veículo
+      operationId: atualizar
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VeiculoRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseVeiculoResponse'
+      security:
+        - bearerAuth: []
+    delete:
+      tags:
+        - Veículos
+      summary: Desativar veículo
+      operationId: desativar
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseVoid'
+      security:
+        - bearerAuth: []
+  /servicos/{id}:
+    get:
+      tags:
+        - Serviços (catálogo)
+      summary: Buscar serviço por id
+      operationId: buscar_1
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseServicoResponse'
+      security:
+        - bearerAuth: []
+    put:
+      tags:
+        - Serviços (catálogo)
+      summary: Atualizar serviço
+      operationId: atualizar_1
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServicoRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseServicoResponse'
+      security:
+        - bearerAuth: []
+    delete:
+      tags:
+        - Serviços (catálogo)
+      summary: Desativar serviço
+      operationId: desativar_1
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseVoid'
+      security:
+        - bearerAuth: []
+  /pecas/{id}:
+    get:
+      tags:
+        - Peças e estoque
+      summary: Buscar peça por id
+      operationId: buscar_2
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponsePecaResponse'
+      security:
+        - bearerAuth: []
+    put:
+      tags:
+        - Peças e estoque
+      summary: Atualizar peça
+      operationId: atualizar_2
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PecaRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponsePecaResponse'
+      security:
+        - bearerAuth: []
+    delete:
+      tags:
+        - Peças e estoque
+      summary: Desativar peça
+      operationId: desativar_2
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseVoid'
+      security:
+        - bearerAuth: []
+  /clientes/{id}:
+    get:
+      tags:
+        - Clientes
+      summary: Buscar cliente por id
+      operationId: buscar_3
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseClienteResponse'
+      security:
+        - bearerAuth: []
+    put:
+      tags:
+        - Clientes
+      summary: Atualizar cliente
+      operationId: atualizar_3
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClienteRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseClienteResponse'
+      security:
+        - bearerAuth: []
+    delete:
+      tags:
+        - Clientes
+      summary: Desativar cliente
+      operationId: desativar_3
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseVoid'
+      security:
+        - bearerAuth: []
+  /veiculos:
+    get:
+      tags:
+        - Veículos
+      summary: Listar veículos ativos
+      operationId: listar
+      parameters:
+        - name: clienteId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: pageable
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/Pageable'
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponsePageVeiculoResponse'
+      security:
+        - bearerAuth: []
+    post:
+      tags:
+        - Veículos
+      summary: Cadastrar veículo
+      operationId: criar
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VeiculoRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseVeiculoResponse'
+      security:
+        - bearerAuth: []
+  /servicos:
+    get:
+      tags:
+        - Serviços (catálogo)
+      summary: Listar serviços ativos
+      operationId: listar_1
+      parameters:
+        - name: pageable
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/Pageable'
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponsePageServicoResponse'
+      security:
+        - bearerAuth: []
+    post:
+      tags:
+        - Serviços (catálogo)
+      summary: Cadastrar serviço
+      operationId: criar_1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServicoRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseServicoResponse'
+      security:
+        - bearerAuth: []
+  /pecas:
+    get:
+      tags:
+        - Peças e estoque
+      summary: Listar peças ativas
+      operationId: listar_2
+      parameters:
+        - name: pageable
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/Pageable'
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponsePagePecaResponse'
+      security:
+        - bearerAuth: []
+    post:
+      tags:
+        - Peças e estoque
+      summary: Cadastrar peça
+      operationId: criar_2
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PecaRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponsePecaResponse'
+      security:
+        - bearerAuth: []
+  /ordens-servico:
+    get:
+      tags:
+        - Ordens de serviço
+      summary: Listar OS ativas (exclui FINALIZADA/ENTREGUE), prioridade de status e mais antigas primeiro
+      operationId: listar_3
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - RECEBIDA
+              - EM_DIAGNOSTICO
+              - AGUARDANDO_APROVACAO
+              - EM_EXECUCAO
+              - FINALIZADA
+              - ENTREGUE
+        - name: pageable
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/Pageable'
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponsePageOrdemServicoResumoResponse'
+      security:
+        - bearerAuth: []
+    post:
+      tags:
+        - Ordens de serviço
+      summary: Abertura de OS — cliente, veículo, serviços e peças; retorna identificação única
+      operationId: criar_3
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CriarOrdemServicoRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseOrdemServicoDetalheResponse'
+      security:
+        - bearerAuth: []
+  /ordens-servico/{numero}/orcamento/notificacao:
+    post:
+      tags:
+        - Ordens de serviço
+      summary: Alias autenticado de decisão do próprio orçamento
+      deprecated: true
+      description: Customer e orders:decide:self; documento deve concordar com o cliente autenticado. Não seleciona identidade.
+      security:
+        - bearerAuth: []
+      operationId: notificacaoOrcamento
+      parameters:
+        - name: numero
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DecisaoOrcamentoRequest'
+        required: true
+      responses:
+        '401':
+          description: Token ausente ou inválido
+        '403':
+          description: Tipo de principal ou escopo incorreto
+        '404':
+          description: Ordem inexistente ou pertencente a outro cliente
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseAcompanhamentoOsResponse'
+  /ordens-servico/{numero}/orcamento/decisao:
+    post:
+      tags:
+        - Ordens de serviço
+      summary: Decidir sobre o próprio orçamento
+      description: Requer principal customer, orders:decide:self e propriedade da OS. A identidade vem exclusivamente do JWT.
+      operationId: decisaoOrcamento
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: numero
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DecisaoClienteRequest'
+      responses:
+        '200':
+          description: Decisão aplicada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseAcompanhamentoOsResponse'
+        '401':
+          description: Token ausente ou inválido
+        '403':
+          description: Tipo de principal ou escopo incorreto
+        '404':
+          description: Ordem inexistente ou pertencente a outro cliente
+        '409':
+          description: Alteração concorrente; consulte o estado atual
+        '422':
+          description: Transição não permitida ou estoque insuficiente
+  /ordens-servico/{numero}/aprovar:
+    post:
+      tags:
+        - Ordens de serviço
+      summary: Alias autenticado de decisão do próprio orçamento
+      deprecated: true
+      description: Customer e orders:decide:self; documento deve concordar com o cliente autenticado. Não seleciona identidade.
+      security:
+        - bearerAuth: []
+      operationId: aprovar
+      parameters:
+        - name: numero
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AprovacaoClienteRequest'
+        required: true
+      responses:
+        '401':
+          description: Token ausente ou inválido
+        '403':
+          description: Tipo de principal ou escopo incorreto
+        '404':
+          description: Ordem inexistente ou pertencente a outro cliente
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseAcompanhamentoOsResponse'
+  /ordens-servico/{id}/iniciar-diagnostico:
+    post:
+      tags:
+        - Ordens de serviço
+      summary: Iniciar diagnóstico (RECEBIDA → EM_DIAGNOSTICO)
+      operationId: iniciarDiagnostico
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AcaoOrdemRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseOrdemServicoDetalheResponse'
+      security:
+        - bearerAuth: []
+  /ordens-servico/{id}/finalizar:
+    post:
+      tags:
+        - Ordens de serviço
+      summary: Finalizar serviço (EM_EXECUCAO → FINALIZADA)
+      operationId: finalizar
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AcaoOrdemRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseOrdemServicoDetalheResponse'
+      security:
+        - bearerAuth: []
+  /ordens-servico/{id}/enviar-orcamento:
+    post:
+      tags:
+        - Ordens de serviço
+      summary: Enviar orçamento ao cliente (EM_DIAGNOSTICO → AGUARDANDO_APROVACAO)
+      operationId: enviarOrcamento
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AcaoOrdemRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseOrdemServicoDetalheResponse'
+      security:
+        - bearerAuth: []
+  /ordens-servico/{id}/entregar:
+    post:
+      tags:
+        - Ordens de serviço
+      summary: Registrar entrega do veículo (FINALIZADA → ENTREGUE)
+      operationId: entregar
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AcaoOrdemRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseOrdemServicoDetalheResponse'
+      security:
+        - bearerAuth: []
+  /clientes:
+    get:
+      tags:
+        - Clientes
+      summary: Listar clientes ativos
+      operationId: listar_4
+      parameters:
+        - name: pageable
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/Pageable'
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponsePageClienteResponse'
+      security:
+        - bearerAuth: []
+    post:
+      tags:
+        - Clientes
+      summary: Cadastrar cliente
+      operationId: criar_4
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClienteRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseClienteResponse'
+      security:
+        - bearerAuth: []
+  /auth/login:
+    post:
+      tags:
+        - Autenticação
+      summary: Realizar login
+      description: Autentica o usuário e retorna um token JWT
+      operationId: login
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+  /ordens-servico/{numero}/acompanhamento:
+    get:
+      tags:
+        - Ordens de serviço
+      summary: Status e orçamento da própria OS
+      description: Requer customer e orders:read:self; inexistente ou de outro cliente retorna 404. Sem identidade, contato ou notas internas.
+      security:
+        - bearerAuth: []
+      operationId: acompanhamento
+      parameters:
+        - name: numero
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseAcompanhamentoOsResponse'
+  /ordens-servico/{id}:
+    get:
+      tags:
+        - Ordens de serviço
+      summary: Detalhar ordem de serviço por id
+      operationId: detalhar
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseOrdemServicoDetalheResponse'
+      security:
+        - bearerAuth: []
+  /admin/metricas/tempo-execucao-servicos:
+    get:
+      tags:
+        - Métricas administrativas
+      summary: Tempo médio estimado (catálogo) vs tempo médio real (OS finalizadas)
+      operationId: tempoExecucao
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseMetricasTempoResponse'
+      security:
+        - bearerAuth: []
+components:
+  schemas:
+    VeiculoRequest:
+      required:
+        - ano
+        - clienteId
+        - marca
+        - modelo
+        - placa
+      type: object
+      properties:
+        placa:
+          type: string
+        marca:
+          maxLength: 100
+          minLength: 0
+          type: string
+        modelo:
+          maxLength: 100
+          minLength: 0
+          type: string
+        ano:
+          maximum: 2100
+          minimum: 1900
+          type: integer
+          format: int32
+        cor:
+          maxLength: 50
+          minLength: 0
+          type: string
+        chassi:
+          maxLength: 17
+          minLength: 0
+          type: string
+        clienteId:
+          type: string
+          format: uuid
+    ApiResponseVeiculoResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/VeiculoResponse'
+    VeiculoResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        placa:
+          type: string
+        marca:
+          type: string
+        modelo:
+          type: string
+        ano:
+          type: integer
+          format: int32
+        cor:
+          type: string
+        chassi:
+          type: string
+        clienteId:
+          type: string
+          format: uuid
+        ativo:
+          type: boolean
+    ServicoRequest:
+      required:
+        - nome
+        - tempoEstimadoMin
+        - valor
+      type: object
+      properties:
+        nome:
+          maxLength: 255
+          minLength: 0
+          type: string
+        descricao:
+          type: string
+        valor:
+          minimum: 0
+          exclusiveMinimum: false
+          type: number
+        tempoEstimadoMin:
+          minimum: 1
+          type: integer
+          format: int32
+    ApiResponseServicoResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/ServicoResponse'
+    ServicoResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        nome:
+          type: string
+        descricao:
+          type: string
+        valor:
+          type: number
+        tempoEstimadoMin:
+          type: integer
+          format: int32
+        ativo:
+          type: boolean
+    PecaRequest:
+      required:
+        - codigo
+        - nome
+        - quantidadeEstoque
+        - quantidadeMinima
+        - unidadeMedida
+        - valorUnitario
+      type: object
+      properties:
+        codigo:
+          maxLength: 50
+          minLength: 0
+          type: string
+        nome:
+          maxLength: 255
+          minLength: 0
+          type: string
+        descricao:
+          type: string
+        valorUnitario:
+          minimum: 0
+          exclusiveMinimum: false
+          type: number
+        quantidadeEstoque:
+          minimum: 0
+          type: integer
+          format: int32
+        quantidadeMinima:
+          minimum: 0
+          type: integer
+          format: int32
+        unidadeMedida:
+          maxLength: 20
+          minLength: 0
+          type: string
+    ApiResponsePecaResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/PecaResponse'
+    PecaResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        codigo:
+          type: string
+        nome:
+          type: string
+        descricao:
+          type: string
+        valorUnitario:
+          type: number
+        quantidadeEstoque:
+          type: integer
+          format: int32
+        quantidadeMinima:
+          type: integer
+          format: int32
+        unidadeMedida:
+          type: string
+        ativo:
+          type: boolean
+    ClienteRequest:
+      required:
+        - documento
+        - email
+        - nome
+        - telefone
+      type: object
+      properties:
+        nome:
+          type: string
+        tipoDocumento:
+          type: string
+          enum:
+            - CPF
+            - CNPJ
+        documento:
+          type: string
+        email:
+          type: string
+        telefone:
+          maxLength: 20
+          minLength: 0
+          type: string
+        cep:
+          maxLength: 9
+          minLength: 0
+          type: string
+        logradouro:
+          maxLength: 255
+          minLength: 0
+          type: string
+        numero:
+          maxLength: 20
+          minLength: 0
+          type: string
+        complemento:
+          maxLength: 100
+          minLength: 0
+          type: string
+        bairro:
+          maxLength: 100
+          minLength: 0
+          type: string
+        cidade:
+          maxLength: 100
+          minLength: 0
+          type: string
+        estado:
+          maxLength: 2
+          minLength: 2
+          type: string
+    ApiResponseClienteResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/ClienteResponse'
+    ClienteResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        nome:
+          type: string
+        tipoDocumento:
+          type: string
+          enum:
+            - CPF
+            - CNPJ
+        documentoFormatado:
+          type: string
+        documentoSomenteDigitos:
+          type: string
+        email:
+          type: string
+        telefone:
+          type: string
+        cep:
+          type: string
+        logradouro:
+          type: string
+        numero:
+          type: string
+        complemento:
+          type: string
+        bairro:
+          type: string
+        cidade:
+          type: string
+        estado:
+          type: string
+        ativo:
+          type: boolean
+    CriarOrdemServicoRequest:
+      required:
+        - documentoCliente
+        - placaVeiculo
+        - servicos
+      type: object
+      properties:
+        documentoCliente:
+          type: string
+        placaVeiculo:
+          type: string
+        marca:
+          type: string
+        modelo:
+          type: string
+        ano:
+          type: integer
+          format: int32
+        servicos:
+          type: array
+          items:
+            $ref: '#/components/schemas/ItemServicoOsRequest'
+        pecas:
+          type: array
+          items:
+            $ref: '#/components/schemas/ItemPecaOsRequest'
+        observacoes:
+          type: string
+    ItemPecaOsRequest:
+      required:
+        - pecaId
+        - quantidade
+      type: object
+      properties:
+        pecaId:
+          type: string
+          format: uuid
+        quantidade:
+          minimum: 1
+          type: integer
+          format: int32
+    ItemServicoOsRequest:
+      required:
+        - quantidade
+        - servicoId
+      type: object
+      properties:
+        servicoId:
+          type: string
+          format: uuid
+        quantidade:
+          minimum: 1
+          type: integer
+          format: int32
+        observacao:
+          type: string
+    ApiResponseOrdemServicoDetalheResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/OrdemServicoDetalheResponse'
+    ClienteResumo:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        nome:
+          type: string
+        documento:
+          type: string
+    HistoricoStatusResponse:
+      type: object
+      properties:
+        statusAnterior:
+          type: string
+          enum:
+            - RECEBIDA
+            - EM_DIAGNOSTICO
+            - AGUARDANDO_APROVACAO
+            - EM_EXECUCAO
+            - FINALIZADA
+            - ENTREGUE
+        statusNovo:
+          type: string
+          enum:
+            - RECEBIDA
+            - EM_DIAGNOSTICO
+            - AGUARDANDO_APROVACAO
+            - EM_EXECUCAO
+            - FINALIZADA
+            - ENTREGUE
+        observacao:
+          type: string
+        criadoEm:
+          type: string
+          format: date-time
+    OrdemServicoDetalheResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        numero:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum:
+            - RECEBIDA
+            - EM_DIAGNOSTICO
+            - AGUARDANDO_APROVACAO
+            - EM_EXECUCAO
+            - FINALIZADA
+            - ENTREGUE
+        valorTotal:
+          type: number
+        observacoes:
+          type: string
+        aprovadoEm:
+          type: string
+          format: date-time
+        iniciadoEm:
+          type: string
+          format: date-time
+        finalizadoEm:
+          type: string
+          format: date-time
+        entregueEm:
+          type: string
+          format: date-time
+        criadoEm:
+          type: string
+          format: date-time
+        cliente:
+          $ref: '#/components/schemas/ClienteResumo'
+        veiculo:
+          $ref: '#/components/schemas/VeiculoResumo'
+        servicos:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServicoLinhaResponse'
+        pecas:
+          type: array
+          items:
+            $ref: '#/components/schemas/PecaLinhaResponse'
+        historico:
+          type: array
+          items:
+            $ref: '#/components/schemas/HistoricoStatusResponse'
+    PecaLinhaResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        pecaId:
+          type: string
+          format: uuid
+        codigoPeca:
+          type: string
+        nomePeca:
+          type: string
+        quantidade:
+          type: integer
+          format: int32
+        valorUnitario:
+          type: number
+        valorTotal:
+          type: number
+    ServicoLinhaResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        servicoId:
+          type: string
+          format: uuid
+        nomeServico:
+          type: string
+        quantidade:
+          type: integer
+          format: int32
+        valorUnitario:
+          type: number
+        valorTotal:
+          type: number
+        observacao:
+          type: string
+    VeiculoResumo:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        placa:
+          type: string
+        marca:
+          type: string
+        modelo:
+          type: string
+        ano:
+          type: integer
+          format: int32
+    DecisaoOrcamentoRequest:
+      required:
+        - decisao
+        - documentoCliente
+      type: object
+      properties:
+        decisao:
+          type: string
+          enum:
+            - APROVADO
+            - RECUSADO
+        documentoCliente:
+          type: string
+        observacao:
+          type: string
+    DecisaoClienteRequest:
+      required:
+        - decisao
+      type: object
+      properties:
+        decisao:
+          type: string
+          enum: [APROVADO, RECUSADO]
+        observacao:
+          type: string
+          maxLength: 2000
+    AprovacaoClienteRequest:
+      required:
+        - documentoCliente
+      type: object
+      properties:
+        documentoCliente:
+          type: string
+    AcaoOrdemRequest:
+      type: object
+      properties:
+        observacao:
+          type: string
+    LoginRequest:
+      required:
+        - email
+        - senha
+      type: object
+      properties:
+        email:
+          type: string
+        senha:
+          type: string
+    LoginResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        tokenType:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+    Pageable:
+      type: object
+      properties:
+        page:
+          minimum: 0
+          type: integer
+          format: int32
+        size:
+          minimum: 1
+          type: integer
+          format: int32
+        sort:
+          type: array
+          items:
+            type: string
+    ApiResponsePageVeiculoResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/PageVeiculoResponse'
+    PageVeiculoResponse:
+      type: object
+      properties:
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+        last:
+          type: boolean
+        pageable:
+          $ref: '#/components/schemas/PageableObject'
+        first:
+          type: boolean
+        numberOfElements:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/VeiculoResponse'
+        number:
+          type: integer
+          format: int32
+        sort:
+          type: array
+          items:
+            $ref: '#/components/schemas/SortObject'
+        empty:
+          type: boolean
+    PageableObject:
+      type: object
+      properties:
+        paged:
+          type: boolean
+        unpaged:
+          type: boolean
+        pageNumber:
+          type: integer
+          format: int32
+        pageSize:
+          type: integer
+          format: int32
+        offset:
+          type: integer
+          format: int64
+        sort:
+          type: array
+          items:
+            $ref: '#/components/schemas/SortObject'
+    SortObject:
+      type: object
+      properties:
+        direction:
+          type: string
+        nullHandling:
+          type: string
+        ascending:
+          type: boolean
+        property:
+          type: string
+        ignoreCase:
+          type: boolean
+    ApiResponsePageServicoResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/PageServicoResponse'
+    PageServicoResponse:
+      type: object
+      properties:
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+        last:
+          type: boolean
+        pageable:
+          $ref: '#/components/schemas/PageableObject'
+        first:
+          type: boolean
+        numberOfElements:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServicoResponse'
+        number:
+          type: integer
+          format: int32
+        sort:
+          type: array
+          items:
+            $ref: '#/components/schemas/SortObject'
+        empty:
+          type: boolean
+    ApiResponsePagePecaResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/PagePecaResponse'
+    PagePecaResponse:
+      type: object
+      properties:
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+        last:
+          type: boolean
+        pageable:
+          $ref: '#/components/schemas/PageableObject'
+        first:
+          type: boolean
+        numberOfElements:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/PecaResponse'
+        number:
+          type: integer
+          format: int32
+        sort:
+          type: array
+          items:
+            $ref: '#/components/schemas/SortObject'
+        empty:
+          type: boolean
+    ApiResponsePageOrdemServicoResumoResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/PageOrdemServicoResumoResponse'
+    OrdemServicoResumoResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        numero:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum:
+            - RECEBIDA
+            - EM_DIAGNOSTICO
+            - AGUARDANDO_APROVACAO
+            - EM_EXECUCAO
+            - FINALIZADA
+            - ENTREGUE
+        clienteNome:
+          type: string
+        placa:
+          type: string
+        valorTotal:
+          type: number
+        criadoEm:
+          type: string
+          format: date-time
+    PageOrdemServicoResumoResponse:
+      type: object
+      properties:
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+        last:
+          type: boolean
+        pageable:
+          $ref: '#/components/schemas/PageableObject'
+        first:
+          type: boolean
+        numberOfElements:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrdemServicoResumoResponse'
+        number:
+          type: integer
+          format: int32
+        sort:
+          type: array
+          items:
+            $ref: '#/components/schemas/SortObject'
+        empty:
+          type: boolean
+    AcompanhamentoOsResponse:
+      type: object
+      properties:
+        numero:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum:
+            - RECEBIDA
+            - EM_DIAGNOSTICO
+            - AGUARDANDO_APROVACAO
+            - EM_EXECUCAO
+            - FINALIZADA
+            - ENTREGUE
+        valorTotal:
+          type: number
+        criadoEm:
+          type: string
+          format: date-time
+        ultimaAtualizacaoStatusEm:
+          type: string
+          format: date-time
+        servicos:
+          type: array
+          items:
+            $ref: '#/components/schemas/LinhaOrcamento'
+        pecas:
+          type: array
+          items:
+            $ref: '#/components/schemas/LinhaOrcamento'
+        historico:
+          type: array
+          items:
+            $ref: '#/components/schemas/HistoricoCliente'
+    LinhaOrcamento:
+      type: object
+      properties:
+        descricao:
+          type: string
+        quantidade:
+          type: integer
+        valorUnitario:
+          type: number
+        valorTotal:
+          type: number
+    HistoricoCliente:
+      type: object
+      properties:
+        statusAnterior:
+          type: string
+        statusNovo:
+          type: string
+        criadoEm:
+          type: string
+          format: date-time
+        ocorridoEm:
+          type: string
+          format: date-time
+    ApiResponseAcompanhamentoOsResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/AcompanhamentoOsResponse'
+    ApiResponsePageClienteResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/PageClienteResponse'
+    PageClienteResponse:
+      type: object
+      properties:
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+        last:
+          type: boolean
+        pageable:
+          $ref: '#/components/schemas/PageableObject'
+        first:
+          type: boolean
+        numberOfElements:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClienteResponse'
+        number:
+          type: integer
+          format: int32
+        sort:
+          type: array
+          items:
+            $ref: '#/components/schemas/SortObject'
+        empty:
+          type: boolean
+    ApiResponseMetricasTempoResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/MetricasTempoResponse'
+    MetricasTempoResponse:
+      type: object
+      properties:
+        tempoMedioEstimadoServicosMinutos:
+          type: number
+          format: double
+        tempoMedioExecucaoRealMinutos:
+          type: number
+          format: double
+        ordensComTempoMedido:
+          type: integer
+          format: int64
+    ApiResponseVoid:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: object
+  securitySchemes:
+    bearerAuth:
+      type: http
+      description: Informe o token JWT obtido via /auth/login
+      scheme: bearer
+      bearerFormat: JWT
