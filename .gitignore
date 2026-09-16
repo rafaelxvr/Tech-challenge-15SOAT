@@ -53,3 +53,5 @@ Thumbs.db
 
 # Isolated development worktrees
 .worktrees/
+artifacts/
+__pycache__/

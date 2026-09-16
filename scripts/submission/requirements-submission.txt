@@ -1,0 +1,2 @@
+# Reproducible local PDF runtime. Create a project-local venv; do not install globally.
+reportlab==4.2.5
