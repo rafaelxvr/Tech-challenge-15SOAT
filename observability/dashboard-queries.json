@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "environmentFilter": ["staging", "production"],
+  "freshnessSeconds": 180,
+  "dashboards": {
+    "business": [
+      {
+        "name": "Daily diagnosis mean minutes",
+        "nrql": "FROM WorkshopReportSnapshot SELECT latest(diagnosis_total_seconds) / latest(diagnosis_samples) / 60 WHERE environment = '$environment' AND window_kind = 'day' AND diagnosis_samples > 0 FACET business_date SINCE 3 minutes ago"
+      },
+      {
+        "name": "Seven-day execution mean minutes",
+        "nrql": "FROM WorkshopReportSnapshot SELECT latest(execution_total_seconds) / latest(execution_samples) / 60 WHERE environment = '$environment' AND window_kind = 'rolling_7_day' AND execution_samples > 0 SINCE 3 minutes ago"
+      },
+      {
+        "name": "Orders and exclusions",
+        "nrql": "FROM WorkshopReportSnapshot SELECT latest(created_count), latest(eligible_count), latest(excluded_count) WHERE environment = '$environment' AND window_kind = 'day' FACET business_date SINCE 3 minutes ago"
+      }
+    ],
+    "operations": [
+      {
+        "name": "Outbox blocked and age",
+        "nrql": "FROM WorkshopOutboxHealth SELECT latest(blocked_count), latest(oldest_pending_seconds) WHERE environment = '$environment' SINCE 3 minutes ago"
+      },
+      {
+        "name": "Snapshot heartbeat and drops",
+        "nrql": "FROM WorkshopTelemetryHeartbeat SELECT latest(drop_count) WHERE environment = '$environment' SINCE 3 minutes ago"
+      }
+    ],
+    "status": [
+      {
+        "name": "Current order status age",
+        "nrql": "FROM WorkshopStatusSnapshot SELECT latest(current_count), latest(max_age_seconds), latest(unknown_age_count) WHERE environment = '$environment' FACET status SINCE 3 minutes ago"
+      }
+    ]
+  },
+  "noData": "A sample count of zero and a missing event in the three-minute capture window are displayed as N/A/no data. Widgets use latest() by capture timestamp, not arrival time; rolling means never average daily averages."
+}

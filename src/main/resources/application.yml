@@ -88,6 +88,14 @@ security:
       # Map each trusted kid to an X.509 SubjectPublicKeyInfo PEM RSA public key; no URL resolution.
 
 oficina:
+  observability:
+    snapshots:
+      enabled: ${OBSERVABILITY_SNAPSHOTS_ENABLED:false}
+      # The deployer injects concrete HTTPS endpoint/account/key only for staging or production.
+      endpoint: ${NEW_RELIC_EVENT_ENDPOINT:https://insights-collector.newrelic.com/v1/accounts/0/events}
+      account-id: ${NEW_RELIC_ACCOUNT_ID:0}
+      environment: ${DEPLOYMENT_ENVIRONMENT:staging}
+      zone: ${REPORTING_ZONE:America/Sao_Paulo}
   outbox:
     enabled: ${OUTBOX_ENABLED:false}
     region: ${AWS_REGION:us-east-1}

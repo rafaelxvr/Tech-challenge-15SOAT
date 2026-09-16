@@ -39,6 +39,7 @@ services:
         condition: service_healthy
     environment:
       SPRING_PROFILES_ACTIVE: prod
+      DEPLOYMENT_ENVIRONMENT: local
       DB_URL: jdbc:postgresql://postgres:5432/oficina_mecanica
       DB_USERNAME: oficina
       DB_PASSWORD: oficina123
