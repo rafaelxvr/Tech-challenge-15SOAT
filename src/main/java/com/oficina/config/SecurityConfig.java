@@ -51,7 +51,7 @@ public class SecurityConfig {
                 }))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, "/auth/login").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/ordens-servico/*/acompanhamento")
                             .access(clienteComEscopo("SCOPE_orders:read:self"))
                         .requestMatchers(HttpMethod.POST, "/ordens-servico/*/aprovar",
