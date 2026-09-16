@@ -1,0 +1,7 @@
+# Cloud-window evidence
+
+Status: **NOT_RUN**. No AWS account, credit balance, quota, resource price, deployment window, repository owner/visibility, protected environment, SES recipient, SNS subscription, or New Relic access has been checked by this repository.
+
+Before an authorized external run, store a redacted local input file for `scripts/rehearsal/check-readiness.ps1` with the approved UTC window, non-root identity evidence, free-tier/study-credit eligibility, remaining credit, reserve, bounded estimate, quota confirmation, exact source/artifact/plan digests, approved capacity evidence, secret/view confirmation, and migration outcome. Invoke it with the separately reviewed `-ExpectedEnvironment`, `-ExpectedSourceCommit`, `-ExpectedArtifactDigest`, and `-ExpectedPlanDigest` values. The script refuses closed windows, root identity, unconfirmed eligibility/quota, insufficient credit, valid-but-wrong environment/revision/digest, absent/invalid capacity, missing secret/view, and failed migration.
+
+The Task R4 acceptance record remains `NOT_RUN` until the owner separately confirms protected repository/environment setup and the operator completes normal AWS, SES, SNS, and New Relic enrollment flows. Never commit account IDs, ARNs, access keys, tokens, cost screenshots, or secret values to this file.

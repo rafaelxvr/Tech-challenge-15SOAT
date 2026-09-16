@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "status": "NOT_RUN",
+  "externalPrerequisites": ["AWS account eligibility and remaining credits", "repository owner/protection and environment evidence", "SES recipient verification", "SNS/New Relic enrollment", "approved cloud window and reviewed plans"],
+  "records": [
+    {"requirementId":"R4-APP-STG","repository":"APP","environment":"staging","sourceRevision":"NOT_CAPTURED","artifactDigest":"NOT_CAPTURED","planRevision":"NOT_CAPTURED","timestampUtc":"NOT_RUN","expectedResult":"PASS","observedResult":"NOT_RUN","result":"NOT_RUN","durableEvidenceLink":"NOT_AVAILABLE"},
+    {"requirementId":"R4-APP-PRD","repository":"APP","environment":"production","sourceRevision":"NOT_CAPTURED","artifactDigest":"NOT_CAPTURED","planRevision":"NOT_CAPTURED","timestampUtc":"NOT_RUN","expectedResult":"PASS","observedResult":"NOT_RUN","result":"NOT_RUN","durableEvidenceLink":"NOT_AVAILABLE"},
+    {"requirementId":"R4-K8S-STG","repository":"K8S","environment":"staging","sourceRevision":"NOT_CAPTURED","artifactDigest":"NOT_CAPTURED","planRevision":"NOT_CAPTURED","timestampUtc":"NOT_RUN","expectedResult":"PASS","observedResult":"NOT_RUN","result":"NOT_RUN","durableEvidenceLink":"NOT_AVAILABLE"},
+    {"requirementId":"R4-K8S-PRD","repository":"K8S","environment":"production","sourceRevision":"NOT_CAPTURED","artifactDigest":"NOT_CAPTURED","planRevision":"NOT_CAPTURED","timestampUtc":"NOT_RUN","expectedResult":"PASS","observedResult":"NOT_RUN","result":"NOT_RUN","durableEvidenceLink":"NOT_AVAILABLE"},
+    {"requirementId":"R4-FUN-STG","repository":"FUN","environment":"staging","sourceRevision":"NOT_CAPTURED","artifactDigest":"NOT_CAPTURED","planRevision":"NOT_CAPTURED","timestampUtc":"NOT_RUN","expectedResult":"PASS","observedResult":"NOT_RUN","result":"NOT_RUN","durableEvidenceLink":"NOT_AVAILABLE"},
+    {"requirementId":"R4-FUN-PRD","repository":"FUN","environment":"production","sourceRevision":"NOT_CAPTURED","artifactDigest":"NOT_CAPTUREED","planRevision":"NOT_CAPTURED","timestampUtc":"NOT_RUN","expectedResult":"PASS","observedResult":"NOT_RUN","result":"NOT_RUN","durableEvidenceLink":"NOT_AVAILABLE"},
+    {"requirementId":"R4-DB-STG","repository":"DB","environment":"staging","sourceRevision":"NOT_CAPTURED","artifactDigest":"NOT_CAPTURED","planRevision":"NOT_CAPTURED","timestampUtc":"NOT_RUN","expectedResult":"PASS","observedResult":"NOT_RUN","result":"NOT_RUN","durableEvidenceLink":"NOT_AVAILABLE"},
+    {"requirementId":"R4-DB-PRD","repository":"DB","environment":"production","sourceRevision":"NOT_CAPTURED","artifactDigest":"NOT_CAPTURED","planRevision":"NOT_CAPTURED","timestampUtc":"NOT_RUN","expectedResult":"PASS","observedResult":"NOT_RUN","result":"NOT_RUN","durableEvidenceLink":"NOT_AVAILABLE"}
+  ]
+}
