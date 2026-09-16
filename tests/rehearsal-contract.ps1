@@ -14,6 +14,27 @@ try {
   }
   Assert-ReadinessRefusal ($base -replace '"windowStatus":"OPEN"','"windowStatus":"CLOSED"') 'cloud window'
   Assert-ReadinessRefusal ($base -replace '"identityKind":"role"','"identityKind":"root"') 'root identity'
+  $studyJustification = [ordered]@{ studyScope='phase-3-staging-readiness'; operatorApprovedPurpose='Validate bounded staging readiness before delegated identities exist.'; boundedWindowReference='window-study-r4-local' } | ConvertTo-Json -Compress
+  $fingerprint = ([convert]::ToHexString([security.cryptography.SHA256]::HashData([text.encoding]::UTF8.GetBytes($studyJustification))).ToLowerInvariant())
+  $studyEvidence = [ordered]@{ status='APPROVED_FOR_STUDY_STAGING'; environment='staging'; recordedAtUtc='2026-09-16T12:00:00Z'; justificationFingerprint=$fingerprint; studyScope='phase-3-staging-readiness'; boundedWindowReference='window-study-r4-local' } | ConvertTo-Json -Compress
+  $studyEvidence | Set-Content -NoNewline (Join-Path $tmp 'study-root-evidence.json')
+  $studyRootObject = $base | ConvertFrom-Json -DateKind String
+  $studyRootObject.identityKind = 'root'
+  $studyRootObject | Add-Member -NotePropertyName studyRootException -NotePropertyValue ([pscustomobject]@{ evidenceRecord='study-root-evidence.json' })
+  $studyRoot = $studyRootObject | ConvertTo-Json -Compress
+  $studyRoot | Set-Content -NoNewline $closed
+  try { & (Join-Path $scripts 'check-readiness.ps1') -InputFile $closed -ExpectedEnvironment staging -ExpectedSourceCommit ('0' * 40) -ExpectedArtifactDigest ('0' * 64) -ExpectedPlanDigest ('0' * 64); throw 'root without exception switch was accepted' } catch { if ($_.Exception.Message -notmatch 'root identity') { throw } }
+  try { & (Join-Path $scripts 'check-readiness.ps1') -InputFile $closed -ExpectedEnvironment staging -ExpectedSourceCommit ('0' * 40) -ExpectedArtifactDigest ('0' * 64) -ExpectedPlanDigest ('0' * 64) -AllowStudyRoot -StudyRootJustification '{"studyScope":"phase-3-staging-readiness","operatorApprovedPurpose":"This is a long vague sentence without an action verb.","boundedWindowReference":"window-study-r4-local"}'; throw 'long vague study-root reason was accepted' } catch { if ($_.Exception.Message -notmatch 'too vague') { throw } }
+  try { & (Join-Path $scripts 'check-readiness.ps1') -InputFile $closed -ExpectedEnvironment staging -ExpectedSourceCommit ('0' * 40) -ExpectedArtifactDigest ('0' * 64) -ExpectedPlanDigest ('0' * 64) -AllowStudyRoot -StudyRootJustification '{"studyScope":"phase-3-staging-readiness","operatorApprovedPurpose":"Validate AKIAABCDEFGHIJKLMNOP staging readiness safely.","boundedWindowReference":"window-study-r4-local"}'; throw 'credential-like study-root reason was accepted' } catch { if ($_.Exception.Message -notmatch 'credential-like') { throw } }
+  try { & (Join-Path $scripts 'check-readiness.ps1') -InputFile $closed -ExpectedEnvironment production -ExpectedSourceCommit ('0' * 40) -ExpectedArtifactDigest ('0' * 64) -ExpectedPlanDigest ('0' * 64) -AllowStudyRoot -StudyRootJustification $studyJustification; throw 'production study-root was accepted' } catch { if ($_.Exception.Message -notmatch 'environment differs|staging-only') { throw } }
+  $missingRecord = $studyRoot.Replace('study-root-evidence.json','missing-evidence.json') | Set-Content -NoNewline $closed
+  try { & (Join-Path $scripts 'check-readiness.ps1') -InputFile $closed -ExpectedEnvironment staging -ExpectedSourceCommit ('0' * 40) -ExpectedArtifactDigest ('0' * 64) -ExpectedPlanDigest ('0' * 64) -AllowStudyRoot -StudyRootJustification $studyJustification; throw 'missing evidence record was accepted' } catch { if ($_.Exception.Message -notmatch 'does not resolve locally') { throw } }
+  $studyRoot | Set-Content -NoNewline $closed
+  '{"status":"APPROVED_FOR_STUDY_STAGING","environment":"staging","recordedAtUtc":"2026-09-16T12:00:00Z","justificationFingerprint":"bad","studyScope":"phase-3-staging-readiness","boundedWindowReference":"window-study-r4-local"}' | Set-Content -NoNewline (Join-Path $tmp 'study-root-evidence.json')
+  try { & (Join-Path $scripts 'check-readiness.ps1') -InputFile $closed -ExpectedEnvironment staging -ExpectedSourceCommit ('0' * 40) -ExpectedArtifactDigest ('0' * 64) -ExpectedPlanDigest ('0' * 64) -AllowStudyRoot -StudyRootJustification $studyJustification; throw 'mismatched evidence record was accepted' } catch { if ($_.Exception.Message -notmatch 'does not match') { throw } }
+  $studyEvidence | Set-Content -NoNewline (Join-Path $tmp 'study-root-evidence.json')
+  $studyOutput = & (Join-Path $scripts 'check-readiness.ps1') -InputFile $closed -ExpectedEnvironment staging -ExpectedSourceCommit ('0' * 40) -ExpectedArtifactDigest ('0' * 64) -ExpectedPlanDigest ('0' * 64) -AllowStudyRoot -StudyRootJustification $studyJustification
+  if ($studyOutput -notmatch 'exception recorded|Readiness PASS') { throw 'valid staging study-root exception did not record safe evidence' }
   Assert-ReadinessRefusal ($base -replace '"creditRemainingUsd":35','"creditRemainingUsd":34') 'remaining credit'
   Assert-ReadinessRefusal ($base -replace '"environment":"staging"','"environment":"qa"') 'invalid environment'
   Assert-ReadinessRefusal ($base -replace '"artifactSha256":"[0-9a-f]+"','"artifactSha256":"bad"') 'artifactSha256'
