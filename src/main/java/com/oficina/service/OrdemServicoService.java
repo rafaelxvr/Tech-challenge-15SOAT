@@ -3,6 +3,7 @@ package com.oficina.service;
 import com.oficina.application.port.out.NotificacaoPort;
 import com.oficina.application.notificacao.StatusOrdemServicoRegistrado;
 import com.oficina.config.SecurityUtils;
+import com.oficina.config.CorrelationFilter;
 import com.oficina.domain.identidade.Ator;
 import com.oficina.dto.*;
 import com.oficina.entity.*;
@@ -281,7 +282,7 @@ public class OrdemServicoService {
                 StatusOrdemServicoRegistrado.SCHEMA_VERSION, os.getId(), os.getNumero(),
                 os.getCliente().getId(), os.getCliente().getVersaoIdentidade(), historico.getSequencia(),
                 historico.getStatusAnterior() == null ? null : historico.getStatusAnterior().name(),
-                historico.getStatusNovo().name(), historico.getOcorridoEm(), UUID.randomUUID().toString(), null));
+                historico.getStatusNovo().name(), historico.getOcorridoEm(), CorrelationFilter.correlationId(), CorrelationFilter.traceparent()));
     }
 
     private void validarDocumentoCliente(OrdemServico os, String documentoInformado) {

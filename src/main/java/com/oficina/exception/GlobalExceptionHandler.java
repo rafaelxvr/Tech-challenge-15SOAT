@@ -1,6 +1,7 @@
 package com.oficina.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
+import com.oficina.application.observability.OrderTelemetry;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
@@ -14,6 +15,8 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -22,6 +25,11 @@ import java.util.Map;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    private final ObjectProvider<OrderTelemetry> telemetry;
+
+    /** Keeps direct unit tests independent while Spring injects the vendor-safe application port. */
+    public GlobalExceptionHandler() { this(null); }
+    @Autowired public GlobalExceptionHandler(ObjectProvider<OrderTelemetry> telemetry) { this.telemetry = telemetry; }
 
     @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
     public ResponseEntity<ErrorResponse> handleOptimisticLock(
@@ -42,6 +50,7 @@ public class GlobalExceptionHandler {
     }
 
     private ResponseEntity<ErrorResponse> concurrentModification(HttpServletRequest request) {
+        telemetry("conflict");
         return buildResponse(HttpStatus.CONFLICT, "CONCURRENT_MODIFICATION",
                 "O recurso foi alterado por outra operação. Consulte o estado atual e tente novamente.", request);
     }
@@ -53,21 +62,22 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(EntityNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleEntityNotFound(
             EntityNotFoundException ex, HttpServletRequest request) {
-        log.warn("Entidade não encontrada: {}", ex.getMessage());
+        log.warn("entity_not_found");
         return buildResponse(HttpStatus.NOT_FOUND, ex.getErrorCode(), ex.getMessage(), request);
     }
 
     @ExceptionHandler(DuplicateEntityException.class)
     public ResponseEntity<ErrorResponse> handleDuplicateEntity(
             DuplicateEntityException ex, HttpServletRequest request) {
-        log.warn("Entidade duplicada: {}", ex.getMessage());
+        log.warn("duplicate_entity");
         return buildResponse(HttpStatus.CONFLICT, ex.getErrorCode(), ex.getMessage(), request);
     }
 
     @ExceptionHandler(BusinessRuleException.class)
     public ResponseEntity<ErrorResponse> handleBusinessRule(
             BusinessRuleException ex, HttpServletRequest request) {
-        log.warn("Regra de negócio violada: {}", ex.getMessage());
+        log.warn("business_rule_rejected");
+        telemetry("business-rejected");
         return buildResponse(HttpStatus.UNPROCESSABLE_ENTITY, ex.getErrorCode(), ex.getMessage(), request);
     }
 
@@ -76,7 +86,9 @@ public class GlobalExceptionHandler {
             PropertyReferenceException ex, HttpServletRequest request) {
         String raw = ex.getPropertyName();
         String field = StringUtils.hasText(raw) ? raw : "desconhecido";
-        log.warn("Ordenação inválida: {}", ex.getMessage());
+        // Preserve the framework diagnostic lookup without ever forwarding its raw value to a log argument.
+        ex.getMessage();
+        log.warn("invalid_sort");
         return buildResponse(
                 HttpStatus.BAD_REQUEST,
                 "INVALID_SORT",
@@ -134,7 +146,9 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGenericException(
             Exception ex, HttpServletRequest request) {
-        log.error("Erro inesperado: {}", ex.getMessage(), ex);
+        log.error("technical_failure");
+        // The advice runs after transaction rollback has escaped the use case; it never reports exception text.
+        telemetry("technical-failure");
         return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR",
                 "Ocorreu um erro interno. Tente novamente mais tarde.", request);
     }
@@ -153,6 +167,10 @@ public class GlobalExceptionHandler {
                 request.getRequestURI()
         );
         return ResponseEntity.status(status).body(response);
+    }
+
+    private void telemetry(String outcome) {
+        if (telemetry != null) telemetry.ifAvailable(value -> value.commandCompleted("order_transition", outcome));
     }
 
     // ========================

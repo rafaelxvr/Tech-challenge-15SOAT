@@ -26,6 +26,7 @@
         <jacoco.version>0.8.11</jacoco.version>
         <lombok.version>1.18.32</lombok.version>
         <aws.sdk.version>2.54.18</aws.sdk.version>
+        <logstash.logback.encoder.version>8.1</logstash.logback.encoder.version>
         <!-- SonarQube (docker compose: http://localhost:9000) -->
         <sonar.maven.plugin.version>4.0.0.4121</sonar.maven.plugin.version>
         <sonar.projectKey>com.oficina:oficina-mecanica</sonar.projectKey>
@@ -100,6 +101,13 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!-- Java 17 / Jackson 2 compatible structured logging, pinned in toolchain.lock.json. -->
+        <dependency>
+            <groupId>net.logstash.logback</groupId>
+            <artifactId>logstash-logback-encoder</artifactId>
+            <version>${logstash.logback.encoder.version}</version>
         </dependency>
 
         <dependency>

@@ -66,8 +66,8 @@ server:
   servlet:
     context-path: /api
   error:
-    include-message: always
-    include-binding-errors: always
+    include-message: never
+    include-binding-errors: never
 
 # ========================
 #    JWT
@@ -123,7 +123,14 @@ management:
         include: health,info,metrics
   endpoint:
     health:
-      show-details: when_authorized
+      show-details: never
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db
+        liveness:
+          include: livenessState
 
 # ========================
 #    LOGGING
@@ -133,8 +140,7 @@ logging:
     com.oficina: INFO
     org.springframework.security: WARN
     org.hibernate.SQL: WARN
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+    org.hibernate.orm.jdbc.bind: WARN
 
 ---
 # ========================
@@ -145,14 +151,11 @@ spring:
     activate:
       on-profile: dev
 
-  jpa:
-    show-sql: true
-
 logging:
   level:
     com.oficina: DEBUG
-    org.hibernate.SQL: DEBUG
-    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    org.hibernate.SQL: WARN
+    org.hibernate.orm.jdbc.bind: WARN
 
 ---
 # ========================
@@ -169,9 +172,6 @@ spring:
 
   flyway:
     enabled: true
-
-  jpa:
-    show-sql: true
 
 oficina:
   mail:

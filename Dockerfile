@@ -35,11 +35,16 @@ USER oficina
 EXPOSE 8080
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/api/actuator/health || exit 1
+HEALTHCHECK --interval=10s --timeout=2s --start-period=120s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/api/actuator/health/liveness || exit 1
 
 # Variáveis de ambiente padrão
 ENV JAVA_OPTS="-Xms256m -Xmx512m -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0"
 ENV SPRING_PROFILES_ACTIVE=prod
+# The image never embeds an agent or ingest key. If the reviewed New Relic agent is supplied by the runtime,
+# its own log forwarding stays disabled because the Kubernetes forwarder is the single application-log sender.
+ENV NEW_RELIC_APPLICATION_LOGGING_FORWARDING_ENABLED=false
+ENV NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true
+ENV NEW_RELIC_SPAN_EVENTS_MAX_SAMPLES_STORED=500
 
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]

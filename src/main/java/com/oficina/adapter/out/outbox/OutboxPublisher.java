@@ -7,6 +7,7 @@ import com.oficina.application.notificacao.PublicadorFila;
 import com.oficina.application.notificacao.StatusOrdemServicoRegistrado;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -68,7 +69,16 @@ public class OutboxPublisher {
                 var event = rows.get(0);
                 String messageId;
                 try {
-                    messageId = queue.enviar(mapper.readValue(event.payload(), StatusOrdemServicoRegistrado.class));
+                    StatusOrdemServicoRegistrado notification = mapper.readValue(event.payload(), StatusOrdemServicoRegistrado.class);
+                    String priorCorrelation = MDC.get("correlation_id");
+                    String priorTrace = MDC.get("traceparent");
+                    try {
+                        MDC.put("correlation_id", notification.correlationId());
+                        if (notification.traceparent() != null) MDC.put("traceparent", notification.traceparent());
+                        messageId = queue.enviar(notification);
+                    } finally {
+                        restoreMdc("correlation_id", priorCorrelation); restoreMdc("traceparent", priorTrace);
+                    }
                     if (messageId == null || messageId.isBlank()) throw new IllegalStateException("Missing queue acknowledgement");
                 } catch (JsonProcessingException exception) {
                     fail(event, "INVALID_EVENT_PAYLOAD");
@@ -91,6 +101,8 @@ public class OutboxPublisher {
             return false;
         }
     }
+
+    private static void restoreMdc(String key, String value) { if (value == null) MDC.remove(key); else MDC.put(key, value); }
 
     private void fail(Pending event, String code) {
         int attempt = Math.min(12, event.attempts() + 1);
