@@ -61,8 +61,16 @@ class SecurityConfigTest {
         mvc.perform(get("/internal/probe")).andExpect(status().isUnauthorized());
     }
 
+    @Test void only_intended_health_probe_paths_are_anonymous() throws Exception {
+        for (String path : Set.of("/actuator/health", "/actuator/health/liveness", "/actuator/health/readiness")) {
+            mvc.perform(get(path)).andExpect(status().isOk());
+        }
+        mvc.perform(get("/actuator/health/custom-group")).andExpect(status().isUnauthorized());
+    }
+
     @RestController
     static class ProbeController {
-        @GetMapping({"/internal/probe", "/admin/probe"}) String probe() { return "ok"; }
+        @GetMapping({"/internal/probe", "/admin/probe", "/actuator/health", "/actuator/health/liveness",
+                "/actuator/health/readiness", "/actuator/health/custom-group"}) String probe() { return "ok"; }
     }
 }
