@@ -4,6 +4,7 @@ import com.oficina.application.port.out.NotificacaoPort;
 import com.oficina.application.notificacao.StatusOrdemServicoRegistrado;
 import com.oficina.config.SecurityUtils;
 import com.oficina.config.CorrelationFilter;
+import com.oficina.application.observability.OrderTelemetry;
 import com.oficina.domain.identidade.Ator;
 import com.oficina.dto.*;
 import com.oficina.entity.*;
@@ -20,7 +21,10 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -32,6 +36,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 @Service
 @RequiredArgsConstructor
@@ -55,6 +60,10 @@ public class OrdemServicoService {
     private final PecaService pecaService;
     private final NotificacaoPort notificacaoPort;
     private final Clock clock;
+    private OrderTelemetry telemetry = (operation, outcome) -> { };
+
+    @Autowired(required = false)
+    void setTelemetry(OrderTelemetry telemetry) { this.telemetry = telemetry; }
 
     @Value("${oficina.historico.zona-compatibilidade}")
     private String zonaCompatibilidade;
@@ -70,6 +79,7 @@ public class OrdemServicoService {
 
     @Transactional
     public OrdemServicoDetalheResponse criar(CriarOrdemServicoRequest request) {
+        return command("order_create", () -> {
         Cliente cliente = clienteService.obterEntidadeAtivaPorDocumento(request.documentoCliente());
         Veiculo veiculo = resolverVeiculo(request, cliente);
 
@@ -116,6 +126,7 @@ public class OrdemServicoService {
         OrdemServico salva = os;
         registrarNotificacao(salva);
         return montarDetalhe(salva);
+        });
     }
 
     /**
@@ -170,6 +181,7 @@ public class OrdemServicoService {
 
     @Transactional
     public OrdemServicoDetalheResponse iniciarDiagnostico(UUID id, AcaoOrdemRequest acao) {
+        return command("order_transition", () -> {
         OrdemServico os = ordemServicoRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, id));
         Ator ator = atorAtual();
@@ -179,10 +191,12 @@ public class OrdemServicoService {
         OrdemServico salva = ordemServicoRepository.save(os);
         registrarNotificacao(salva);
         return montarDetalhe(salva);
+        });
     }
 
     @Transactional
     public OrdemServicoDetalheResponse enviarOrcamento(UUID id, AcaoOrdemRequest acao) {
+        return command("order_transition", () -> {
         OrdemServico os = ordemServicoRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, id));
         Ator ator = atorAtual();
@@ -192,20 +206,21 @@ public class OrdemServicoService {
         OrdemServico salva = ordemServicoRepository.save(os);
         registrarNotificacao(salva);
         return montarDetalhe(salva);
+        });
     }
 
     @Transactional
     public AcompanhamentoOsResponse decidirComoCliente(Long numero, IdentidadeAutenticada cliente,
                                                      DecisaoClienteRequest pedido) {
-        return executarDecisaoCliente(numero, cliente, pedido, null);
+        return command("order_decision", () -> executarDecisaoCliente(numero, cliente, pedido, null));
     }
 
     /** Compatibility input can only agree with the owner already selected by the signed principal. */
     @Transactional
     public AcompanhamentoOsResponse decidirComoClienteLegado(Long numero, IdentidadeAutenticada cliente,
                                                            DecisaoOrcamentoRequest pedido) {
-        return executarDecisaoCliente(numero, cliente,
-                new DecisaoClienteRequest(pedido.decisao(), pedido.observacao()), pedido.documentoCliente());
+        return command("order_decision", () -> executarDecisaoCliente(numero, cliente,
+                new DecisaoClienteRequest(pedido.decisao(), pedido.observacao()), pedido.documentoCliente()));
     }
 
     private AcompanhamentoOsResponse executarDecisaoCliente(Long numero, IdentidadeAutenticada cliente,
@@ -247,6 +262,7 @@ public class OrdemServicoService {
 
     @Transactional
     public OrdemServicoDetalheResponse finalizar(UUID id, AcaoOrdemRequest acao) {
+        return command("order_transition", () -> {
         OrdemServico os = ordemServicoRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, id));
         Ator ator = atorAtual();
@@ -256,10 +272,12 @@ public class OrdemServicoService {
         OrdemServico salva = ordemServicoRepository.save(os);
         registrarNotificacao(salva);
         return montarDetalhe(salva);
+        });
     }
 
     @Transactional
     public OrdemServicoDetalheResponse registrarEntrega(UUID id, AcaoOrdemRequest acao) {
+        return command("order_transition", () -> {
         OrdemServico os = ordemServicoRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, id));
         Ator ator = atorAtual();
@@ -269,6 +287,40 @@ public class OrdemServicoService {
         OrdemServico salva = ordemServicoRepository.save(os);
         registrarNotificacao(salva);
         return montarDetalhe(salva);
+        });
+    }
+
+    /** Records outcomes only after the owning transaction has committed or rolled back. */
+    private <T> T command(String operation, Supplier<T> action) {
+        try {
+            T result = action.get();
+            afterTransaction(operation, "accepted");
+            return result;
+        } catch (BusinessRuleException | EntityNotFoundException | AccessDeniedException exception) {
+            afterTransaction(operation, "business-rejected");
+            throw exception;
+        } catch (org.springframework.orm.ObjectOptimisticLockingFailureException exception) {
+            afterTransaction(operation, "conflict");
+            throw exception;
+        } catch (RuntimeException exception) {
+            afterTransaction(operation, "technical-failure");
+            throw exception;
+        }
+    }
+
+    private void afterTransaction(String operation, String outcome) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()
+                && TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override public void afterCompletion(int status) {
+                    String completedOutcome = status == TransactionSynchronization.STATUS_COMMITTED
+                            || !"accepted".equals(outcome)
+                            ? outcome
+                            : "technical-failure";
+                    telemetry.commandCompleted(operation, completedOutcome);
+                }
+            });
+        } else telemetry.commandCompleted(operation, outcome);
     }
 
     private void registrarNotificacao(OrdemServico os) {

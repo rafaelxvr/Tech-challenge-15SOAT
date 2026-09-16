@@ -19,15 +19,18 @@ public final class CorrelationFilter extends OncePerRequestFilter {
     public static final String CORRELATION_ID = "correlation_id";
     private static final String TRACEPARENT = "traceparent";
     private static final String GATEWAY_ID = "api_gateway_request_id";
-    private static final String CORRELATION_PATTERN = "[A-Za-z0-9_-]{1,64}";
+    // Outbox phase3-v1 stores correlationId as a UUID. Accepting any other wire form would make a
+    // legitimate HTTP request fail only when it reaches a status mutation, so normalize at the boundary.
+    private static final String CORRELATION_PATTERN = "[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}";
+    private static final String GATEWAY_ID_PATTERN = "[A-Za-z0-9_-]{1,128}";
     private static final String TRACE_PATTERN = "00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}";
 
     @Override protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
-        String id = validCorrelation(request.getHeader("X-Correlation-Id")) ? request.getHeader("X-Correlation-Id") : UUID.randomUUID().toString();
+        String id = validCorrelation(request.getHeader("X-Correlation-Id")) ? request.getHeader("X-Correlation-Id").toLowerCase() : UUID.randomUUID().toString();
         MDC.put(CORRELATION_ID, id);
         putIfValid(TRACEPARENT, request.getHeader("traceparent"), TRACE_PATTERN);
-        putIfValid(GATEWAY_ID, request.getHeader("x-amzn-requestid"), CORRELATION_PATTERN);
+        putIfValid(GATEWAY_ID, request.getHeader("x-amzn-requestid"), GATEWAY_ID_PATTERN);
         response.setHeader("X-Correlation-Id", id);
         try { chain.doFilter(request, response); }
         finally { MDC.remove(CORRELATION_ID); MDC.remove(TRACEPARENT); MDC.remove(GATEWAY_ID); }

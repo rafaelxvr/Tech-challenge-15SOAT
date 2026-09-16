@@ -19,12 +19,12 @@ class ObservabilityContractTest {
     private final ObjectMapper json = new ObjectMapper();
 
     @Test void correlation_is_returned_and_cleared_after_the_request() throws Exception {
-        var request = new MockHttpServletRequest(); request.addHeader("X-Correlation-Id", "correlation-123");
+        var request = new MockHttpServletRequest(); request.addHeader("X-Correlation-Id", "00000000-0000-0000-0000-000000000123");
         request.addHeader("traceparent", "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01");
         var response = new MockHttpServletResponse();
-        FilterChain chain = (req, ignored) -> assertThat(MDC.get("correlation_id")).isEqualTo("correlation-123");
+        FilterChain chain = (req, ignored) -> assertThat(MDC.get("correlation_id")).isEqualTo("00000000-0000-0000-0000-000000000123");
         new CorrelationFilter().doFilter(request, response, chain);
-        assertThat(response.getHeader("X-Correlation-Id")).isEqualTo("correlation-123");
+        assertThat(response.getHeader("X-Correlation-Id")).isEqualTo("00000000-0000-0000-0000-000000000123");
         assertThat(MDC.get("correlation_id")).isNull(); assertThat(MDC.get("traceparent")).isNull();
     }
 

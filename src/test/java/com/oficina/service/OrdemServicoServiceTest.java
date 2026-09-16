@@ -1,6 +1,7 @@
 package com.oficina.service;
 
 import com.oficina.application.port.out.NotificacaoPort;
+import com.oficina.application.observability.OrderTelemetry;
 import com.oficina.dto.*;
 import com.oficina.entity.*;
 import com.oficina.exception.BusinessRuleException;
@@ -61,6 +62,9 @@ class OrdemServicoServiceTest {
     @Mock
     private NotificacaoPort notificacaoPort;
 
+    @Mock
+    private OrderTelemetry telemetry;
+
     @org.mockito.Spy
     private Clock clock = Clock.fixed(Instant.parse("2026-09-15T12:00:00Z"), ZoneOffset.UTC);
 
@@ -75,6 +79,7 @@ class OrdemServicoServiceTest {
     @org.junit.jupiter.api.BeforeEach
     void setToken() {
         ReflectionTestUtils.setField(ordemServicoService, "zonaCompatibilidade", "UTC");
+        ordemServicoService.setTelemetry(telemetry);
     }
 
     @Test
@@ -198,6 +203,24 @@ class OrdemServicoServiceTest {
         OrdemServicoDetalheResponse r = ordemServicoService.iniciarDiagnostico(os.getId(), new AcaoOrdemRequest("ok"));
 
         assertThat(r.status()).isEqualTo(StatusOrdemServico.EM_DIAGNOSTICO);
+        verify(telemetry).commandCompleted("order_transition", "accepted");
+    }
+
+    @Test
+    void command_boundaries_classify_business_conflict_and_technical_failures() {
+        OrdemServico invalidState = osBasica(); invalidState.setStatus(StatusOrdemServico.EM_DIAGNOSTICO);
+        when(ordemServicoRepository.findById(invalidState.getId())).thenReturn(Optional.of(invalidState));
+        assertThatThrownBy(() -> ordemServicoService.iniciarDiagnostico(invalidState.getId(), null)).isInstanceOf(BusinessRuleException.class);
+        verify(telemetry).commandCompleted("order_transition", "business-rejected");
+
+        UUID conflict = UUID.randomUUID(); when(ordemServicoRepository.findById(conflict))
+                .thenThrow(new org.springframework.orm.ObjectOptimisticLockingFailureException(OrdemServico.class, conflict));
+        assertThatThrownBy(() -> ordemServicoService.iniciarDiagnostico(conflict, null)).isInstanceOf(org.springframework.orm.ObjectOptimisticLockingFailureException.class);
+        verify(telemetry).commandCompleted("order_transition", "conflict");
+
+        UUID technical = UUID.randomUUID(); when(ordemServicoRepository.findById(technical)).thenThrow(new IllegalStateException("synthetic"));
+        assertThatThrownBy(() -> ordemServicoService.iniciarDiagnostico(technical, null)).isInstanceOf(IllegalStateException.class);
+        verify(telemetry).commandCompleted("order_transition", "technical-failure");
     }
 
     @Test

@@ -14,6 +14,8 @@ import com.oficina.security.*;
 import com.oficina.service.*;
 import com.oficina.support.Fixtures;
 import com.oficina.support.PostgresIntegrationSupport;
+import com.oficina.config.CorrelationFilter;
+import com.oficina.application.observability.OrderTelemetry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -24,6 +26,8 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
@@ -34,6 +38,7 @@ import java.util.List;
 import java.nio.file.Path;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 
 @Import({OrdemServicoService.class, OutboxNotificacaoAdapter.class, com.oficina.adapter.out.mail.EmailNotificacaoAdapter.class,
         OutboxTransactionTest.Configuration.class})
@@ -58,6 +63,7 @@ class OutboxTransactionTest extends PostgresIntegrationSupport {
     @Autowired ObjectMapper mapper;
     @Autowired com.oficina.adapter.out.mail.EmailNotificacaoAdapter localMail;
     @MockBean org.springframework.mail.javamail.JavaMailSender mailSender;
+    @MockBean OrderTelemetry telemetry;
     OrdemServico order;
     Cliente customer;
 
@@ -103,6 +109,16 @@ class OutboxTransactionTest extends PostgresIntegrationSupport {
                 event.eventId())).isEqualTo("PENDING");
     }
 
+    @Test void accepted_uuid_correlation_header_survives_real_status_mutation_into_outbox() throws Exception {
+        String correlation = "00000000-0000-0000-0000-0000000004a1";
+        var request = new MockHttpServletRequest(); request.addHeader("X-Correlation-Id", correlation);
+        var response = new MockHttpServletResponse();
+        new CorrelationFilter().doFilter(request, response, (ignoredRequest, ignoredResponse) -> approve());
+        assertThat(response.getHeader("X-Correlation-Id")).isEqualTo(correlation);
+        assertThat(persistedEvent().correlationId()).isEqualTo(correlation);
+        verify(telemetry).commandCompleted("order_decision", "accepted");
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"pecas", "os_historico", "outbox_eventos"})
     void databaseFailureRollsBackOrderStockHistoryAndOutbox(String table) {
@@ -114,6 +130,7 @@ class OutboxTransactionTest extends PostgresIntegrationSupport {
             assertThatThrownBy(this::approve).isInstanceOf(RuntimeException.class)
                     .hasStackTraceContaining("CONTROLLED_A5_FAILURE");
             assertState("AGUARDANDO_APROVACAO", 10, 3, 0);
+            verify(telemetry).commandCompleted("order_decision", "technical-failure");
         } finally {
             jdbc.execute("DROP TRIGGER fail_a5 ON " + table);
             jdbc.execute("DROP FUNCTION fail_a5_insert()");
