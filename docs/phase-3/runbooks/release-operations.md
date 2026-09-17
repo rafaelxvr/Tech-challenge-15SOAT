@@ -32,3 +32,13 @@ These procedures are review checklists. They do not assert an active AWS account
 1. Export only the K8S allowlisted release/output receipt through the reviewed [release-readiness process](../../../../oficina-k8s-infra/docs/release-readiness.md); include artifact/manifest SHA-256 and immutable object version, not state or secrets.
 2. Attach the four repository commit IDs, CI run URLs/statuses, test outputs, diagrams, and recorded non-secret dashboard/log/tracing screenshots to the delivery PDF/video evidence.
 3. Cleanup means remove local `.rendered`, `target`, and temporary evidence files after copying the approved non-secret record. Do not delete Terraform state, S3 locks, queues, databases, production resources, or cloud evidence during routine cleanup.
+
+## Source activation and acceptance gate
+
+APP/FUN live adapters are currently disabled; completing this checklist is not itself an activation command. Review [I7 prerequisites](../../i7-pipeline-contracts.md), FUN's single-owner state transfer and APP's missing cloud migration/rollout executor first. The K8S deployer source requires AWS CLI 2.36.42 for conditional lock deletion; build/review a new immutable image digest before execution. External permissions, current window and production authorization are separate evidence.
+
+During first-writer cutover, drain old writers before V6 and use the reviewed migration artifact; on failure do not start new writers. Later compatible releases can roll forward only after migration success. Rollback is limited to a schema/security-compatible artifact: never restore the insecure writer or destructively reverse V5–V8. Measure interruption and recovery rather than claiming availability.
+
+For customer-key rotation, install the new public kid in APP and authorizer first, then activate signing. Retain the old public key through the last old-key issuance plus its 900-second lifetime, configured skew and propagation interval. Staff HS256 secret rotation is separate and follows the approved staff re-login policy. See [FUN rotation details](../../../../oficina-functions/docs/token-trust.md).
+
+Export owner-specific allowlisted receipts (APP schema/runtime refs, DB connection refs, FUN public/runtime refs and K8S platform refs), never full state. The [R3 evidence matrix](../evidence/requirements.md) links sources and pending acceptance. API snapshots remain pinned to their original revision; regenerate/review release exports only after verifying current contract compatibility and stripping credentials.

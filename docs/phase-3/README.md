@@ -8,6 +8,8 @@ This index describes the reviewed source state. No cloud deployment or public en
 - [R4 cloud-window status](evidence/cloud-window.md) and [cleanup proposal](../runbooks/cleanup.md)
 - [14-minute recording script](submission/video-script.md) and [redacted submission manifest template](submission/submission-manifest.json)
 - [RFCs](../rfcs/001-aws-profile.md) and [ADRs](../adrs/001-modular-monolith.md)
-- Repository architecture revisions: K8S `73c2fae369c05b860a1f52f5322ff52919421b14`, FUN `5acf72d5b120e0451dee7e5aace151c4a70c1935`, DB `9420c959698d38d977cd0bdfc8ca504f1c6dd6c2`.
+- [Requirement/evidence matrix](evidence/requirements.md), including audited source revisions and explicit staged acceptance gaps.
 
 Run local APP checks with `./mvnw.cmd -q test`; infrastructure deployment is an R4-authorized action only.
+
+Repository architecture: [APP](../architecture.md), [FUN](../../../oficina-functions/docs/architecture.md), [K8S](../../../oficina-k8s-infra/docs/architecture.md), [DB](../../../oficina-db-infra/docs/architecture.md).

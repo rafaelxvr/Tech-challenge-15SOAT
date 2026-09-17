@@ -4,11 +4,13 @@ import re
 import sys
 from pathlib import Path
 app_root = Path(__file__).resolve().parents[1]
-workspace_root = app_root.parents[2]
+app_checkout = next((path for path in (app_root, *app_root.parents)
+                     if path.name == "Tech-challenge-15SOAT"), app_root)
+workspace_root = app_checkout.parent
 self_test = "--self-test" in sys.argv
 arguments = [argument for argument in sys.argv[1:] if argument != "--self-test"]
 required = [
- "README.md",
+ "README.md", "docs/architecture.md", "docs/phase-3/evidence/requirements.md",
  "docs/phase-3/README.md", "docs/phase-3/architecture/components.md",
  "docs/phase-3/architecture/authentication-sequence.md", "docs/phase-3/architecture/order-opening-sequence.md",
  "docs/phase-3/architecture/data-model.md", "docs/phase-3/api/contracts.md",
@@ -44,7 +46,13 @@ for artifact in [Path("docs/phase-3/api/postman-7ca6e294.json")]:
     except (OSError, json.JSONDecodeError) as exc:
         errors.append(f"invalid JSON {artifact}: {exc}")
 
-sources = [*map(Path, arguments or ["docs", "README.md"]), *external_required]
+for repository in ("oficina-k8s-infra", "oficina-functions", "oficina-db-infra"):
+    matrix = workspace_root / repository / "docs/evidence/requirements.md"
+    if not matrix.is_file(): errors.append(f"missing requirement/evidence matrix: {matrix}")
+
+sources = [*map(Path, arguments or ["docs", "README.md"]), *external_required,
+           *[workspace_root / repository / "docs" for repository in
+             ("oficina-k8s-infra", "oficina-functions", "oficina-db-infra")]]
 for root in sources:
     paths = root.rglob("*.md") if root.is_dir() else [root]
     for path in paths:
@@ -57,7 +65,7 @@ for root in sources:
             # back to its checkout solely for local validation.
             marker = "Tech-challenge-15SOAT"
             parts = Path(target).parts
-            if not resolved.exists() and marker in parts:
+            if marker in parts:
                 resolved = app_root.joinpath(*parts[parts.index(marker) + 1:])
             if not resolved.exists():
                 sibling = next((part for part in parts if part in {"oficina-k8s-infra", "oficina-functions", "oficina-db-infra"}), None)

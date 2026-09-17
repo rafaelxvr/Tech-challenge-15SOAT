@@ -4,9 +4,11 @@ Back-end para gestão de ordens de serviço, clientes, veículos, catálogo e m�
 
 ## Fase 3: reviewed architecture
 
+Start with the [APP architecture guide](docs/architecture.md), [requirement/evidence matrix](docs/phase-3/evidence/requirements.md), and [disabled cloud adapter prerequisites](docs/i7-pipeline-contracts.md). The Phase 2 material below remains historical; its topology is not the Phase 3 cloud profile.
+
 The Phase 3 component, authentication, order-delivery, and relational-model evidence is in [the architecture index](docs/phase-3/README.md). Use the committed, credential-free [OpenAPI and Postman snapshots](docs/phase-3/api/contracts.md) for local contract review. They document source revision `7ca6e2948e423ea171c252eddeaca266179bd153`; they do not claim an active cloud endpoint. Run `./mvnw.cmd -q test` locally; the protected-cloud handoff remains an authorized R4 action.
 
-Run `./mvnw.cmd -B verify`, `python scripts/check-doc-links.py docs README.md`, and `python scripts/verify-api-snapshots.py` from this repository root. CI is [`.github/workflows/ci-cd.yml`](.github/workflows/ci-cd.yml): it runs on push and pull request for `main`, `master`, and `develop`, plus manual dispatch. Its image/deployment stages require their configured environment and do not make a cloud deployment claim in this document.
+Run `./mvnw.cmd -B verify`, `python scripts/check-doc-links.py docs README.md`, and `python scripts/verify-api-snapshots.py` from this repository root. CI is [`.github/workflows/ci-cd.yml`](.github/workflows/ci-cd.yml): it runs on push and pull request for `main` and `develop`. PR checks have no deployment identity; GHCR publishing is push-only and Kind is explicitly local. Its image/deployment stages require their configured environment and do not make a cloud deployment claim in this document.
 
 ---
 
