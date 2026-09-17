@@ -35,7 +35,7 @@ These procedures are review checklists. They do not assert an active AWS account
 
 ## Source activation and acceptance gate
 
-APP/FUN live adapters are currently disabled; completing this checklist is not itself an activation command. Review [I7 prerequisites](../../i7-pipeline-contracts.md), FUN's single-owner state transfer and APP's missing cloud migration/rollout executor first. The K8S deployer source requires AWS CLI 2.36.42 for conditional lock deletion; build/review a new immutable image digest before execution. External permissions, current window and production authorization are separate evidence.
+APP/FUN live adapters are currently disabled; completing this checklist is not itself an activation command. Review [I7 prerequisites](../../i7-pipeline-contracts.md), FUN's single-owner state transfer and APP's [source migration/rollout adapter and unfulfilled bootstrap prerequisites](../../runbooks/first-writer-cutover.md) first. The K8S deployer source requires AWS CLI 2.36.42 for conditional lock deletion; build/review a new immutable image digest before execution. External permissions, current window and production authorization are separate evidence.
 
 During first-writer cutover, drain old writers before V6 and use the reviewed migration artifact; on failure do not start new writers. Later compatible releases can roll forward only after migration success. Rollback is limited to a schema/security-compatible artifact: never restore the insecure writer or destructively reverse V5–V8. Measure interruption and recovery rather than claiming availability.
 
