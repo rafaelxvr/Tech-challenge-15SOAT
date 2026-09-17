@@ -37,6 +37,17 @@
 
     <dependencies>
 
+        <!-- Standalone APP bootstrap only; never wired into application startup. -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>secretsmanager</artifactId>
+            <version>${aws.sdk.version}</version>
+            <exclusions>
+                <exclusion><groupId>software.amazon.awssdk</groupId><artifactId>apache5-client</artifactId></exclusion>
+                <exclusion><groupId>software.amazon.awssdk</groupId><artifactId>netty-nio-client</artifactId></exclusion>
+            </exclusions>
+        </dependency>
+
         <!-- B1 toolchain.lock.json pin; no implicit SDK retries for the outbox. -->
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
