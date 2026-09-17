@@ -43,13 +43,19 @@ public class OpenApiConfig {
                 .description("""
                         Sistema Integrado de Atendimento e Execução de Serviços para Oficina Mecânica.
                         
-                        **Autenticação:** Use o endpoint `/auth/login` para obter um token JWT.
-                        Insira o token no botão **Authorize** acima com o prefixo `Bearer`.
+                        **Autenticação staff:** `/auth/login` (email e senha); roles ADMIN/MECANICO.
+                        **Cliente:** fluxo CPF + código de email no gateway; JWT customer sem refresh, válido por 15 minutos.
+                        Consultas exigem `orders:read:self`; decisões exigem `orders:decide:self` e propriedade da OS.
+                        Use o número gerado da OS. Ordens ausentes ou de outro cliente retornam o mesmo 404.
+                        A resposta do cliente inclui orçamento e histórico sem identidade, contato ou notas internas.
+                        `/orcamento/decisao` é a operação canônica; `/aprovar` e `/orcamento/notificacao` são aliases autenticados.
+                        A antiga mutação `/email/atualizar-status` foi removida e retorna 404.
+                        Tokens antigos exigem novo login após a atualização. Swagger/OpenAPI exigem autenticação staff.
                         
                         **Roles disponíveis:**
                         - `ADMIN`: Acesso total ao sistema
                         - `MECANICO`: Acesso a ordens de serviço e execução
-                        - `CLIENTE`: Consulta de status das suas OS
+                        - Principal `customer`: somente leitura e decisão das próprias OS, conforme escopo
                         """)
                 .version("1.0.0")
                 .contact(new Contact()
@@ -65,6 +71,6 @@ public class OpenApiConfig {
                 .type(SecurityScheme.Type.HTTP)
                 .scheme("bearer")
                 .bearerFormat("JWT")
-                .description("Informe o token JWT obtido via /auth/login");
+                .description("JWT staff via /auth/login ou customer via CPF + código de email no gateway; use a identidade adequada à rota");
     }
 }

@@ -1,0 +1,5 @@
+# Reproducible local PDF runtime. Create a project-local venv; do not install globally.
+# Matches the configured bundled local runtime used for offline render/inspection.
+reportlab==4.4.9
+pypdf==6.10.0
+pypdfium2==5.13.0

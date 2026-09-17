@@ -8,6 +8,8 @@ metadata:
 data:
   SPRING_PROFILES_ACTIVE: "prod"
   SERVER_PORT: "8080"
+  # UTC provenance applies to fresh local synthetic data only; see the cutover runbook.
+  HISTORICO_ZONA_COMPATIBILIDADE: "UTC"
   DB_URL: "jdbc:postgresql://oficina-postgres:5432/oficina_mecanica"
   DB_USERNAME: "oficina"
   JWT_EXPIRATION: "86400000"

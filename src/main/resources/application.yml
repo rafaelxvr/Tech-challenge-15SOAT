@@ -11,9 +11,9 @@ spring:
     password: ${DB_PASSWORD:oficina123}
     driver-class-name: org.postgresql.Driver
     hikari:
-      maximum-pool-size: 10
+      maximum-pool-size: 5
       minimum-idle: 2
-      connection-timeout: 30000
+      connection-timeout: 1000
       idle-timeout: 600000
       max-lifetime: 1800000
 
@@ -66,23 +66,47 @@ server:
   servlet:
     context-path: /api
   error:
-    include-message: always
-    include-binding-errors: always
+    include-message: never
+    include-binding-errors: never
 
 # ========================
 #    JWT
 # ========================
 security:
   jwt:
-    secret: ${JWT_SECRET:3cTp9vQzXkN8mR2jL5wY7aB4fH6dE1iU0oP}
+    secret: ${JWT_SECRET}
     expiration: ${JWT_EXPIRATION:86400000}  # 24 horas em ms
     refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000}  # 7 dias em ms
+    staff:
+      issuer: ${JWT_STAFF_ISSUER}
+      audience: ${JWT_STAFF_AUDIENCE}
+      key-id: ${JWT_STAFF_KEY_ID}
+    customer:
+      issuer: ${JWT_CUSTOMER_ISSUER}
+      audience: ${JWT_CUSTOMER_AUDIENCE}
+      # Supply security.jwt.customer.public-keys via a config file or SPRING_APPLICATION_JSON.
+      # Map each trusted kid to an X.509 SubjectPublicKeyInfo PEM RSA public key; no URL resolution.
 
 oficina:
+  observability:
+    snapshots:
+      enabled: ${OBSERVABILITY_SNAPSHOTS_ENABLED:false}
+      # The deployer injects concrete HTTPS endpoint/account/key only for staging or production.
+      endpoint: ${NEW_RELIC_EVENT_ENDPOINT:https://insights-collector.newrelic.com/v1/accounts/0/events}
+      account-id: ${NEW_RELIC_ACCOUNT_ID:0}
+      environment: ${DEPLOYMENT_ENVIRONMENT:staging}
+      zone: ${REPORTING_ZONE:America/Sao_Paulo}
+  outbox:
+    enabled: ${OUTBOX_ENABLED:false}
+    region: ${AWS_REGION:us-east-1}
+    queue-url: ${OUTBOX_QUEUE_URL:}
+  historico:
+    # Fresh synthetic installations use UTC. Existing deployments must supply a proven
+    # compatibility zone; this setting NEVER backfills legacy canonical timestamps.
+    zona-compatibilidade: ${HISTORICO_ZONA_COMPATIBILIDADE}
   mail:
     enabled: ${MAIL_ENABLED:true}
     from: ${MAIL_FROM:noreply@oficina.com}
-    status-token: ${MAIL_STATUS_TOKEN:oficina-email-status-token}
 
 # ========================
 #    OPENAPI / SWAGGER
@@ -107,7 +131,14 @@ management:
         include: health,info,metrics
   endpoint:
     health:
-      show-details: when_authorized
+      show-details: never
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db
+        liveness:
+          include: livenessState
 
 # ========================
 #    LOGGING
@@ -117,8 +148,7 @@ logging:
     com.oficina: INFO
     org.springframework.security: WARN
     org.hibernate.SQL: WARN
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+    org.hibernate.orm.jdbc.bind: WARN
 
 ---
 # ========================
@@ -129,14 +159,11 @@ spring:
     activate:
       on-profile: dev
 
-  jpa:
-    show-sql: true
-
 logging:
   level:
     com.oficina: DEBUG
-    org.hibernate.SQL: DEBUG
-    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    org.hibernate.SQL: WARN
+    org.hibernate.orm.jdbc.bind: WARN
 
 ---
 # ========================
@@ -153,9 +180,6 @@ spring:
 
   flyway:
     enabled: true
-
-  jpa:
-    show-sql: true
 
 oficina:
   mail:

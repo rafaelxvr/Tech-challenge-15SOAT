@@ -1,6 +1,8 @@
 package com.oficina.entity;
 
 import com.oficina.exception.BusinessRuleException;
+import com.oficina.domain.identidade.Ator;
+import com.oficina.domain.identidade.TipoAtor;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.Generated;
@@ -10,6 +12,9 @@ import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.util.Objects;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
@@ -27,6 +32,28 @@ public class OrdemServico {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
+
+    @Version
+    @Setter(AccessLevel.NONE)
+    @Column(name = "versao", nullable = false)
+    private long versao;
+
+    @Setter(AccessLevel.NONE)
+    @Column(name = "sequencia_historico", nullable = false)
+    private long sequenciaHistorico;
+
+    @Setter(AccessLevel.NONE)
+    @Column(name = "criado_em_utc", updatable = false)
+    private Instant criadoEmUtc;
+
+    @Setter(AccessLevel.NONE)
+    @Builder.Default
+    @Column(name = "historico_completo_desde_inicio", nullable = false)
+    private boolean historicoCompletoDesdeInicio = true;
+
+    /** Explicit compatibility zone supplied by the application or fixture provenance. */
+    @Transient
+    private ZoneId zonaCompatibilidade;
 
     @Generated(event = EventType.INSERT)
     @Column(name = "numero", nullable = false, unique = true, insertable = false, updatable = false)
@@ -81,22 +108,16 @@ public class OrdemServico {
     private List<OsPecaItem> pecas = new ArrayList<>();
 
     @OneToMany(mappedBy = "ordemServico", cascade = CascadeType.ALL, orphanRemoval = true)
-    @OrderBy("criadoEm ASC")
+    @org.hibernate.annotations.SQLOrder("sequencia ASC NULLS FIRST, criado_em ASC")
     @Builder.Default
     private List<OsHistorico> historico = new ArrayList<>();
 
     @PrePersist
     protected void onCreate() {
-        criadoEm = LocalDateTime.now();
-        atualizadoEm = LocalDateTime.now();
+        Objects.requireNonNull(criadoEm, "Registre o histórico inicial antes de persistir a ordem");
         if (valorTotal == null) {
             valorTotal = BigDecimal.ZERO;
         }
-    }
-
-    @PreUpdate
-    protected void onUpdate() {
-        atualizadoEm = LocalDateTime.now();
     }
 
     public void adicionarServico(OsServicoItem item) {
@@ -120,60 +141,68 @@ public class OrdemServico {
         valorTotal = total;
     }
 
-    public void registrarHistorico(StatusOrdemServico anterior, StatusOrdemServico novo, UUID usuarioId, String observacao) {
-        historico.add(OsHistorico.builder()
-                .ordemServico(this)
-                .statusAnterior(anterior)
-                .statusNovo(novo)
-                .observacao(observacao)
-                .alteradoPor(usuarioId)
-                .build());
+    private void registrarHistorico(StatusOrdemServico anterior, StatusOrdemServico novo,
+                                    Ator ator, Instant ocorridoEm, String observacao) {
+        Objects.requireNonNull(ator, "Ator obrigatório");
+        Objects.requireNonNull(ocorridoEm, "Instante obrigatório");
+        LocalDateTime compatibilidade = LocalDateTime.ofInstant(ocorridoEm,
+                Objects.requireNonNull(zonaCompatibilidade, "Zona de compatibilidade obrigatória"));
+        long proximaSequencia = Math.incrementExact(sequenciaHistorico);
+        OsHistorico evento = OsHistorico.builder()
+                .ordemServico(this).statusAnterior(anterior).statusNovo(novo)
+                .observacao(observacao).atorTipo(ator.tipo())
+                .alteradoPor(ator.tipo() == TipoAtor.STAFF ? ator.id() : null)
+                .atorClienteId(ator.tipo() == TipoAtor.CUSTOMER ? ator.id() : null)
+                .ocorridoEm(ocorridoEm).sequencia(proximaSequencia).criadoEm(compatibilidade)
+                .build();
+        historico.add(evento);
+        sequenciaHistorico = proximaSequencia;
+        atualizadoEm = compatibilidade;
     }
 
-    public void registrarHistoricoInicial(UUID usuarioId, String observacao) {
-        historico.add(OsHistorico.builder()
-                .ordemServico(this)
-                .statusAnterior(null)
-                .statusNovo(StatusOrdemServico.RECEBIDA)
-                .observacao(observacao)
-                .alteradoPor(usuarioId)
-                .build());
+    public void registrarHistoricoInicial(Ator ator, Instant ocorridoEm, String observacao) {
+        if (status != StatusOrdemServico.RECEBIDA || !historico.isEmpty() || sequenciaHistorico != 0) {
+            throw new BusinessRuleException("Histórico inicial já registrado ou ordem fora do estado RECEBIDA.");
+        }
+        registrarHistorico(null, StatusOrdemServico.RECEBIDA, ator, ocorridoEm, observacao);
+        criadoEmUtc = ocorridoEm;
+        criadoEm = atualizadoEm;
     }
 
-    public void iniciarDiagnostico(UUID usuarioId, String observacao) {
+    public void iniciarDiagnostico(Ator ator, Instant ocorridoEm, String observacao) {
         assertTransicao(StatusOrdemServico.EM_DIAGNOSTICO, EnumSet.of(StatusOrdemServico.RECEBIDA));
-        aplicarNovoStatus(StatusOrdemServico.EM_DIAGNOSTICO, usuarioId, observacao);
+        aplicarNovoStatus(StatusOrdemServico.EM_DIAGNOSTICO, ator, ocorridoEm, observacao);
     }
 
-    public void enviarOrcamentoParaAprovacao(UUID usuarioId, String observacao) {
+    public void enviarOrcamentoParaAprovacao(Ator ator, Instant ocorridoEm, String observacao) {
         assertTransicao(StatusOrdemServico.AGUARDANDO_APROVACAO, EnumSet.of(StatusOrdemServico.EM_DIAGNOSTICO));
-        aplicarNovoStatus(StatusOrdemServico.AGUARDANDO_APROVACAO, usuarioId, observacao);
+        aplicarNovoStatus(StatusOrdemServico.AGUARDANDO_APROVACAO, ator, ocorridoEm, observacao);
     }
 
-    public void aprovarExecucaoCliente(UUID usuarioId, String observacao) {
+    public void aprovarExecucaoCliente(Ator ator, Instant ocorridoEm, String observacao) {
         assertTransicao(StatusOrdemServico.EM_EXECUCAO, EnumSet.of(StatusOrdemServico.AGUARDANDO_APROVACAO));
-        aplicarNovoStatus(StatusOrdemServico.EM_EXECUCAO, usuarioId, observacao);
-        aprovadoEm = LocalDateTime.now();
-        iniciadoEm = LocalDateTime.now();
+        aplicarNovoStatus(StatusOrdemServico.EM_EXECUCAO, ator, ocorridoEm, observacao);
+        aprovadoEm = atualizadoEm;
+        iniciadoEm = atualizadoEm;
     }
 
     /** Recusa do orçamento: volta para diagnóstico para revisão (exclusão lógica da fila de aprovação). */
-    public void recusarOrcamentoCliente(UUID usuarioId, String observacao) {
+    public void recusarOrcamentoCliente(Ator ator, Instant ocorridoEm, String observacao) {
         assertTransicao(StatusOrdemServico.EM_DIAGNOSTICO, EnumSet.of(StatusOrdemServico.AGUARDANDO_APROVACAO));
-        aplicarNovoStatus(StatusOrdemServico.EM_DIAGNOSTICO, usuarioId,
+        aplicarNovoStatus(StatusOrdemServico.EM_DIAGNOSTICO, ator, ocorridoEm,
                 observacao != null ? observacao : "Orçamento recusado pelo cliente");
     }
 
-    public void finalizarServico(UUID usuarioId, String observacao) {
+    public void finalizarServico(Ator ator, Instant ocorridoEm, String observacao) {
         assertTransicao(StatusOrdemServico.FINALIZADA, EnumSet.of(StatusOrdemServico.EM_EXECUCAO));
-        aplicarNovoStatus(StatusOrdemServico.FINALIZADA, usuarioId, observacao);
-        finalizadoEm = LocalDateTime.now();
+        aplicarNovoStatus(StatusOrdemServico.FINALIZADA, ator, ocorridoEm, observacao);
+        finalizadoEm = atualizadoEm;
     }
 
-    public void registrarEntrega(UUID usuarioId, String observacao) {
+    public void registrarEntrega(Ator ator, Instant ocorridoEm, String observacao) {
         assertTransicao(StatusOrdemServico.ENTREGUE, EnumSet.of(StatusOrdemServico.FINALIZADA));
-        aplicarNovoStatus(StatusOrdemServico.ENTREGUE, usuarioId, observacao);
-        entregueEm = LocalDateTime.now();
+        aplicarNovoStatus(StatusOrdemServico.ENTREGUE, ator, ocorridoEm, observacao);
+        entregueEm = atualizadoEm;
     }
 
     private void assertTransicao(StatusOrdemServico destino, EnumSet<StatusOrdemServico> permitidos) {
@@ -184,9 +213,9 @@ public class OrdemServico {
         }
     }
 
-    private void aplicarNovoStatus(StatusOrdemServico novo, UUID usuarioId, String observacao) {
+    private void aplicarNovoStatus(StatusOrdemServico novo, Ator ator, Instant ocorridoEm, String observacao) {
         StatusOrdemServico anterior = status;
+        registrarHistorico(anterior, novo, ator, ocorridoEm, observacao);
         status = novo;
-        registrarHistorico(anterior, novo, usuarioId, observacao);
     }
 }

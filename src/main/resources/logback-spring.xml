@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!-- The encoder deliberately omits formatted messages, arguments and exception stacks.  Application
+         code emits stable event names and diagnostic codes through MDC; the Kubernetes forwarder owns delivery. -->
+    <appender name="JSON_CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+            <providers>
+                <timestamp><timeZone>UTC</timeZone><fieldName>timestamp</fieldName></timestamp>
+                <pattern>
+                    <pattern>{"service":"oficina-api","environment":"${OFICINA_ENVIRONMENT:-local}","version":"${APP_VERSION:-unknown}","level":"%level","message":"safe"}</pattern>
+                </pattern>
+                <mdc>
+                    <includeMdcKeyName>event_name</includeMdcKeyName>
+                    <includeMdcKeyName>correlation_id</includeMdcKeyName>
+                    <includeMdcKeyName>api_gateway_request_id</includeMdcKeyName>
+                    <includeMdcKeyName>traceparent</includeMdcKeyName>
+                    <includeMdcKeyName>diagnostic_id</includeMdcKeyName>
+                </mdc>
+            </providers>
+        </encoder>
+    </appender>
+    <root level="INFO"><appender-ref ref="JSON_CONSOLE"/></root>
+</configuration>

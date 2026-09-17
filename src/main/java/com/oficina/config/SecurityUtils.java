@@ -1,6 +1,8 @@
 package com.oficina.config;
 
 import com.oficina.entity.Usuario;
+import com.oficina.security.IdentidadeAutenticada;
+import com.oficina.security.TipoPrincipal;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import org.springframework.security.core.Authentication;
@@ -19,6 +21,9 @@ public final class SecurityUtils {
         }
         if (auth.getPrincipal() instanceof Usuario usuario) {
             return Optional.ofNullable(usuario.getId());
+        }
+        if (auth.getPrincipal() instanceof IdentidadeAutenticada identidade && identidade.tipo() == TipoPrincipal.STAFF) {
+            return Optional.of(identidade.id());
         }
         return Optional.empty();
     }

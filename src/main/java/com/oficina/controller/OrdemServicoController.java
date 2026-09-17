@@ -1,6 +1,8 @@
 package com.oficina.controller;
 
 import com.oficina.service.OrdemServicoService;
+import com.oficina.security.IdentidadeAutenticada;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import com.oficina.dto.*;
 import com.oficina.entity.StatusOrdemServico;
 import io.swagger.v3.oas.annotations.Operation;
@@ -55,41 +57,45 @@ public class OrdemServicoController {
     }
 
     @GetMapping("/{numero}/acompanhamento")
-    @Operation(summary = "Consulta de status da OS (Recebida, Diagnóstico, Aguardando Aprovação, Execução, Finalizada, Entregue)")
+    @PreAuthorize("hasAuthority('SCOPE_orders:read:self')")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(summary = "Consultar status e orçamento da própria OS; requer customer e orders:read:self")
     public ResponseEntity<ApiResponse<AcompanhamentoOsResponse>> acompanhamento(
-            @PathVariable Long numero) {
-        return ResponseEntity.ok(ApiResponse.success(ordemServicoService.acompanhamentoPublico(numero)));
+            @PathVariable Long numero, @AuthenticationPrincipal IdentidadeAutenticada cliente) {
+        return ResponseEntity.ok(ApiResponse.success(ordemServicoService.acompanhamentoDoCliente(numero, cliente)));
+    }
+
+    @PostMapping("/{numero}/orcamento/decisao")
+    @PreAuthorize("hasAuthority('SCOPE_orders:decide:self')")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(summary = "Decidir sobre o próprio orçamento; requer customer e orders:decide:self")
+    public ResponseEntity<ApiResponse<AcompanhamentoOsResponse>> decisaoOrcamento(
+            @PathVariable Long numero, @AuthenticationPrincipal IdentidadeAutenticada cliente,
+            @Valid @RequestBody DecisaoClienteRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(ordemServicoService.decidirComoCliente(numero, cliente, request)));
     }
 
     @PostMapping("/{numero}/orcamento/notificacao")
-    @Operation(summary = "Recebe notificação externa de aprovação ou recusa do orçamento")
-    public ResponseEntity<ApiResponse<OrdemServicoDetalheResponse>> notificacaoOrcamento(
-            @PathVariable Long numero,
+    @PreAuthorize("hasAuthority('SCOPE_orders:decide:self')")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(summary = "Alias autenticado de /orcamento/decisao; documento deve concordar com o cliente", deprecated = true)
+    public ResponseEntity<ApiResponse<AcompanhamentoOsResponse>> notificacaoOrcamento(
+            @PathVariable Long numero, @AuthenticationPrincipal IdentidadeAutenticada cliente,
             @Valid @RequestBody DecisaoOrcamentoRequest request) {
-        String msg = request.decisao() == DecisaoOrcamentoRequest.DecisaoOrcamento.APROVADO
-                ? "Orçamento aprovado."
-                : "Orçamento recusado.";
         return ResponseEntity.ok(ApiResponse.success(
-                msg, ordemServicoService.processarDecisaoOrcamento(numero, request)));
+                ordemServicoService.decidirComoClienteLegado(numero, cliente, request)));
     }
 
     @PostMapping("/{numero}/aprovar")
-    @Operation(summary = "Aprovar orçamento (cliente) — atalho compatível; preferir /orcamento/notificacao")
-    public ResponseEntity<ApiResponse<OrdemServicoDetalheResponse>> aprovar(
-            @PathVariable Long numero,
+    @PreAuthorize("hasAuthority('SCOPE_orders:decide:self')")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(summary = "Alias autenticado de aprovação; preferir /orcamento/decisao", deprecated = true)
+    public ResponseEntity<ApiResponse<AcompanhamentoOsResponse>> aprovar(
+            @PathVariable Long numero, @AuthenticationPrincipal IdentidadeAutenticada cliente,
             @Valid @RequestBody AprovacaoClienteRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(
-                "Orçamento aprovado.",
-                ordemServicoService.aprovarPeloCliente(numero, request)));
-    }
-
-    @PostMapping("/email/atualizar-status")
-    @Operation(summary = "Atualização de status da OS via ferramenta de e-mail (token no link)")
-    public ResponseEntity<ApiResponse<OrdemServicoDetalheResponse>> atualizarStatusViaEmail(
-            @Valid @RequestBody AtualizacaoStatusEmailRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(
-                "Status atualizado via e-mail.",
-                ordemServicoService.atualizarStatusViaEmail(request)));
+        return ResponseEntity.ok(ApiResponse.success(ordemServicoService.decidirComoClienteLegado(numero, cliente,
+                new DecisaoOrcamentoRequest(DecisaoOrcamentoRequest.DecisaoOrcamento.APROVADO,
+                        request.documentoCliente(), null))));
     }
 
     @PostMapping("/{id}/iniciar-diagnostico")

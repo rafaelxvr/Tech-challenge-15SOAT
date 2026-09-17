@@ -1,12 +1,19 @@
-# Pipeline CI/CD — Oficina Mecânica (Fase 2)
+# Application verification and explicitly local Kind rehearsal
 name: CI/CD
 
 on:
   push:
-    branches: [main, master, develop]
+    branches: [main, develop]
   pull_request:
-    branches: [main, master, develop]
-  workflow_dispatch:
+    branches: [main, develop]
+
+
+permissions:
+  contents: read
+
+concurrency:
+  group: app-ci-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   IMAGE_NAME: oficina-mecanica
@@ -27,19 +34,49 @@ jobs:
           java-version: "17"
           cache: maven
 
+      - name: Verificar toolchain
+        shell: pwsh
+        run: ./scripts/check-toolchain.ps1
+
+      - name: Verify offline release contracts
+        shell: pwsh
+        run: ./tests/pipeline-contract.ps1
+
       - name: Build e testes automatizados
-        run: mvn -B verify
+        run: ./mvnw -B verify
+
+  integration-test:
+    name: Testes de integracao com Docker
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+
+      - name: Verificar Docker
+        run: docker info
+
+      - name: Executar gate com Testcontainers habilitado
+        run: ./mvnw -B verify
 
   docker-image:
+    if: github.event_name == 'push'
     name: Build imagem Docker
-    needs: build-and-test
+    needs: [build-and-test, integration-test]
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
     outputs:
-      image: ${{ steps.meta.outputs.tags }}
       image_base: ${{ steps.names.outputs.image_base }}
+      digest: ${{ steps.build.outputs.digest }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -67,9 +104,9 @@ jobs:
           images: ${{ steps.names.outputs.image_base }}
           tags: |
             type=sha,prefix=
-            type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build (e push se não for PR)
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -78,10 +115,10 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           load: ${{ github.event_name == 'pull_request' }}
 
-  deploy-k8s:
-    name: Deploy Kubernetes (Kind)
+  local-kind-smoke:
+    name: Local Kind smoke (no AWS deployment)
     needs: docker-image
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -94,6 +131,7 @@ jobs:
         uses: helm/kind-action@v1.10.0
         with:
           cluster_name: oficina-ci
+          version: v0.33.0
           wait: 120s
 
       - name: Login GHCR
@@ -105,11 +143,16 @@ jobs:
 
       - name: Pull e carregar imagem no Kind
         run: |
-          IMAGE="${{ needs.docker-image.outputs.image_base }}:latest"
+          DIGEST="${{ needs.docker-image.outputs.digest }}"
+          if [[ ! "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "Digest de imagem invalido: $DIGEST" >&2
+            exit 1
+          fi
+          IMAGE="${{ needs.docker-image.outputs.image_base }}@${DIGEST}"
           echo "Usando imagem: $IMAGE"
           docker pull "$IMAGE"
           kind load docker-image "$IMAGE" --name oficina-ci
-          sed -i "s|image: .*oficina-mecanica:.*|image: ${IMAGE}|g" k8s/app.yaml
+          sed -i "s|image: .*oficina-mecanica.*|image: ${IMAGE}|g" k8s/app.yaml
           sed -i "s|imagePullPolicy: IfNotPresent|imagePullPolicy: Never|g" k8s/app.yaml
 
       - name: Deploy banco de dados (manifestos)

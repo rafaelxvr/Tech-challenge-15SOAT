@@ -4,7 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 /**
- * Notificação externa de aprovação ou recusa do orçamento (cliente / sistema parceiro).
+ * Entrada legada autenticada: documento apenas confirma o proprietário já identificado pelo JWT.
  */
 public record DecisaoOrcamentoRequest(
         @NotNull DecisaoOrcamento decisao,

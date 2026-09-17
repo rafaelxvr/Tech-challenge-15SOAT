@@ -1,6 +1,7 @@
 package com.oficina.service;
 
 import com.oficina.application.port.out.NotificacaoPort;
+import com.oficina.application.observability.OrderTelemetry;
 import com.oficina.dto.*;
 import com.oficina.entity.*;
 import com.oficina.exception.BusinessRuleException;
@@ -21,6 +22,9 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -58,6 +62,12 @@ class OrdemServicoServiceTest {
     @Mock
     private NotificacaoPort notificacaoPort;
 
+    @Mock
+    private OrderTelemetry telemetry;
+
+    @org.mockito.Spy
+    private Clock clock = Clock.fixed(Instant.parse("2026-09-15T12:00:00Z"), ZoneOffset.UTC);
+
     @InjectMocks
     private OrdemServicoService ordemServicoService;
 
@@ -68,7 +78,8 @@ class OrdemServicoServiceTest {
 
     @org.junit.jupiter.api.BeforeEach
     void setToken() {
-        ReflectionTestUtils.setField(ordemServicoService, "emailStatusToken", "oficina-email-status-token");
+        ReflectionTestUtils.setField(ordemServicoService, "zonaCompatibilidade", "UTC");
+        ordemServicoService.setTelemetry(telemetry);
     }
 
     @Test
@@ -93,10 +104,10 @@ class OrdemServicoServiceTest {
         when(ordemServicoRepository.save(any(OrdemServico.class))).thenAnswer(inv -> {
             OrdemServico os = inv.getArgument(0);
             os.setId(UUID.randomUUID());
+            os.setNumero(1001L);
             holder[0] = os;
             return os;
         });
-        when(ordemServicoRepository.findById(any(UUID.class))).thenAnswer(inv -> Optional.ofNullable(holder[0]));
 
         CriarOrdemServicoRequest req = new CriarOrdemServicoRequest(
                 CPF,
@@ -112,6 +123,12 @@ class OrdemServicoServiceTest {
         OrdemServicoDetalheResponse resp = ordemServicoService.criar(req);
 
         assertThat(resp.valorTotal()).isEqualByComparingTo(new BigDecimal("100.00"));
+        assertThat(resp.historico()).hasSize(1);
+        assertThat(resp.historico().get(0).ocorridoEm()).isEqualTo(Instant.parse("2026-09-15T12:00:00Z"));
+        assertThat(resp.historico().get(0).criadoEm()).isEqualTo(LocalDateTime.of(2026, 9, 15, 12, 0));
+        assertThat(holder[0].getCriadoEmUtc()).isEqualTo(resp.historico().get(0).ocorridoEm());
+        assertThat(holder[0].getSequenciaHistorico()).isEqualTo(1);
+        verify(clock).instant();
         verify(ordemServicoRepository).flush();
     }
 
@@ -170,7 +187,7 @@ class OrdemServicoServiceTest {
 
         when(ordemServicoRepository.findDetalheAcompanhamentoPorNumero(55L)).thenReturn(Optional.of(os));
 
-        AcompanhamentoOsResponse r = ordemServicoService.acompanhamentoPublico(55L);
+        AcompanhamentoOsResponse r = ordemServicoService.acompanhamentoDoCliente(55L, identidade(c));
 
         assertThat(r.numero()).isEqualTo(55L);
         assertThat(r.historico()).hasSize(1);
@@ -186,6 +203,24 @@ class OrdemServicoServiceTest {
         OrdemServicoDetalheResponse r = ordemServicoService.iniciarDiagnostico(os.getId(), new AcaoOrdemRequest("ok"));
 
         assertThat(r.status()).isEqualTo(StatusOrdemServico.EM_DIAGNOSTICO);
+        verify(telemetry).commandCompleted("order_transition", "accepted");
+    }
+
+    @Test
+    void command_boundaries_classify_business_conflict_and_technical_failures() {
+        OrdemServico invalidState = osBasica(); invalidState.setStatus(StatusOrdemServico.EM_DIAGNOSTICO);
+        when(ordemServicoRepository.findById(invalidState.getId())).thenReturn(Optional.of(invalidState));
+        assertThatThrownBy(() -> ordemServicoService.iniciarDiagnostico(invalidState.getId(), null)).isInstanceOf(BusinessRuleException.class);
+        verify(telemetry).commandCompleted("order_transition", "business-rejected");
+
+        UUID conflict = UUID.randomUUID(); when(ordemServicoRepository.findById(conflict))
+                .thenThrow(new org.springframework.orm.ObjectOptimisticLockingFailureException(OrdemServico.class, conflict));
+        assertThatThrownBy(() -> ordemServicoService.iniciarDiagnostico(conflict, null)).isInstanceOf(org.springframework.orm.ObjectOptimisticLockingFailureException.class);
+        verify(telemetry).commandCompleted("order_transition", "conflict");
+
+        UUID technical = UUID.randomUUID(); when(ordemServicoRepository.findById(technical)).thenThrow(new IllegalStateException("synthetic"));
+        assertThatThrownBy(() -> ordemServicoService.iniciarDiagnostico(technical, null)).isInstanceOf(IllegalStateException.class);
+        verify(telemetry).commandCompleted("order_transition", "technical-failure");
     }
 
     @Test
@@ -206,9 +241,8 @@ class OrdemServicoServiceTest {
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(usuario, null, List.of()));
 
-        OrdemServicoDetalheResponse r = ordemServicoService.aprovarPeloCliente(
-                100L,
-                new AprovacaoClienteRequest(CPF)
+        AcompanhamentoOsResponse r = ordemServicoService.decidirComoClienteLegado(100L, identidade(cli),
+                new DecisaoOrcamentoRequest(DecisaoOrcamentoRequest.DecisaoOrcamento.APROVADO, CPF, null)
         );
 
         assertThat(r.status()).isEqualTo(StatusOrdemServico.EM_EXECUCAO);
@@ -217,7 +251,8 @@ class OrdemServicoServiceTest {
     @Test
     void aprovarPeloCliente_documentoDiverge_lanca() {
         Cliente cli = cliente(UUID.randomUUID());
-        cli.setDocumento("52998224725"); // outro CPF válido
+        cli.atualizarIdentidade(new com.oficina.domain.identidade.DadosIdentidadeCliente(
+                cli.getTipoDocumento(), "52998224725", cli.getEmail(), cli.isAtivo()));
         OrdemServico os = osBasica();
         os.setCliente(cli);
         os.setVeiculo(veiculo(cli));
@@ -225,8 +260,8 @@ class OrdemServicoServiceTest {
 
         when(ordemServicoRepository.findComPecasEClientePorNumero(1L)).thenReturn(Optional.of(os));
 
-        AprovacaoClienteRequest aprovacao = new AprovacaoClienteRequest(CPF);
-        assertThatThrownBy(() -> ordemServicoService.aprovarPeloCliente(1L, aprovacao))
+        DecisaoOrcamentoRequest aprovacao = new DecisaoOrcamentoRequest(DecisaoOrcamentoRequest.DecisaoOrcamento.APROVADO, CPF, null);
+        assertThatThrownBy(() -> ordemServicoService.decidirComoClienteLegado(1L, identidade(cli), aprovacao))
                 .isInstanceOf(BusinessRuleException.class);
     }
 
@@ -256,10 +291,10 @@ class OrdemServicoServiceTest {
         when(ordemServicoRepository.save(any(OrdemServico.class))).thenAnswer(inv -> {
             OrdemServico os = inv.getArgument(0);
             os.setId(UUID.randomUUID());
+            os.setNumero(1001L);
             holder[0] = os;
             return os;
         });
-        when(ordemServicoRepository.findById(any(UUID.class))).thenAnswer(inv -> Optional.ofNullable(holder[0]));
 
         CriarOrdemServicoRequest req = new CriarOrdemServicoRequest(
                 CPF,
@@ -367,7 +402,7 @@ class OrdemServicoServiceTest {
         when(ordemServicoRepository.findComPecasEClientePorNumero(200L)).thenReturn(Optional.of(os));
         when(ordemServicoRepository.save(any(OrdemServico.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        ordemServicoService.aprovarPeloCliente(200L, new AprovacaoClienteRequest(CPF));
+        ordemServicoService.decidirComoClienteLegado(200L, identidade(cli), new DecisaoOrcamentoRequest(DecisaoOrcamentoRequest.DecisaoOrcamento.APROVADO, CPF, null));
 
         assertThat(peca.getQuantidadeEstoque()).isEqualTo(7);
         assertThat(os.getStatus()).isEqualTo(StatusOrdemServico.EM_EXECUCAO);
@@ -401,8 +436,8 @@ class OrdemServicoServiceTest {
 
         when(ordemServicoRepository.findComPecasEClientePorNumero(201L)).thenReturn(Optional.of(os));
 
-        AprovacaoClienteRequest aprovacao = new AprovacaoClienteRequest(CPF);
-        assertThatThrownBy(() -> ordemServicoService.aprovarPeloCliente(201L, aprovacao))
+        DecisaoOrcamentoRequest aprovacao = new DecisaoOrcamentoRequest(DecisaoOrcamentoRequest.DecisaoOrcamento.APROVADO, CPF, null);
+        assertThatThrownBy(() -> ordemServicoService.decidirComoClienteLegado(201L, identidade(cli), aprovacao))
                 .isInstanceOf(BusinessRuleException.class);
     }
 
@@ -506,10 +541,10 @@ class OrdemServicoServiceTest {
         when(ordemServicoRepository.save(any(OrdemServico.class))).thenAnswer(inv -> {
             OrdemServico o = inv.getArgument(0);
             o.setId(UUID.randomUUID());
+            o.setNumero(1001L);
             holder[0] = o;
             return o;
         });
-        when(ordemServicoRepository.findById(any(UUID.class))).thenAnswer(inv -> Optional.ofNullable(holder[0]));
 
         CriarOrdemServicoRequest req = new CriarOrdemServicoRequest(
                 CPF,
@@ -533,7 +568,8 @@ class OrdemServicoServiceTest {
         Cliente cliente = cliente(clienteId);
         UUID outroCliente = UUID.randomUUID();
         Cliente donoVeiculo = cliente(outroCliente);
-        donoVeiculo.setDocumento("52998224725");
+        donoVeiculo.atualizarIdentidade(new com.oficina.domain.identidade.DadosIdentidadeCliente(
+                donoVeiculo.getTipoDocumento(), "52998224725", donoVeiculo.getEmail(), donoVeiculo.isAtivo()));
         Veiculo veiculo = veiculo(donoVeiculo);
 
         UUID sid = UUID.randomUUID();
@@ -573,8 +609,7 @@ class OrdemServicoServiceTest {
         when(ordemServicoRepository.findComPecasEClientePorNumero(301L)).thenReturn(Optional.of(os));
         when(ordemServicoRepository.save(any(OrdemServico.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        OrdemServicoDetalheResponse r = ordemServicoService.processarDecisaoOrcamento(
-                301L,
+        AcompanhamentoOsResponse r = ordemServicoService.decidirComoClienteLegado(301L, identidade(cli),
                 new DecisaoOrcamentoRequest(DecisaoOrcamentoRequest.DecisaoOrcamento.APROVADO, CPF, null));
 
         assertThat(r.status()).isEqualTo(StatusOrdemServico.EM_EXECUCAO);
@@ -591,8 +626,7 @@ class OrdemServicoServiceTest {
         when(ordemServicoRepository.findComPecasEClientePorNumero(302L)).thenReturn(Optional.of(os));
         when(ordemServicoRepository.save(any(OrdemServico.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        OrdemServicoDetalheResponse r = ordemServicoService.processarDecisaoOrcamento(
-                302L,
+        AcompanhamentoOsResponse r = ordemServicoService.decidirComoClienteLegado(302L, identidade(cli),
                 new DecisaoOrcamentoRequest(
                         DecisaoOrcamentoRequest.DecisaoOrcamento.RECUSADO, CPF, "Não autorizo"));
 
@@ -610,115 +644,21 @@ class OrdemServicoServiceTest {
         when(ordemServicoRepository.findComPecasEClientePorNumero(303L)).thenReturn(Optional.of(os));
         when(ordemServicoRepository.save(any(OrdemServico.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        OrdemServicoDetalheResponse r = ordemServicoService.recusarPeloCliente(
-                303L,
+        AcompanhamentoOsResponse r = ordemServicoService.decidirComoClienteLegado(303L, identidade(cli),
                 new DecisaoOrcamentoRequest(DecisaoOrcamentoRequest.DecisaoOrcamento.RECUSADO, CPF, null));
 
         assertThat(r.status()).isEqualTo(StatusOrdemServico.EM_DIAGNOSTICO);
     }
 
     @Test
-    void atualizarStatusViaEmail_tokenInvalido_lanca() {
-        var req = new AtualizacaoStatusEmailRequest(
-                1L, StatusOrdemServico.EM_DIAGNOSTICO, "token-errado", null);
-        assertThatThrownBy(() -> ordemServicoService.atualizarStatusViaEmail(req))
-                .isInstanceOf(BusinessRuleException.class);
-    }
-
-    @Test
-    void atualizarStatusViaEmail_iniciarDiagnostico() {
-        OrdemServico os = osBasica();
-        os.setNumero(401L);
-        os.setStatus(StatusOrdemServico.RECEBIDA);
-        when(ordemServicoRepository.findByNumero(401L)).thenReturn(Optional.of(os));
-        when(ordemServicoRepository.save(any(OrdemServico.class))).thenAnswer(inv -> inv.getArgument(0));
-
-        OrdemServicoDetalheResponse r = ordemServicoService.atualizarStatusViaEmail(
-                new AtualizacaoStatusEmailRequest(
-                        401L, StatusOrdemServico.EM_DIAGNOSTICO, "oficina-email-status-token", "via email"));
-
-        assertThat(r.status()).isEqualTo(StatusOrdemServico.EM_DIAGNOSTICO);
-    }
-
-    @Test
-    void atualizarStatusViaEmail_enviarOrcamento() {
-        OrdemServico os = osBasica();
-        os.setNumero(402L);
-        os.setStatus(StatusOrdemServico.EM_DIAGNOSTICO);
-        when(ordemServicoRepository.findByNumero(402L)).thenReturn(Optional.of(os));
-        when(ordemServicoRepository.save(any(OrdemServico.class))).thenAnswer(inv -> inv.getArgument(0));
-
-        OrdemServicoDetalheResponse r = ordemServicoService.atualizarStatusViaEmail(
-                new AtualizacaoStatusEmailRequest(
-                        402L, StatusOrdemServico.AGUARDANDO_APROVACAO, "oficina-email-status-token", null));
-
-        assertThat(r.status()).isEqualTo(StatusOrdemServico.AGUARDANDO_APROVACAO);
-    }
-
-    @Test
-    void atualizarStatusViaEmail_aprovarExecucao() {
-        Cliente cli = cliente(UUID.randomUUID());
-        OrdemServico os = osBasica();
-        os.setCliente(cli);
-        os.setVeiculo(veiculo(cli));
-        os.setNumero(403L);
-        os.setStatus(StatusOrdemServico.AGUARDANDO_APROVACAO);
-        when(ordemServicoRepository.findComPecasEClientePorNumero(403L)).thenReturn(Optional.of(os));
-        when(ordemServicoRepository.save(any(OrdemServico.class))).thenAnswer(inv -> inv.getArgument(0));
-
-        OrdemServicoDetalheResponse r = ordemServicoService.atualizarStatusViaEmail(
-                new AtualizacaoStatusEmailRequest(
-                        403L, StatusOrdemServico.EM_EXECUCAO, "oficina-email-status-token", "aprovado email"));
-
-        assertThat(r.status()).isEqualTo(StatusOrdemServico.EM_EXECUCAO);
-    }
-
-    @Test
-    void atualizarStatusViaEmail_finalizar() {
-        OrdemServico os = osBasica();
-        os.setNumero(404L);
-        os.setStatus(StatusOrdemServico.EM_EXECUCAO);
-        when(ordemServicoRepository.findByNumero(404L)).thenReturn(Optional.of(os));
-        when(ordemServicoRepository.save(any(OrdemServico.class))).thenAnswer(inv -> inv.getArgument(0));
-
-        OrdemServicoDetalheResponse r = ordemServicoService.atualizarStatusViaEmail(
-                new AtualizacaoStatusEmailRequest(
-                        404L, StatusOrdemServico.FINALIZADA, "oficina-email-status-token", null));
-
-        assertThat(r.status()).isEqualTo(StatusOrdemServico.FINALIZADA);
-    }
-
-    @Test
-    void atualizarStatusViaEmail_entregar() {
-        OrdemServico os = osBasica();
-        os.setNumero(405L);
-        os.setStatus(StatusOrdemServico.FINALIZADA);
-        when(ordemServicoRepository.findByNumero(405L)).thenReturn(Optional.of(os));
-        when(ordemServicoRepository.save(any(OrdemServico.class))).thenAnswer(inv -> inv.getArgument(0));
-
-        OrdemServicoDetalheResponse r = ordemServicoService.atualizarStatusViaEmail(
-                new AtualizacaoStatusEmailRequest(
-                        405L, StatusOrdemServico.ENTREGUE, "oficina-email-status-token", "ok"));
-
-        assertThat(r.status()).isEqualTo(StatusOrdemServico.ENTREGUE);
-    }
-
-    @Test
-    void atualizarStatusViaEmail_recebida_lanca() {
-        OrdemServico os = osBasica();
-        os.setNumero(406L);
-        when(ordemServicoRepository.findByNumero(406L)).thenReturn(Optional.of(os));
-
-        assertThatThrownBy(() -> ordemServicoService.atualizarStatusViaEmail(
-                new AtualizacaoStatusEmailRequest(
-                        406L, StatusOrdemServico.RECEBIDA, "oficina-email-status-token", null)))
-                .isInstanceOf(BusinessRuleException.class);
-    }
-
-    @Test
     void listar_statusEntregue_lanca() {
         assertThatThrownBy(() -> ordemServicoService.listar(StatusOrdemServico.ENTREGUE, PageRequest.of(0, 5)))
                 .isInstanceOf(BusinessRuleException.class);
+    }
+
+    private static com.oficina.security.IdentidadeAutenticada identidade(Cliente cliente) {
+        return new com.oficina.security.IdentidadeAutenticada(com.oficina.security.TipoPrincipal.CUSTOMER,
+                cliente.getId(), java.util.Set.of("SCOPE_orders:read:self", "SCOPE_orders:decide:self"), 1);
     }
 
     private static Cliente cliente(UUID id) {
@@ -761,6 +701,7 @@ class OrdemServicoServiceTest {
         Veiculo v = veiculo(c);
         OrdemServico os = OrdemServico.builder()
                 .id(UUID.randomUUID())
+                .numero(1001L)
                 .cliente(c)
                 .veiculo(v)
                 .status(StatusOrdemServico.RECEBIDA)
