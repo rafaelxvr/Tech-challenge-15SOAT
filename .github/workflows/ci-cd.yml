@@ -1,12 +1,19 @@
-# Pipeline CI/CD — Oficina Mecânica (Fase 2)
+# Application verification and explicitly local Kind rehearsal
 name: CI/CD
 
 on:
   push:
-    branches: [main, master, develop]
+    branches: [main, develop]
   pull_request:
-    branches: [main, master, develop]
-  workflow_dispatch:
+    branches: [main, develop]
+
+
+permissions:
+  contents: read
+
+concurrency:
+  group: app-ci-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   IMAGE_NAME: oficina-mecanica
@@ -30,6 +37,10 @@ jobs:
       - name: Verificar toolchain
         shell: pwsh
         run: ./scripts/check-toolchain.ps1
+
+      - name: Verify offline release contracts
+        shell: pwsh
+        run: ./tests/pipeline-contract.ps1
 
       - name: Build e testes automatizados
         run: ./mvnw -B verify
@@ -56,6 +67,7 @@ jobs:
         run: ./mvnw -B verify
 
   docker-image:
+    if: github.event_name == 'push'
     name: Build imagem Docker
     needs: [build-and-test, integration-test]
     runs-on: ubuntu-latest
@@ -103,10 +115,10 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           load: ${{ github.event_name == 'pull_request' }}
 
-  deploy-k8s:
-    name: Deploy Kubernetes (Kind)
+  local-kind-smoke:
+    name: Local Kind smoke (no AWS deployment)
     needs: docker-image
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

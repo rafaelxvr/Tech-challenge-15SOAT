@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "outputs": {
+    "schemaVersion": "schema_version",
+    "appSecretArn": "app_secret_arn",
+    "migrationSecretArn": "migration_secret_arn",
+    "authLookupSecretArn": "auth_lookup_secret_arn",
+    "notificationLookupSecretArn": "notification_lookup_secret_arn",
+    "authViewVersion": "auth_view_version",
+    "recipientViewVersion": "recipient_view_version"
+  }
+}
