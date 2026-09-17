@@ -2,6 +2,8 @@
 
 This is a source audit dated 2026-09-16, not a deployment receipt. Earlier evidence retains its original revision/status; `NOT_RUN` files are historical pending-evidence placeholders, not a live account inventory. No R4 status is advanced by this documentation change.
 
+The separate [redacted staging control-plane observation](staging-control-plane-observation.md) records supplied foundation/RDS status without advancing any of the eight deployment records or claiming APP/FUN deployment.
+
 | Requirement | Reviewable source / decision | Staged acceptance gap |
 | --- | --- | --- |
 | DDD and components | [Components](../architecture/components.md), [ADR 001](../../adrs/001-modular-monolith.md), [RFC 001](../../rfcs/001-aws-profile.md) | Single-owner state inventory before FUN activation. |
