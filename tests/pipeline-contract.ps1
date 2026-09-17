@@ -2,6 +2,7 @@
 param()
 Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
+& (Join-Path $PSScriptRoot 'deployment-lock-race-contract.ps1')
 $repo=Split-Path -Parent $PSScriptRoot
 function aws { throw 'Offline tests forbid AWS.' }
 function Reject([scriptblock]$Action) { try { & $Action | Out-Null } catch { return }; throw 'Expected invalid output rejection.' }
