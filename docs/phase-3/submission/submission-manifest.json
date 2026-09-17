@@ -10,7 +10,7 @@
     {"name":"DB","url":"NOT_PROVIDED","reviewerAccessVerified":false,"accessEvidence":"NOT_PROVIDED"}
   ],
   "videoUrl": "NOT_PROVIDED",
-  "videoDurationSeconds": 0,
+  "videoDurationSeconds": null,
   "documentationUrls": [],
-  "status": "NOT_RUN"
+  "status": "NOT_READY"
 }

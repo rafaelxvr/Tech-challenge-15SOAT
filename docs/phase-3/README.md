@@ -6,7 +6,7 @@ This index describes the reviewed source state. No cloud deployment or public en
 - [API contract snapshot](api/contracts.md), pinned to APP `7ca6e2948e423ea171c252eddeaca266179bd153`
 - [Release operations runbook](runbooks/release-operations.md) for bootstrap, interruption, recovery, evidence, and cleanup
 - [R4 cloud-window status](evidence/cloud-window.md) and [cleanup proposal](../runbooks/cleanup.md)
-- [14-minute recording script](submission/video-script.md) and [redacted submission manifest template](submission/submission-manifest.json)
+- [Offline submission/PDF guide](submission/README.md), [14-minute recording script](submission/video-script.md) and [unfilled NOT_READY manifest](submission/submission-manifest.json)
 - [RFCs](../rfcs/001-aws-profile.md) and [ADRs](../adrs/001-modular-monolith.md)
 - [Requirement/evidence matrix](evidence/requirements.md), including audited source revisions and explicit staged acceptance gaps.
 

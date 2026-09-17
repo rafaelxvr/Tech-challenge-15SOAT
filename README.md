@@ -10,6 +10,8 @@ The Phase 3 component, authentication, order-delivery, and relational-model evid
 
 Run `./mvnw.cmd -B verify`, `python scripts/check-doc-links.py docs README.md`, and `python scripts/verify-api-snapshots.py` from this repository root. CI is [`.github/workflows/ci-cd.yml`](.github/workflows/ci-cd.yml): it runs on push and pull request for `main` and `develop`. PR checks have no deployment identity; GHCR publishing is push-only and Kind is explicitly local. Its image/deployment stages require their configured environment and do not make a cloud deployment claim in this document.
 
+The [Phase 3 offline submission guide](docs/phase-3/submission/README.md) includes the 14-minute recording plan, unfilled manifest and local PDF checks. Generated template PDFs remain `NOT_READY / FIXTURE_ONLY`; no video, publication, reviewer access or portal submission is claimed.
+
 ---
 
 ## Objetivos desta fase
