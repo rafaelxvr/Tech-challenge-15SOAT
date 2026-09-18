@@ -36,6 +36,11 @@ $pwsh=Join-Path $PSHOME $(if($IsWindows){'pwsh.exe'}else{'pwsh'})
 $guard=Join-Path $PSScriptRoot 'phase3-local-command-guard.ps1'
 $runner=Join-Path $PSScriptRoot 'phase3-local-suite-runner.ps1'
 $terraform=(Get-Command terraform -CommandType Application -ErrorAction Stop).Source
+$kubectl=(Get-Command kubectl -CommandType Application -ErrorAction Stop).Source
+$null=Get-Command helm -CommandType Application -ErrorAction Stop
+$java=(Get-Command java -CommandType Application -ErrorAction Stop).Source
+if((& $java -version 2>&1|Out-String) -notmatch 'version "17\.'){throw 'Java 17 must be the java executable on PATH.'}
+$javaHome=Split-Path -Parent (Split-Path -Parent $java)
 foreach($tool in @('aws','kubectl','terraform')){
     if($IsWindows){
         [IO.File]::WriteAllText((Join-Path $shim "$tool.cmd"),"@echo off`r`n`"$pwsh`" -NoProfile -NonInteractive -File `"$guard`" -Tool $tool %*`r`nexit /b %errorlevel%`r`n")
@@ -65,6 +70,8 @@ try {
     foreach($entry in $plan){
         $start=[datetimeoffset]::UtcNow.ToString('o')
         $snapshot=Join-Path $snapshots $entry.repo
+        $scratch=Join-Path $workspace ('scratch/'+$entry.repo+'-'+[IO.Path]::GetFileNameWithoutExtension($entry.suite))
+        New-Item -ItemType Directory -Path $scratch -Force|Out-Null
         $log=Join-Path $logs ($entry.repo+'-'+[IO.Path]::GetFileNameWithoutExtension($entry.suite)+'.log')
         $psi=[Diagnostics.ProcessStartInfo]::new($pwsh)
         $psi.UseShellExecute=$false;$psi.RedirectStandardOutput=$true;$psi.RedirectStandardError=$true;$psi.CreateNoWindow=$true;$psi.WorkingDirectory=$snapshot
@@ -76,6 +83,9 @@ try {
         $psi.Environment['AWS_CONFIG_FILE']=$empty;$psi.Environment['AWS_SHARED_CREDENTIALS_FILE']=$empty;$psi.Environment['AWS_EC2_METADATA_DISABLED']='true'
         $psi.Environment['KUBECONFIG']=$empty;$psi.Environment['TF_CLI_CONFIG_FILE']=$empty
         $psi.Environment['PHASE3_REAL_TERRAFORM']=$terraform;$psi.Environment['PHASE3_SNAPSHOT_ROOT']=$snapshots
+        $psi.Environment['PHASE3_REAL_KUBECTL']=$kubectl;$psi.Environment['PHASE3_SCRATCH_ROOT']=$scratch
+        $psi.Environment['TEMP']=$scratch;$psi.Environment['TMP']=$scratch;$psi.Environment['TMPDIR']=$scratch
+        $psi.Environment['JAVA_HOME']=$javaHome
         $psi.Environment['GIT_CONFIG_COUNT']='1';$psi.Environment['GIT_CONFIG_KEY_0']='core.autocrlf';$psi.Environment['GIT_CONFIG_VALUE_0']='false'
         Write-Output ("Running local suite: {0} {1}" -f $entry.repo,$entry.suite)
         $process=[Diagnostics.Process]::Start($psi)

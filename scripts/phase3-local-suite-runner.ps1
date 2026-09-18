@@ -3,13 +3,7 @@ param([Parameter(Mandatory)][string]$Repository,[Parameter(Mandatory)][string]$S
 Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
 $global:LASTEXITCODE=0
-$guard=Join-Path $PSScriptRoot 'phase3-local-command-guard.ps1'
-function global:aws {throw 'LOCAL_ACCEPTANCE_COMMAND_REJECTED: aws'}
-function global:kubectl {throw 'LOCAL_ACCEPTANCE_COMMAND_REJECTED: kubectl'}
-function global:terraform {
-    & (Join-Path $PSHOME $(if($IsWindows){'pwsh.exe'}else{'pwsh'})) -NoProfile -NonInteractive -File $guard -Tool terraform @args
-    $global:LASTEXITCODE=$LASTEXITCODE
-}
+# PATH shims protect native calls without shadowing the suites' own mock tools.
 try {
     Set-Location -LiteralPath $Repository
     if($Suite -ceq 'app-focused-java'){
