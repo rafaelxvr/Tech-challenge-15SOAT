@@ -37,7 +37,7 @@ $guard=Join-Path $PSScriptRoot 'phase3-local-command-guard.ps1'
 $runner=Join-Path $PSScriptRoot 'phase3-local-suite-runner.ps1'
 $terraform=(Get-Command terraform -CommandType Application -ErrorAction Stop).Source
 $kubectl=(Get-Command kubectl -CommandType Application -ErrorAction Stop).Source
-$null=Get-Command helm -CommandType Application -ErrorAction Stop
+$helmAvailable=$null -ne (Get-Command helm -CommandType Application -ErrorAction SilentlyContinue)
 $java=(Get-Command java -CommandType Application -ErrorAction Stop).Source
 if((& $java -version 2>&1|Out-String) -notmatch 'version "17\.'){throw 'Java 17 must be the java executable on PATH.'}
 $javaHome=Split-Path -Parent (Split-Path -Parent $java)
@@ -57,6 +57,7 @@ $plan=@(
     @{repo='K8S';suite='tests/staging-app-workload-tests.ps1'},@{repo='K8S';suite='tests/runtime-public-configmap-tests.ps1'}
 )
 $receipt=[ordered]@{schemaVersion=1;status='RUNNING';startedAtUtc=[datetimeoffset]::UtcNow.ToString('o');finishedAtUtc=$null;sourceScope='isolated LF snapshots of committed HEAD';repositories=$sources;workspace=$workspace;suites=@();skippedCloudChecks=@('AWS identity/API access and deployment','Kubernetes cluster access/apply and private runtime health','Terraform real plan/apply and remote state','RDS migrations, grants and live cross-repository integration','Production/staging promotion receipts and R4 cloud acceptance')}
+$receipt['skippedLocalChecks']=if($helmAvailable){@()}else{@('New Relic dynamic Helm schema/render accounting: Helm unavailable; existing suite runs static assertions only.')}
 function Save-Receipt {[IO.File]::WriteAllText($receiptPath,($receipt|ConvertTo-Json -Depth 15),[Text.UTF8Encoding]::new($false))}
 Save-Receipt
 try {
@@ -93,12 +94,13 @@ try {
         $process.WaitForExit()
         [IO.File]::WriteAllText($log,$stdout.GetAwaiter().GetResult()+$stderr.GetAwaiter().GetResult(),[Text.UTF8Encoding]::new($false))
         $status=if($process.ExitCode -eq 0){'PASS'}else{'FAIL'}
+        if($status -eq 'PASS' -and $entry.suite -eq 'tests/newrelic-chart-tests.ps1' -and -not $helmAvailable){$status='PASS_STATIC_ONLY'}
         $command=if($entry.suite -ceq 'app-focused-java'){'mvnw -B -s <empty-settings> -gs <empty-settings> -Dtest=Phase3ContractTest,TokenTrustTest,ClienteIdentityTest,HealthGroupsTest test'}else{'pwsh -NoProfile -NonInteractive -File '+$entry.suite}
         $receipt.suites+= [ordered]@{repository=$entry.repo;command=$command;status=$status;exitCode=$process.ExitCode;startedAtUtc=$start;finishedAtUtc=[datetimeoffset]::UtcNow.ToString('o');log=$log;logSha256=(Get-FileHash $log -Algorithm SHA256).Hash.ToLowerInvariant()}
         Save-Receipt
     }
-    $receipt.status=if(@($receipt.suites|Where-Object status -eq 'FAIL').Count){'FAIL'}else{'PASS_LOCAL_ONLY'}
+    $receipt.status=if(@($receipt.suites|Where-Object status -eq 'FAIL').Count){'FAIL'}elseif($receipt.skippedLocalChecks.Count){'PASS_LOCAL_WITH_SKIPS'}else{'PASS_LOCAL_ONLY'}
 } catch {$receipt.status='FAIL';$receipt['error']=$_.Exception.Message}
 finally {$receipt.finishedAtUtc=[datetimeoffset]::UtcNow.ToString('o');Save-Receipt}
 Write-Output "Local acceptance receipt: $receiptPath ($($receipt.status))"
-if($receipt.status -ne 'PASS_LOCAL_ONLY'){throw 'Local acceptance failed; inspect receipt and suite logs.'}
+if($receipt.status -eq 'FAIL'){throw 'Local acceptance failed; inspect receipt and suite logs.'}
