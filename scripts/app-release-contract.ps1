@@ -28,6 +28,9 @@ function Read-AppRelease([string]$ReleaseFile, [string]$ExpectedSha256, [string]
             throw 'Writer releases require a dedicated immutable APP bootstrap image in the reviewed account.'
         }
         $bootstrapReview = Read-BootstrapReview $release $account
+        if ($bootstrapReview.Review.databaseHost -cne $platform.DbHost) {
+            throw 'bootstrapReview databaseHost must match the reviewed platform database host.'
+        }
     }
     $environment = $release.environment
     if ($release.kubeContext -cnotmatch "\Aarn:aws:eks:us-east-1:${account}:cluster/[a-zA-Z0-9][a-zA-Z0-9_-]+\z") { throw 'Reviewed EKS context must match the image account and region.' }

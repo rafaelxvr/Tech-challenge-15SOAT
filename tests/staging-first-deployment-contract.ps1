@@ -92,7 +92,7 @@ try {
     Assert ((Get-Content "$temp/rendered/bootstrap-deployment.json" -Raw | ConvertFrom-Json).spec.replicas -eq 0) 'Reviewed bootstrap render is inert.'
     Run -Execute
     $calls=$global:firstDeploymentFixture.Calls -join "`n"
-    Assert ($calls -match '(?s)put-object.*bootstrap-serviceaccount.json.*bootstrap-deployment.json.*migration-job.json.*wait job/.*rollout-patch.json.*rollout status.*apply .*hpa.json.*head-object.*delete-object') 'Fresh cluster must keep lock through zero-writer creation, migration, rollout and HPA.'
+    Assert ($calls -match '(?s)put-object.*bootstrap-serviceaccount.json.*bootstrap-deployment.json.*bootstrap-review.json.*migration-job.json.*wait job/.*rollout-patch.json.*rollout status.*apply .*hpa.json.*head-object.*delete-object') 'Fresh cluster must keep lock through zero-writer creation, review ConfigMap, migration, rollout and HPA.'
     Assert (-not $calls.Contains('delete hpa')) 'Absent HPA must not be deleted.'
     Assert (-not $global:firstDeploymentFixture.Locked) 'Success must release its own lock.'
     Fixture -Existing; Run -Execute

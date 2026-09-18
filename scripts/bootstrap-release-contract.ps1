@@ -60,14 +60,16 @@ function Read-BootstrapReceipt([string]$ReceiptJson, [object]$Release, [string]$
     if ((@($receipt.PSObject.Properties.Name | Sort-Object) -join ',') -cne (($expectedTop | Sort-Object) -join ',')) {
         throw 'Bootstrap receipt has an unexpected top-level field.'
     }
-    if ($receipt.schemaVersion -ne 2 -or $receipt.environment -cne $Release.environment -or $receipt.sourceCommit -cne $Release.sourceCommit) {
+    if ($receipt.schemaVersion -isnot [long] -or $receipt.schemaVersion -ne 2 -or $receipt.environment -cne $Release.environment -or $receipt.sourceCommit -cne $Release.sourceCommit) {
         throw 'Bootstrap receipt is not bound to the reviewed source or environment.'
     }
     $expectedOutput = @('appSecretArn','appSecretVersionId','authLookupSecretArn','authLookupSecretVersionId','authViewVersion','migrationSecretArn','migrationSecretVersionId','notificationLookupSecretArn','notificationLookupSecretVersionId','recipientViewVersion','schemaVersion')
     if ((@($receipt.outputs.PSObject.Properties.Name | Sort-Object) -join ',') -cne (($expectedOutput | Sort-Object) -join ',')) {
         throw 'Bootstrap receipt outputs do not match the V2 contract.'
     }
-    if ($receipt.outputs.schemaVersion -cne 'V8' -or $receipt.outputs.authViewVersion -cne 'V5' -or $receipt.outputs.recipientViewVersion -cne 'V7') {
+    if ($receipt.outputs.schemaVersion -isnot [string] -or $receipt.outputs.schemaVersion -cne 'V8' -or
+        $receipt.outputs.authViewVersion -isnot [string] -or $receipt.outputs.authViewVersion -cne 'V5' -or
+        $receipt.outputs.recipientViewVersion -isnot [string] -or $receipt.outputs.recipientViewVersion -cne 'V7') {
         throw 'Bootstrap receipt does not prove the reviewed V8/V5/V7 schema contract.'
     }
     foreach ($role in @('app','auth','migration','notification')) {

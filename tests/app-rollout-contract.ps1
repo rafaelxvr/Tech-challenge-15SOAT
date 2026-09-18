@@ -86,7 +86,7 @@ try {
         Assert (($patch.spec.template.spec.containers[0].env | Where-Object name -CEQ 'SPRING_JPA_HIBERNATE_DDL_AUTO').value -ceq 'validate') 'Hibernate must not mutate cloud schema.'
         Invoke-Fixture -Execute
         $calls=$global:appRolloutFixture.Calls -join "`n"
-        Assert ($calls -match '(?s)delete hpa.*drain-patch.json.*get pods.*create .*migration-job.json.*wait job/.*get job.*logs .*rollout-patch.json.*rollout status.*apply .*hpa.json') 'Strict first-writer sequencing with bootstrap receipt.'
+        Assert ($calls -match '(?s)delete hpa.*drain-patch.json.*get pods.*create .*bootstrap-review.json.*create .*migration-job.json.*wait job/.*get job.*logs .*rollout-patch.json.*rollout status.*apply .*hpa.json') 'Strict first-writer sequencing with bootstrap ConfigMap and receipt.'
         Assert ($calls -match 'patch deployment oficina-app --type=strategic') 'Retain platform env/resources/probes via strategic merge.'
     }
     foreach($failure in @('migration','incomplete','drain')) {

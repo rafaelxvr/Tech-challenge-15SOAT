@@ -34,6 +34,7 @@ try {
     Assert ($container.image -ceq $release.bootstrapImage -and $container.args[1] -ceq $loaded.Sha256) 'Job must use the dedicated digest and exact review digest.'
     Assert ($container.args[0] -ceq '/work/review.json' -and $container.args[2] -ceq '/etc/oficina/public/rds-ca.pem' -and $container.args[3] -ceq '/work/bootstrap-receipt.json') 'BootstrapMain argument contract must be explicit.'
     Assert ($job.spec.backoffLimit -eq 0 -and $job.spec.template.spec.automountServiceAccountToken -eq $false) 'Bootstrap must be single-attempt and use the reviewed identity.'
+    Assert ($job.spec.template.spec.securityContext.runAsNonRoot -eq $true -and $job.spec.template.spec.securityContext.runAsUser -eq 10001 -and $job.spec.template.spec.securityContext.runAsGroup -eq 10001) 'Bootstrap Pod must use the image UID/GID under runAsNonRoot.'
     Assert ((Get-Content -LiteralPath (Join-Path $rendered 'migration-job.json') -Raw) -notmatch '(?i)password|username|secretString|secretValue') 'Rendered workload must not contain credential values.'
 
     $receipt=[ordered]@{schemaVersion=2;environment='staging';sourceCommit=('b'*40);outputs=[ordered]@{schemaVersion='V8';authViewVersion='V5';recipientViewVersion='V7';migrationSecretArn=$review.roles.migration.arn;migrationSecretVersionId=$review.roles.migration.versionId;appSecretArn=$review.roles.app.arn;appSecretVersionId=$review.roles.app.versionId;authLookupSecretArn=$review.roles.auth.arn;authLookupSecretVersionId=$review.roles.auth.versionId;notificationLookupSecretArn=$review.roles.notification.arn;notificationLookupSecretVersionId=$review.roles.notification.versionId}}
@@ -42,16 +43,21 @@ try {
     Assert ($validated.Receipt.outputs.schemaVersion -ceq 'V8') 'Receipt parser must prove V8.'
     Reject { Read-BootstrapReceipt (($receipt | ConvertTo-Json -Depth 20 -Compress).Replace('"V8"','"V7"')) $release '123456789012' }
     Reject { Read-BootstrapReceipt (($receipt | ConvertTo-Json -Depth 20 -Compress).Replace($review.roles.app.versionId,('9'*32))) $release '123456789012' }
+    Reject { Read-BootstrapReceipt (($receipt | ConvertTo-Json -Depth 20 -Compress).Replace('"schemaVersion":2','"schemaVersion":"2"')) $release '123456789012' }
+    Reject { Read-BootstrapReceipt (($receipt | ConvertTo-Json -Depth 20 -Compress).Replace('"schemaVersion":"V8"','"schemaVersion":8')) $release '123456789012' }
 
     $bad=[ordered]@{}; foreach($p in $review.PSObject.Properties){$bad[$p.Name]=$p.Value}; $bad.roles=[ordered]@{}; foreach($p in $review.roles.PSObject.Properties){$bad.roles[$p.Name]=$p.Value}; $bad.roles.app=[ordered]@{arn=$review.roles.app.arn;versionId=('9'*32)}
     $badRelease=[ordered]@{}; foreach($p in $release.PSObject.Properties){$badRelease[$p.Name]=$p.Value}; $badRelease.bootstrapReview=$bad
     $badReleasePath=Join-Path $temp 'bad-release.json'; Save $badRelease $badReleasePath
     Reject { Read-AppRelease $badReleasePath (Hash $badReleasePath) $platformPath }
+    $badHostRelease=[ordered]@{}; foreach($p in $release.PSObject.Properties){$badHostRelease[$p.Name]=$p.Value}; $badHostReview=[ordered]@{}; foreach($p in $review.PSObject.Properties){$badHostReview[$p.Name]=$p.Value}; $badHostReview.databaseHost='other.example.test'; $badHostRelease.bootstrapReview=$badHostReview
+    $badHostPath=Join-Path $temp 'bad-host-release.json'; Save $badHostRelease $badHostPath
+    Reject { Read-AppRelease $badHostPath (Hash $badHostPath) $platformPath }
 
     $entry=Get-Content -LiteralPath (Join-Path $repo 'docker/bootstrap/entrypoint.sh') -Raw
     $docker=Get-Content -LiteralPath (Join-Path $repo 'docker/bootstrap/Dockerfile') -Raw
     Assert ($entry.Contains('com.oficina.bootstrap.BootstrapMain') -and $entry.Contains('BOOTSTRAP_RECEIPT_JSON_BEGIN') -and $entry.Contains('BOOTSTRAP_RECEIPT_JSON_END')) 'Bootstrap wrapper must execute BootstrapMain and emit a bounded receipt.'
-    Assert ($docker.Contains('target/classes') -and $docker.Contains('target/bootstrap-libs') -and $docker.Contains('ENTRYPOINT ["/opt/oficina/entrypoint.sh"]')) 'Dedicated bootstrap image must contain the reviewed Java entrypoint and dependencies.'
+    Assert ($docker.Contains('target/classes') -and $docker.Contains('target/bootstrap-libs') -and $docker.Contains('addgroup -S -g 10001') -and $docker.Contains('adduser -S -D -u 10001') -and $docker.Contains('ENTRYPOINT ["/opt/oficina/entrypoint.sh"]')) 'Dedicated bootstrap image must contain the reviewed Java entrypoint, dependencies and numeric identity.'
     Write-Output "PASS: $assertions bootstrap review/image/job/receipt assertions; no AWS or Kubernetes calls."
 } finally {
     $resolved=[IO.Path]::GetFullPath($temp)

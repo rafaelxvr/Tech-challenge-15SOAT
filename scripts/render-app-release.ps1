@@ -27,7 +27,7 @@ $bootstrapMounts = @(
 $job = @{apiVersion='batch/v1'; kind='Job'; metadata=$metadata; spec=@{
     backoffLimit=0; activeDeadlineSeconds=600; template=@{metadata=@{labels=@{'app.kubernetes.io/name'='oficina-migration'}}; spec=@{
         restartPolicy='Never'; serviceAccountName=$release.migrationServiceAccount; automountServiceAccountToken=$false
-        securityContext=@{runAsNonRoot=$true; seccompProfile=@{type='RuntimeDefault'}}
+        securityContext=@{runAsNonRoot=$true; runAsUser=10001; runAsGroup=10001; seccompProfile=@{type='RuntimeDefault'}}
         containers=@(@{name='bootstrap'; image=$(if($null -ne $bootstrap){$release.bootstrapImage}else{$release.migrationImage}); args=$(if($null -ne $bootstrap){@('/work/review.json',$bootstrap.Sha256,'/etc/oficina/public/rds-ca.pem','/work/bootstrap-receipt.json')}else{@('migrate')}); env=$(if($null -ne $bootstrap){@(@{name='AWS_REGION';value='us-east-1'})}else{@()})
             securityContext=@{allowPrivilegeEscalation=$false; readOnlyRootFilesystem=$true; capabilities=@{drop=@('ALL')}}
             resources=@{requests=@{cpu='250m'; memory='256Mi'}; limits=@{cpu='1'; memory='512Mi'}}

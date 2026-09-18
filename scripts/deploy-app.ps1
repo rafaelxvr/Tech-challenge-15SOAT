@@ -153,6 +153,7 @@ if ($release.mode -ceq 'FirstWriter') {
 }
 if ($release.mode -cne 'Rollback') {
     # create fails on an existing Job: a stale completed Job cannot satisfy this release.
+    Invoke-ReleaseKubectl @('create', '-f', (Join-Path $OutputDirectory 'bootstrap-review.json')) | Out-Null
     Invoke-ReleaseKubectl @('create', '-f', (Join-Path $OutputDirectory 'migration-job.json')) | Out-Null
     $jobName = 'oficina-migrate-' + $ExpectedReleaseSha256.Substring(0, 12)
     Invoke-ReleaseKubectl @('wait', "job/$jobName", '--for=condition=complete', '--timeout=660s') | Out-Null
