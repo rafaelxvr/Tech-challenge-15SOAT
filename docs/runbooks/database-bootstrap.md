@@ -1,6 +1,6 @@
 # APP-owned database role and credential bootstrap
 
-Status: source adapter with real disposable PostgreSQL 16 tests. No AWS secrets, SQL users, cloud resources or deployment were created by this change. `BootstrapMain` is a separate Java entrypoint, not a Spring bean/startup hook. It is not wired into the disabled cloud release launcher or the existing Flyway-only I6 Job.
+Status: source adapter with real disposable PostgreSQL 16 tests and an offline-tested APP migration Job renderer. No AWS secrets, SQL users, cloud resources or deployment were created by this change. `BootstrapMain` is a separate Java entrypoint, not a Spring bean/startup hook. The rendered I6 Job now uses the dedicated immutable bootstrap image and validates the V2 receipt before an APP writer rollout; the cloud launcher remains disabled.
 
 ## Reviewed inputs and external injection
 
@@ -30,7 +30,7 @@ Inside the separately authorized private executor, the interface is `java -cp 't
 
 Before staging, review the image digest and source provenance; supply actual immutable secret versions, RDS TLS CA hash, database endpoint and administrative role authority; ensure a private network path to RDS/Secrets Manager/KMS, appropriate namespace service account/IRSA and secret-free logging. Review the administrative login's PostgreSQL/RDS-specific CREATE ROLE, extension and ownership-transfer capabilities. The tests deliberately use a non-superuser PostgreSQL administrator, but do not prove RDS-managed service behavior. Confirm role/schema/credential readiness with the private staged run before binding public routes.
 
-The existing I6 Job currently invokes a Flyway CLI with its migration credential only. Replacing/wrapping it with this reviewed bootstrap entrypoint, binding the five references to the reviewed release, retaining its receipt and making successful bootstrap proof part of the rollout gate are explicit activation work. Do not run bootstrap before the first-writer drain, or pretend this standalone entrypoint is already integrated into the Job.
+The APP renderer emits an immutable `bootstrap-review.json` ConfigMap and a single-attempt `migration-job.json` whose dedicated image invokes this entrypoint with `REVIEW_JSON REVIEW_SHA256 PINNED_CA_FILE NEW_RECEIPT_PATH`. The wrapper prints only the reference-only receipt between `BOOTSTRAP_RECEIPT_JSON_BEGIN` and `BOOTSTRAP_RECEIPT_JSON_END`; `scripts/deploy-app.ps1` validates the exact V2 ARN/VersionId pairs, V8/V5/V7 versions and source/environment before patching the writer. This is source integration only: the launcher remains disabled and no live Job has been run. Do not run bootstrap before the first-writer drain.
 
 ## Receipt version and validation
 

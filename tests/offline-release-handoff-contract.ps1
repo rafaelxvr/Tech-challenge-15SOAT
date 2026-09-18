@@ -16,9 +16,10 @@ try {
     $platformPath = Join-Path $temp 'platform.json'; Save-Json $platform $platformPath
     $tfvarsPath = Join-Path $temp 'reviewed.tfvars.json'; Save-Json @{ environment='staging' } $tfvarsPath
     . "$repo/scripts/app-release-contract.ps1"
+    $review = [ordered]@{schemaVersion=1;environment='staging';sourceCommit=$sourceCommit;databaseHost='private.example.test';caSha256=('f'*64);master=[ordered]@{arn='arn:aws:secretsmanager:us-east-1:123456789012:secret:rds!db-example';versionId=('1'*32)};roles=[ordered]@{migration=[ordered]@{arn='arn:aws:secretsmanager:us-east-1:123456789012:secret:oficina/staging/migration-AbCdEf';versionId=('2'*32)};app=[ordered]@{arn='arn:aws:secretsmanager:us-east-1:123456789012:secret:oficina/staging/app-AbCdEf';versionId=('3'*32)};auth=[ordered]@{arn='arn:aws:secretsmanager:us-east-1:123456789012:secret:oficina/staging/auth-AbCdEf';versionId=('4'*32)};notification=[ordered]@{arn='arn:aws:secretsmanager:us-east-1:123456789012:secret:oficina/staging/notification-AbCdEf';versionId=('5'*32)}}}
     $release = [ordered]@{
         schemaVersion=1; environment='staging'; mode='FirstWriter'; sourceCommit=$sourceCommit; contractVersion='phase3-v2'; databaseSchemaVersion='V8'
-        platformInputsSha256=(Hash $platformPath); image=$platform.Image; previousImage=($prefix + 'oficina@sha256:' + ('b'*64)); migrationImage=($prefix + 'flyway@sha256:' + ('c'*64))
+        platformInputsSha256=(Hash $platformPath); image=$platform.Image; previousImage=($prefix + 'oficina@sha256:' + ('b'*64)); migrationImage=($prefix + 'flyway@sha256:' + ('c'*64)); bootstrapImage=($prefix + 'bootstrap@sha256:' + ('f'*64)); bootstrapReview=$review
         kubeContext='arn:aws:eks:us-east-1:123456789012:cluster/oficina'; migrationSecretName='oficina-migration-staging'; migrationServiceAccount='oficina-migration-staging'; migrationSqlSha256=(Get-AppMigrationDigest)
         runtimeArtifactDigest=('sha256:' + ('d'*64)); deployerImageDigest=('sha256:' + ('e'*64)); terraformVariablesSha256=(Hash $tfvarsPath)
     }
