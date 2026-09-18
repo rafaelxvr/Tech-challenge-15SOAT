@@ -45,6 +45,40 @@ try {
     Reject { Read-BootstrapReceipt (($receipt | ConvertTo-Json -Depth 20 -Compress).Replace($review.roles.app.versionId,('9'*32))) $release '123456789012' }
     Reject { Read-BootstrapReceipt (($receipt | ConvertTo-Json -Depth 20 -Compress).Replace('"schemaVersion":2','"schemaVersion":"2"')) $release '123456789012' }
     Reject { Read-BootstrapReceipt (($receipt | ConvertTo-Json -Depth 20 -Compress).Replace('"schemaVersion":"V8"','"schemaVersion":8')) $release '123456789012' }
+    foreach ($field in @('environment','sourceCommit')) {
+        $badReceipt = $receipt | ConvertTo-Json -Depth 20 | ConvertFrom-Json
+        $badReceipt.$field = @()
+        Reject { Read-BootstrapReceipt ($badReceipt | ConvertTo-Json -Depth 20 -Compress) $release '123456789012' }
+        $badReceipt = $receipt | ConvertTo-Json -Depth 20 | ConvertFrom-Json
+        $badReceipt.$field = $null
+        Reject { Read-BootstrapReceipt ($badReceipt | ConvertTo-Json -Depth 20 -Compress) $release '123456789012' }
+    }
+    foreach ($field in @('appSecretArn','appSecretVersionId','authLookupSecretArn','authLookupSecretVersionId','migrationSecretArn','migrationSecretVersionId','notificationLookupSecretArn','notificationLookupSecretVersionId')) {
+        $badReceipt = $receipt | ConvertTo-Json -Depth 20 | ConvertFrom-Json
+        $badReceipt.outputs.$field = @()
+        Reject { Read-BootstrapReceipt ($badReceipt | ConvertTo-Json -Depth 20 -Compress) $release '123456789012' }
+        $badReceipt = $receipt | ConvertTo-Json -Depth 20 | ConvertFrom-Json
+        $badReceipt.outputs.$field = $null
+        Reject { Read-BootstrapReceipt ($badReceipt | ConvertTo-Json -Depth 20 -Compress) $release '123456789012' }
+    }
+    foreach ($role in @('app','auth','migration','notification')) {
+        foreach ($field in @('arn','versionId')) {
+            $badReviewRelease = $release | ConvertTo-Json -Depth 20 | ConvertFrom-Json
+            $badReviewRelease.bootstrapReview.roles.$role.$field = @()
+            Reject { Read-BootstrapReview $badReviewRelease '123456789012' }
+            $badReviewRelease = $release | ConvertTo-Json -Depth 20 | ConvertFrom-Json
+            $badReviewRelease.bootstrapReview.roles.$role.$field = $null
+            Reject { Read-BootstrapReview $badReviewRelease '123456789012' }
+        }
+    }
+    foreach ($field in @('environment','sourceCommit')) {
+        $badReviewRelease = $release | ConvertTo-Json -Depth 20 | ConvertFrom-Json
+        $badReviewRelease.bootstrapReview.$field = @()
+        Reject { Read-BootstrapReview $badReviewRelease '123456789012' }
+        $badReviewRelease = $release | ConvertTo-Json -Depth 20 | ConvertFrom-Json
+        $badReviewRelease.bootstrapReview.$field = $null
+        Reject { Read-BootstrapReview $badReviewRelease '123456789012' }
+    }
 
     $bad=[ordered]@{}; foreach($p in $review.PSObject.Properties){$bad[$p.Name]=$p.Value}; $bad.roles=[ordered]@{}; foreach($p in $review.roles.PSObject.Properties){$bad.roles[$p.Name]=$p.Value}; $bad.roles.app=[ordered]@{arn=$review.roles.app.arn;versionId=('9'*32)}
     $badRelease=[ordered]@{}; foreach($p in $release.PSObject.Properties){$badRelease[$p.Name]=$p.Value}; $badRelease.bootstrapReview=$bad
