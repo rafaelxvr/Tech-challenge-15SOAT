@@ -20,6 +20,7 @@ param(
     [ValidatePattern('^[a-f0-9]{64}$')]
     [string]$ExpectedManifestSha256,
 
+    [Parameter(Mandatory)]
     [ValidatePattern('^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$')]
     [string]$Bucket,
 
@@ -84,8 +85,6 @@ if ($DryRun) {
     Write-Output 'INPUTS_VALIDATED_DEPLOYMENT_DISABLED'
     return
 }
-
-if ([string]::IsNullOrWhiteSpace($Bucket)) { Fail 'artifact bucket is required for a non-dry-run launch.' }
 
 # The object keys are reviewed protocol values. VersionIds returned by S3 are
 # passed to CodeBuild so a later overwrite cannot change the source being run.
