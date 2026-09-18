@@ -5,6 +5,19 @@
 
 This audit records locally evidenced implementation work. It does not claim that AWS resources, protected environments, external publishing or end-to-end cloud acceptance exist.
 
+## Verification refresh — 2026-09-18
+
+The merged revisions were rechecked from clean detached worktrees after the APP checklist and K8S contract-test fixes landed:
+
+| Repository | Current reviewed revision | Verification evidence |
+| --- | --- | --- |
+| APP | `ffbd53f1b7abe3d9118d5ca46494889b19ad043e` | Pipeline contracts, documentation links, and the pinned submission suite passed. The submission suite completed 27 checks, including deterministic `NOT_READY / FIXTURE_ONLY` PDF rendering with `reportlab==4.4.9`, `pypdf==6.10.0`, and `pypdfium2==5.13.0`. |
+| K8S | `7991a322b7bb7f1ee70e11404f817e11e318d9b2` | PR [#25](https://github.com/rafaelxvr/Tech-challenge-15SOAT-k8s-infra/pull/25) passed CI run [35313825314](https://github.com/rafaelxvr/Tech-challenge-15SOAT-k8s-infra/actions/runs/35313825314). The portable route hash and foundation-addons chart-pin contracts pass; deployment jobs were skipped. |
+| FUN | `329c4e95ee6ac63a40b6abd2234c4522992987ff` | Cloud-window, lock, release-guard, secret-preparation, JWT-sync and workflow-context contracts passed locally. |
+| DB | `33b7da9172c45d766d36e7561d59ee289053b02b` | Bootstrap, cloud-window, lock, launcher, outputs, pipeline, source-package and workflow-context contracts passed locally. |
+
+These checks are source and contract evidence only. They did not call AWS, OIDC, CodeBuild, Terraform apply, Kubernetes APIs, external URLs, video hosting or the student portal.
+
 ## APP offline release handoff receipt
 
 Merged PR [#11](https://github.com/rafaelxvr/Tech-challenge-15SOAT/pull/11) landed as reviewed revision `6edc75898a4624e2969e0cd87238717865643b14`. The deterministic offline handoff packages that source revision, verifies the archive and canonical release manifest, renders the migration/rollout outputs, and writes a receipt with `status: INPUTS_VALIDATED_DEPLOYMENT_DISABLED`, `success: false`, and `deploymentAttempted: false`. The exact contract path is `tests/pipeline-contract.ps1`, which runs `deployment-lock-race-contract.ps1`, `app-rollout-contract.ps1`, `source-package-contract.ps1`, `offline-release-handoff-contract.ps1`, `workflow-context-contract.ps1`, `cloud-window-tests.ps1`, and `release-guards-contract.ps1`; the workflow then runs `./mvnw -B verify`.
