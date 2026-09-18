@@ -57,7 +57,9 @@ All eight repository/environment records remain `NOT_RUN` in the [APP evidence m
 - [K8S R4 status](../../../../oficina-k8s-infra/docs/evidence/r4-local-status.json)
 - [DB R4 status](../../../../oficina-db-infra/docs/evidence/r4-local-status.json)
 
-The K8S staging control-plane observation records only the base API/platform handoff. It is not evidence of application, functions, database, production, protected-route, telemetry, failure-recovery or eight-run acceptance. Live AWS deployment, measured capacity/costs, SES/SNS/New Relic enrollment, branch protections and cleanup authorization remain outstanding.
+Read-only GitHub API verification on 2026-09-18 confirmed that all four delivery repositories have protected `main` and `develop` branches (`enforce_admins: true`, force pushes and deletions disabled, and pull-request review protection configured) and `staging`/`production` environments with custom branch policies mapping `staging` to `develop` and `production` to `main`. The protection configuration has zero required approvals and no required status checks. This verifies repository policy configuration only: no screenshots or runtime R4 acceptance are captured, and cloud deployment, production, failure-recovery and observability acceptance remain `NOT_RUN`.
+
+The K8S staging control-plane observation records only the base API/platform handoff. It is not evidence of application, functions, database, production, protected-route, telemetry, failure-recovery or eight-run acceptance. Live AWS deployment, measured capacity/costs, SES/SNS/New Relic enrollment and cleanup authorization remain outstanding.
 
 ### R5 — submission and publishing
 
