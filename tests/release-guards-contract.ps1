@@ -16,10 +16,16 @@ try {
     $window = Join-Path $temp 'window.json'; Save $evidence $window
     $bundle = Join-Path $temp 'bundle.zip'; 'offline' | Set-Content -LiteralPath $bundle
     $manifestPath = Join-Path $temp 'manifest.json'
+    $tfvarsPath = Join-Path $temp 'reviewed.tfvars.json'
+    Save @{ reviewedFixture = $true } $tfvarsPath
     foreach ($environment in @('staging','production')) {
         $manifest = @{ schemaVersion=1; environment=$environment; sourceCommit=('a'*40); artifactSha256=(Sha $bundle); deployerImageDigest=('sha256:' + ('b'*64)); contractVersion='phase3-v2'; migrationVersion='V8'; runtimeArtifactDigest=('sha256:' + ('c'*64)); promotedFromStaging=($environment -eq 'production'); stagingArtifactSha256=(Sha $bundle) }
+        $manifest.terraformVariablesSha256 = Sha $tfvarsPath
         Save $manifest $manifestPath
         $launch = @{Environment=$environment; SourceZip=$bundle; ExpectedSha256=(Sha $bundle); ReleaseManifest=$manifestPath; ExpectedManifestSha256=(Sha $manifestPath); Bucket='oficina-artifacts-fixture'; SourceCommit=('a'*40); ProjectName="oficina-phase3-oficina-$owner-$environment-deploy"; SourcePrefix="releases/$owner/$environment"; CloudWindowEvidenceFile=$window; EventName='push'; BranchRef=$(if($environment -eq 'staging'){'refs/heads/develop'}else{'refs/heads/main'})}
+        $launch.TerraformVariablesFile = $tfvarsPath
+        $launch.ExpectedTerraformVariablesSha256 = Sha $tfvarsPath
+        $launch.DeployerImageDigest = $manifest.deployerImageDigest
         if ((& "$repo/scripts/start-deploy.ps1" @launch -DryRun) -cne 'INPUTS_VALIDATED_DEPLOYMENT_DISABLED') { throw 'Dry run must remain explicitly disabled.' }
         Reject { & "$repo/scripts/start-deploy.ps1" @launch }
         $deploy=@{Environment=$environment; ReleaseManifest=$manifestPath; ExpectedSourceSha256=(Sha $bundle); ExpectedManifestSha256=(Sha $manifestPath); SourceCommit=('a'*40); ExpectedDeployerImageDigest=('sha256:' + ('b'*64)); TerraformVariablesFile="/tmp/oficina/${owner}_$environment.tfvars.json"; TerraformBackendBucket='oficina-state-fixture'; TerraformBackendKey="$owner/$environment.tfstate"; TerraformBackendLockKey="$owner/$environment.tfstate.tflock"; TerraformBackendRegion='us-east-1'}
