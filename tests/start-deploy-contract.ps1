@@ -9,6 +9,7 @@ New-Item -ItemType Directory -Path $temp | Out-Null
 $launcherScripts = Join-Path $temp 'launcher/scripts'
 New-Item -ItemType Directory -Path $launcherScripts -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $repo 'scripts/start-deploy.ps1') -Destination (Join-Path $launcherScripts 'start-deploy.ps1')
+Copy-Item -LiteralPath (Join-Path $repo 'scripts/staging-executor-inputs.ps1') -Destination (Join-Path $launcherScripts 'staging-executor-inputs.ps1')
 $contextMarker = Join-Path $temp 'context-check.txt'
 $windowMarker = Join-Path $temp 'window-check.txt'
 @"
@@ -31,6 +32,7 @@ function Reject([scriptblock]$Action) {
 
 $global:AwsCalls = [System.Collections.Generic.List[string]]::new()
 $global:TfvarsUploadResponse = '{"VersionId":"tfvars-version-001"}'
+$global:RuntimeUploadResponse = '{"VersionId":"runtime-version-001"}'
 function global:Start-Sleep { param([int]$Seconds) }
 function global:aws {
     param([Parameter(Position = 0, ValueFromRemainingArguments = $true)][string[]]$Arguments)
@@ -41,6 +43,7 @@ function global:aws {
         $keyIndex = [Array]::IndexOf($Arguments, '--key')
         $key = if ($keyIndex -ge 0) { $Arguments[$keyIndex + 1] } else { '' }
         if ($key -match '/config/') { return $global:TfvarsUploadResponse }
+        if ($key -match '/inputs/') { return $global:RuntimeUploadResponse }
         $version = if ($key -match '/promotions/') { 'promotion-version-001' } elseif ($key -match '/manifests/') { 'manifest-version-001' } else { 'source-version-001' }
         return (@{ VersionId = $version } | ConvertTo-Json -Compress)
     }
@@ -69,12 +72,17 @@ try {
     $windowPath = Join-Path $temp 'cloud-window.json'
     $now = [datetime]::UtcNow
     Save-Json @{ windowStartUtc = $now.AddMinutes(-2).ToString('o'); windowEndUtc = $now.AddMinutes(30).ToString('o'); recordedAtUtc = $now.ToString('o'); accountEvidenceReference = 'offline-fixture'; projectAllowanceUsd = 80; reserveUsd = 20; currentEstimatedSpendUsd = 0 } $windowPath
+    $platformPath=Join-Path $temp 'platform.json'; Save-Json @{Environment='staging'} $platformPath
+    $workloadPath=Join-Path $temp 'workload.json'; Save-Json @{kind='List'} $workloadPath
+    $manifest.mode='FirstWriter'; $manifest.platformInputsSha256=Sha $platformPath; $manifest.stagingWorkloadSha256=Sha $workloadPath; $manifest.cloudWindowEvidenceSha256=Sha $windowPath
+    Save-Json $manifest $manifestPath; $manifestSha=Sha $manifestPath
     $receiptPath = Join-Path $temp 'promotion-receipt.json'
     $launch = @{
         Environment = 'staging'; SourceZip = $source; ExpectedSha256 = $sourceSha; ReleaseManifest = $manifestPath; ExpectedManifestSha256 = $manifestSha
         TerraformVariablesFile = $tfvarsPath; ExpectedTerraformVariablesSha256 = $tfvarsSha; DeployerImageDigest = $deployerDigest
         Bucket = 'oficina-phase3-artifacts-16225b7358'; SourcePrefix = 'releases/app/staging'; ProjectName = 'oficina-phase3-oficina-app-staging-deploy'; SourceCommit = $commit
         CloudWindowEvidenceFile = $windowPath; PromotionEvidenceOutputFile = $receiptPath; EventName = 'push'; BranchRef = 'refs/heads/develop'; TimeoutSeconds = 60
+        PlatformInputsFile=$platformPath; StagingWorkloadFile=$workloadPath
     }
 
     $dryRun = & (Join-Path $launcherScripts 'start-deploy.ps1') @launch -DryRun
@@ -105,6 +113,11 @@ try {
     if ($buildCalls.Count -ne 1 -or ([string]$buildCalls[0]) -notmatch '--source-version source-version-001') { throw "CodeBuild was not pinned to the source VersionId. Calls: $($global:AwsCalls -join ' | ')" }
     $buildCall = [string]$buildCalls[0]
     $allowed = @('DEPLOY_ENVIRONMENT', 'SOURCE_BUCKET', 'SOURCE_KEY', 'SOURCE_VERSION_ID', 'EXPECTED_SHA256', 'RELEASE_MANIFEST_KEY', 'RELEASE_MANIFEST_VERSION_ID', 'EXPECTED_MANIFEST_SHA256', 'SOURCE_COMMIT', 'DEPLOYER_IMAGE_DIGEST', 'TFVARS_OBJECT_KEY', 'TFVARS_VERSION_ID', 'EXPECTED_TFVARS_SHA256')
+    $allowed += @('PLATFORM_INPUTS_OBJECT_KEY','PLATFORM_INPUTS_VERSION_ID','STAGING_WORKLOAD_OBJECT_KEY','STAGING_WORKLOAD_VERSION_ID','CLOUD_WINDOW_OBJECT_KEY','CLOUD_WINDOW_VERSION_ID')
+    foreach($binding in @(@{Name='PLATFORM_INPUTS';Leaf='platform.json'},@{Name='STAGING_WORKLOAD';Leaf='workload.json'},@{Name='CLOUD_WINDOW';Leaf='cloud-window.json'})) {
+        if(-not $buildCall.Contains("name=$($binding.Name)_OBJECT_KEY,value=releases/app/staging/inputs/$commit/$($binding.Leaf),type=PLAINTEXT") -or
+            -not $buildCall.Contains("name=$($binding.Name)_VERSION_ID,value=runtime-version-001,type=PLAINTEXT")){throw 'Public runtime handoff must use exact object keys and immutable versions.'}
+    }
     foreach ($name in $allowed) {
         if ([regex]::Matches($buildCall, "name=$name,value=").Count -ne 1) { throw "Required override must appear exactly once: $name" }
     }
@@ -126,6 +139,20 @@ try {
     Reject { & (Join-Path $launcherScripts 'start-deploy.ps1') @liveMismatchPrefix -DryRun }
 
     $global:AwsCalls.Clear()
+    foreach($field in @('PlatformInputsFile','StagingWorkloadFile','CloudWindowEvidenceFile')) {
+        $bad=$launch.Clone(); $bad[$field]="$temp/missing.json"
+        Reject { & (Join-Path $launcherScripts 'start-deploy.ps1') @bad -DryRun }
+        $bad[$field]=$tfvarsPath
+        Reject { & (Join-Path $launcherScripts 'start-deploy.ps1') @bad -DryRun }
+    }
+    foreach($field in @('platformInputsSha256','stagingWorkloadSha256','cloudWindowEvidenceSha256')) {
+        foreach($value in @($null,@(),@('a'*64),('0'*64))) {
+            $badManifest=$manifest.Clone(); $badManifest[$field]=$value; Save-Json $badManifest $manifestPath
+            $bad=$launch.Clone(); $bad.ExpectedManifestSha256=Sha $manifestPath
+            Reject { & (Join-Path $launcherScripts 'start-deploy.ps1') @bad -DryRun }
+        }
+    }
+    Save-Json $manifest $manifestPath
     foreach ($name in @('TerraformVariablesFile', 'ExpectedTerraformVariablesSha256', 'DeployerImageDigest')) {
         $bad = $launch.Clone(); $bad[$name] = ''
         Reject { & (Join-Path $launcherScripts 'start-deploy.ps1') @bad -DryRun }
@@ -158,6 +185,12 @@ try {
         Reject { & (Join-Path $launcherScripts 'start-deploy.ps1') @launch }
         if (@($global:AwsCalls | Where-Object { $_ -match '^codebuild ' }).Count -ne 0) { throw 'Missing immutable tfvars VersionId reached CodeBuild.' }
     }
+    $global:TfvarsUploadResponse='{"VersionId":"tfvars-version-001"}'
+    foreach($response in @('{}','{"VersionId":null}','{"VersionId":[]}','{"VersionId":["value"]}','{"VersionId":"null"}','not-json')) {
+        $global:AwsCalls.Clear(); $global:RuntimeUploadResponse=$response
+        Reject { & (Join-Path $launcherScripts 'start-deploy.ps1') @launch }
+        if(@($global:AwsCalls | Where-Object {$_ -match '^codebuild '}).Count -ne 0){throw 'Invalid runtime input VersionId reached CodeBuild.'}
+    }
 
     Write-Output 'PASS: APP launcher validates guards, pins versioned S3/CodeBuild inputs, polls success, and emits a redacted staging receipt without real AWS.'
 }
@@ -165,6 +198,7 @@ finally {
     Remove-Item function:aws -ErrorAction SilentlyContinue
     Remove-Item function:Start-Sleep -ErrorAction SilentlyContinue
     Remove-Variable -Name TfvarsUploadResponse -Scope Global -ErrorAction SilentlyContinue
+    Remove-Variable -Name RuntimeUploadResponse -Scope Global -ErrorAction SilentlyContinue
     Remove-Variable -Name AwsCalls -Scope Global -ErrorAction SilentlyContinue
     $resolved = [IO.Path]::GetFullPath($temp)
     if (-not $resolved.StartsWith([IO.Path]::GetFullPath([IO.Path]::GetTempPath()), [StringComparison]::OrdinalIgnoreCase) -or -not [IO.Path]::GetFileName($resolved).StartsWith('oficina-app-launcher-')) { throw 'Unsafe cleanup target.' }

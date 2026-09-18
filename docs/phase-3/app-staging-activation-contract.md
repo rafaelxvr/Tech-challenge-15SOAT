@@ -1,9 +1,13 @@
 # APP staging activation contract
 
-Status: **review specification; deployment disabled**. This contract defines the
-nonsecret artifacts and acceptance checks required before a separately reviewed
-activation. It does not enable the workflow gate, activate `scripts/deploy.ps1`,
-modify CodeBuild, migrate Terraform state or authorize an apply. The metadata
+The executable adapter and `APP_STAGING_WORKLOAD_PATH` requirement are defined in [staging-executor-contract.md](staging-executor-contract.md). The reviewed platform, workload and window files are now transported as versioned, hash-bound public inputs.
+
+Status: **reviewed staging-only executor contract**. The workflow gate remains
+disabled unless `APP_CLOUD_DEPLOYMENT_ENABLED=true`; the platform-owned CodeBuild
+executor remains the only cloud entry point. `scripts/deploy.ps1` accepts its
+explicit `-ApplyReviewedPlan` switch only for staging, validates the reviewed
+manifest and canonical Terraform paths, and fails closed when the reviewed
+staging Terraform root is absent. Production has no apply path. The metadata
 checker is a test/review aid, not a production preflight or an attestation.
 
 ## Required GitHub inputs
@@ -143,8 +147,4 @@ ECR returned `ImageNotFoundException` for that digest. It also observed the wron
 not hardcoded approvals or claims about subsequent platform changes. Resolve or
 supersede each with fresh evidence.
 
-`scripts/deploy.ps1` must continue throwing `APP_DEPLOYMENT_DISABLED` for invocation
-without switches, with `-ApplyReviewedPlan`, or with both apply and dry-run.
-Dry-run alone may return `INPUTS_VALIDATED_DEPLOYMENT_DISABLED`. Passing metadata
-checks must never remove those guards. This specification changes no production
-script, workflow variable, AWS configuration, production environment or apply path.
+`scripts/deploy.ps1` returns `INPUTS_VALIDATED_DEPLOYMENT_DISABLED` for dry-run, rejects staging without `-ApplyReviewedPlan`, and rejects production execution before rollout. Staging execution requires FirstWriter, all reviewed file hashes, canonical backend/tfvars metadata and an existing real `scripts/deploy-app.ps1`. Both launcher and adapter validate the exact hash-bound cloud-window evidence. Passing metadata checks does not prove a successful deployment. There is no APP cloud Terraform root in this execution path; the local Kind root remains separate.

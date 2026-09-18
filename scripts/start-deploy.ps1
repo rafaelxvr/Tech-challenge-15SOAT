@@ -52,6 +52,9 @@ param(
     [ValidateNotNullOrEmpty()]
     [string]$CloudWindowEvidenceFile,
 
+    [string]$PlatformInputsFile,
+    [string]$StagingWorkloadFile,
+
     [string]$PromotionEvidenceOutputFile,
 
     [string]$EventName = $env:GITHUB_EVENT_NAME,
@@ -102,10 +105,15 @@ if ($Environment -ceq 'production' -and ($manifest.promotedFromStaging -ne $true
 
 & (Join-Path $PSScriptRoot 'check-workflow-context.ps1') -Environment $Environment -EventName $EventName -BranchRef $BranchRef | Out-Null
 & (Join-Path $PSScriptRoot 'check-cloud-window.ps1') -EvidenceFile $CloudWindowEvidenceFile -Environment $Environment | Out-Null
+if ($Environment -ceq 'staging') {
+    . (Join-Path $PSScriptRoot 'staging-executor-inputs.ps1')
+    Assert-StagingExecutorInputs $manifest $PlatformInputsFile $StagingWorkloadFile $CloudWindowEvidenceFile
+}
 if ($DryRun) {
     Write-Output 'INPUTS_VALIDATED_DEPLOYMENT_DISABLED'
     return
 }
+if ($Environment -cne 'staging') { Fail 'production deployment remains disabled.' }
 
 # The object keys are reviewed protocol values. VersionIds returned by S3 are
 # passed to CodeBuild so a later overwrite cannot change the source being run.
@@ -132,6 +140,21 @@ if ($null -eq $tfvarsUpload -or $null -eq $tfvarsUpload.PSObject.Properties['Ver
 
 # Keep this list closed. In particular, no secret, arbitrary command or
 # operator-supplied override is forwarded to the platform-owned project.
+$runtimeOverrides=@()
+foreach($entry in @(
+    @{Name='PLATFORM_INPUTS';File=$PlatformInputsFile;Leaf='platform.json'},
+    @{Name='STAGING_WORKLOAD';File=$StagingWorkloadFile;Leaf='workload.json'},
+    @{Name='CLOUD_WINDOW';File=$CloudWindowEvidenceFile;Leaf='cloud-window.json'}
+)) {
+    $key="$SourcePrefix/inputs/$SourceCommit/$($entry.Leaf)"
+    $response=& aws s3api put-object --bucket $Bucket --key $key --body $entry.File --output json 2>$null
+    if($LASTEXITCODE -ne 0){Fail 'versioned public runtime input upload failed.'}
+    try {$upload=ConvertFrom-Json -InputObject ($response -join "`n") -NoEnumerate} catch {Fail 'runtime input upload returned invalid JSON.'}
+    if($upload -isnot [pscustomobject] -or $null -eq $upload.PSObject.Properties['VersionId'] -or
+        $upload.VersionId -isnot [string] -or [string]::IsNullOrWhiteSpace($upload.VersionId) -or $upload.VersionId -ceq 'null') {Fail 'runtime input upload returned no immutable S3 VersionId.'}
+    $runtimeOverrides += "name=$($entry.Name)_OBJECT_KEY,value=$key,type=PLAINTEXT"
+    $runtimeOverrides += "name=$($entry.Name)_VERSION_ID,value=$($upload.VersionId),type=PLAINTEXT"
+}
 $overrides = @(
     "name=DEPLOY_ENVIRONMENT,value=$Environment,type=PLAINTEXT",
     "name=SOURCE_BUCKET,value=$Bucket,type=PLAINTEXT",
@@ -147,6 +170,7 @@ $overrides = @(
     "name=TFVARS_VERSION_ID,value=$($tfvarsUpload.VersionId),type=PLAINTEXT",
     "name=EXPECTED_TFVARS_SHA256,value=$ExpectedTerraformVariablesSha256,type=PLAINTEXT"
 )
+$overrides += $runtimeOverrides
 $started = & aws codebuild start-build --project-name $ProjectName --source-version $sourceUpload.VersionId --environment-variables-override $overrides --output json 2>$null
 if ($LASTEXITCODE -ne 0) { Fail 'CodeBuild launch failed.' }
 try { $build = $started | ConvertFrom-Json } catch { Fail 'CodeBuild launch returned invalid JSON.' }

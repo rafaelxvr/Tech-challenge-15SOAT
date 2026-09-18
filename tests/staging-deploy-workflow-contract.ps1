@@ -36,6 +36,12 @@ Require 'APP_TERRAFORM_BACKEND_LOCK_KEY: app/staging.tfstate.tflock' 'canonical 
 Require 'APP_TERRAFORM_EXECUTOR_TFVARS_PATH: /tmp/oficina/app_staging.tfvars.json' 'canonical APP staging executor tfvars path.'
 Require 'APP_RELEASE_INPUT_PATH' 'reviewed release input variable.'
 Require 'APP_PLATFORM_INPUTS_PATH' 'reviewed platform input variable.'
+Require 'APP_STAGING_WORKLOAD_PATH: ${{ vars.APP_STAGING_WORKLOAD_PATH }}' 'reviewed staging workload input variable.'
+Require 'APP_STAGING_WORKLOAD_PATH = $env:APP_STAGING_WORKLOAD_PATH' 'workload must be required before credentials.'
+foreach($binding in @('-StagingWorkloadFile $env:APP_STAGING_WORKLOAD_PATH','-PlatformInputsFile $env:APP_PLATFORM_INPUTS_PATH')) {
+    $expected=if($binding.StartsWith('-PlatformInputsFile')){3}else{2}
+    if([regex]::Matches($workflow,[regex]::Escape($binding)).Count -ne $expected){throw "Workflow must carry public inputs through preflight and live launch: $binding"}
+}
 Require 'APP_CLOUD_WINDOW_EVIDENCE_PATH' 'reviewed cloud-window evidence variable.'
 foreach ($name in @('APP_TERRAFORM_VARIABLES_PATH', 'APP_TERRAFORM_VARIABLES_SHA256', 'APP_DEPLOYER_IMAGE_DIGEST')) {
     Require ($name + ': ${{ vars.' + $name + ' }}') "reviewed $name configuration."

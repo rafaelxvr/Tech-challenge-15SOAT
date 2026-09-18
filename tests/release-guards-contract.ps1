@@ -28,24 +28,38 @@ try {
     $manifestPath = Join-Path $temp 'manifest.json'
     $tfvarsPath = Join-Path $temp 'reviewed.tfvars.json'
     Save @{ reviewedFixture = $true } $tfvarsPath
+    $platformPath=Join-Path $temp 'platform.json'; Save @{Environment='staging'} $platformPath
+    $workloadPath=Join-Path $temp 'workload.json'; Save @{kind='List'} $workloadPath
     foreach ($environment in @('staging','production')) {
         $manifest = @{ schemaVersion=1; environment=$environment; sourceCommit=('a'*40); artifactSha256=(Sha $bundle); deployerImageDigest=('sha256:' + ('b'*64)); contractVersion='phase3-v2'; migrationVersion='V8'; runtimeArtifactDigest=('sha256:' + ('c'*64)); promotedFromStaging=($environment -eq 'production'); stagingArtifactSha256=(Sha $bundle) }
+        $manifest.mode='FirstWriter'; $manifest.platformInputsSha256=Sha $platformPath; $manifest.stagingWorkloadSha256=Sha $workloadPath; $manifest.cloudWindowEvidenceSha256=Sha $window
         $manifest.terraformVariablesSha256 = Sha $tfvarsPath
         Save $manifest $manifestPath
         $launch = @{Environment=$environment; SourceZip=$bundle; ExpectedSha256=(Sha $bundle); ReleaseManifest=$manifestPath; ExpectedManifestSha256=(Sha $manifestPath); Bucket='oficina-artifacts-fixture'; SourceCommit=('a'*40); ProjectName="oficina-phase3-oficina-$owner-$environment-deploy"; SourcePrefix="releases/$owner/$environment"; CloudWindowEvidenceFile=$window; EventName='push'; BranchRef=$(if($environment -eq 'staging'){'refs/heads/develop'}else{'refs/heads/main'})}
+        $launch.PlatformInputsFile=$platformPath; $launch.StagingWorkloadFile=$workloadPath
         $launch.TerraformVariablesFile = $tfvarsPath
         $launch.ExpectedTerraformVariablesSha256 = Sha $tfvarsPath
         $launch.DeployerImageDigest = $manifest.deployerImageDigest
         if ((& "$repo/scripts/start-deploy.ps1" @launch -DryRun) -cne 'INPUTS_VALIDATED_DEPLOYMENT_DISABLED') { throw 'Dry run must remain explicitly disabled.' }
         Reject { & "$repo/scripts/start-deploy.ps1" @launch }
-        # Both environments use the canonical APP Terraform namespace. This
-        # contract remains disabled and does not activate either environment.
+        # Both environments use the canonical APP Terraform namespace. The
+        # default and dry-run paths remain side-effect free.
         $executorNamespace = 'app'
         $deploy=@{Environment=$environment; ReleaseManifest=$manifestPath; ExpectedSourceSha256=(Sha $bundle); ExpectedManifestSha256=(Sha $manifestPath); SourceCommit=('a'*40); ExpectedDeployerImageDigest=('sha256:' + ('b'*64)); TerraformVariablesFile="/tmp/oficina/${executorNamespace}_$environment.tfvars.json"; TerraformBackendBucket='oficina-state-fixture'; TerraformBackendKey="$executorNamespace/$environment.tfstate"; TerraformBackendLockKey="$executorNamespace/$environment.tfstate.tflock"; TerraformBackendRegion='us-east-1'}
         if ((& "$repo/scripts/deploy.ps1" @deploy -DryRun) -cne 'INPUTS_VALIDATED_DEPLOYMENT_DISABLED') { throw 'Executor dry-run must not report deployment success.' }
-        RejectWithMessage { & "$repo/scripts/deploy.ps1" @deploy } 'APP_DEPLOYMENT_DISABLED:'
-        RejectWithMessage { & "$repo/scripts/deploy.ps1" @deploy -ApplyReviewedPlan } 'APP_DEPLOYMENT_DISABLED:'
-        RejectWithMessage { & "$repo/scripts/deploy.ps1" @deploy -ApplyReviewedPlan -DryRun } 'APP_DEPLOYMENT_DISABLED:'
+        if ($environment -eq 'staging') {
+            RejectWithMessage { & "$repo/scripts/deploy.ps1" @deploy } 'APP_DEPLOYMENT_DISABLED:'
+        }
+        else {
+            RejectWithMessage { & "$repo/scripts/deploy.ps1" @deploy } 'APP_PRODUCTION_DEPLOYMENT_DISABLED:'
+        }
+        if ((& "$repo/scripts/deploy.ps1" @deploy -ApplyReviewedPlan -DryRun) -cne 'INPUTS_VALIDATED_DEPLOYMENT_DISABLED') { throw 'Dry-run must remain disabled even when apply was requested.' }
+        if ($environment -eq 'staging') {
+            RejectWithMessage { & "$repo/scripts/deploy.ps1" @deploy -ApplyReviewedPlan } 'APP_STAGING_INPUTS_INVALID:'
+        }
+        else {
+            RejectWithMessage { & "$repo/scripts/deploy.ps1" @deploy -ApplyReviewedPlan } 'APP_PRODUCTION_DEPLOYMENT_DISABLED:'
+        }
         $otherEnvironment = if ($environment -ceq 'staging') { 'production' } else { 'staging' }
         $otherNamespace = 'application'
         foreach ($entry in @(
@@ -82,7 +96,7 @@ try {
     Reject { & $lock -Action Acquire -OwnerToken $second @lockInputs }
     Reject { & $lock -Action Release -OwnerToken $second @lockInputs }
     & $lock -Action Release -OwnerToken $first @lockInputs | Out-Null
-    Write-Output 'PASS: release branch, immutable source/runtime digest, closed window, staging promotion and non-stealable lock contracts; live deployment disabled.'
+    Write-Output 'PASS: release branch, immutable source/runtime digest, closed window, staging promotion, guarded staging rollout activation and non-stealable lock contracts.'
 }
 finally {
     $resolved=[IO.Path]::GetFullPath($temp)

@@ -120,7 +120,7 @@ foreach ($case in @(@{Value=$null}, @{Value=('sha256:' + ('a'*64))}, @{Value=@($
 # A removed gate or renamed variable must invalidate the documented contract.
 $contract = Get-Content -LiteralPath $contractPath -Raw
 $workflow = Get-Content -LiteralPath (Join-Path $repo '.github/workflows/staging-deploy.yml') -Raw
-$variables = @('APP_CLOUD_DEPLOYMENT_ENABLED','APP_CLOUD_DEPLOYMENT_ROLE_ARN','APP_RELEASE_INPUT_PATH','APP_PLATFORM_INPUTS_PATH','APP_CLOUD_WINDOW_EVIDENCE_PATH','APP_TERRAFORM_VARIABLES_PATH','APP_TERRAFORM_VARIABLES_SHA256','APP_DEPLOYER_IMAGE_DIGEST')
+$variables = @('APP_CLOUD_DEPLOYMENT_ENABLED','APP_CLOUD_DEPLOYMENT_ROLE_ARN','APP_RELEASE_INPUT_PATH','APP_PLATFORM_INPUTS_PATH','APP_STAGING_WORKLOAD_PATH','APP_CLOUD_WINDOW_EVIDENCE_PATH','APP_TERRAFORM_VARIABLES_PATH','APP_TERRAFORM_VARIABLES_SHA256','APP_DEPLOYER_IMAGE_DIGEST')
 foreach ($name in $variables) {
     if (-not $contract.Contains($name) -or -not $workflow.Contains('vars.' + $name)) { throw "Activation variable differs from specification/workflow: $name" }
 }
