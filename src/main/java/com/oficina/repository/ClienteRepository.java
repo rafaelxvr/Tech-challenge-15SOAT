@@ -10,6 +10,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
+// Identity writes use Cliente domain transitions through ClienteService; bulk updates bypass its audit and @Version.
 public interface ClienteRepository extends JpaRepository<Cliente, UUID> {
 
     Optional<Cliente> findByDocumento(String documento);

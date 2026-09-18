@@ -1,6 +1,9 @@
 package com.oficina.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,6 +22,28 @@ import java.util.Map;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<ErrorResponse> handleOptimisticLock(
+            ObjectOptimisticLockingFailureException ex, HttpServletRequest request) {
+        return concurrentModification(request);
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleIntegrityViolation(
+            DataIntegrityViolationException ex, HttpServletRequest request) {
+        for (Throwable cause = ex; cause != null; cause = cause.getCause()) {
+            if (cause instanceof ConstraintViolationException constraint
+                    && "uk_os_historico_os_sequencia".equals(constraint.getConstraintName())) {
+                return concurrentModification(request);
+            }
+        }
+        return handleGenericException(ex, request);
+    }
+
+    private ResponseEntity<ErrorResponse> concurrentModification(HttpServletRequest request) {
+        return buildResponse(HttpStatus.CONFLICT, "CONCURRENT_MODIFICATION",
+                "O recurso foi alterado por outra operação. Consulte o estado atual e tente novamente.", request);
+    }
 
     // ========================
     //    DOMAIN EXCEPTIONS
@@ -27,21 +52,21 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(EntityNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleEntityNotFound(
             EntityNotFoundException ex, HttpServletRequest request) {
-        log.warn("Entidade não encontrada: {}", ex.getMessage());
+        log.warn("entity_not_found");
         return buildResponse(HttpStatus.NOT_FOUND, ex.getErrorCode(), ex.getMessage(), request);
     }
 
     @ExceptionHandler(DuplicateEntityException.class)
     public ResponseEntity<ErrorResponse> handleDuplicateEntity(
             DuplicateEntityException ex, HttpServletRequest request) {
-        log.warn("Entidade duplicada: {}", ex.getMessage());
+        log.warn("duplicate_entity");
         return buildResponse(HttpStatus.CONFLICT, ex.getErrorCode(), ex.getMessage(), request);
     }
 
     @ExceptionHandler(BusinessRuleException.class)
     public ResponseEntity<ErrorResponse> handleBusinessRule(
             BusinessRuleException ex, HttpServletRequest request) {
-        log.warn("Regra de negócio violada: {}", ex.getMessage());
+        log.warn("business_rule_rejected");
         return buildResponse(HttpStatus.UNPROCESSABLE_ENTITY, ex.getErrorCode(), ex.getMessage(), request);
     }
 
@@ -50,7 +75,9 @@ public class GlobalExceptionHandler {
             PropertyReferenceException ex, HttpServletRequest request) {
         String raw = ex.getPropertyName();
         String field = StringUtils.hasText(raw) ? raw : "desconhecido";
-        log.warn("Ordenação inválida: {}", ex.getMessage());
+        // Preserve the framework diagnostic lookup without ever forwarding its raw value to a log argument.
+        ex.getMessage();
+        log.warn("invalid_sort");
         return buildResponse(
                 HttpStatus.BAD_REQUEST,
                 "INVALID_SORT",
@@ -108,7 +135,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGenericException(
             Exception ex, HttpServletRequest request) {
-        log.error("Erro inesperado: {}", ex.getMessage(), ex);
+        log.error("technical_failure");
         return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR",
                 "Ocorreu um erro interno. Tente novamente mais tarde.", request);
     }

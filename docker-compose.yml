@@ -39,17 +39,24 @@ services:
         condition: service_healthy
     environment:
       SPRING_PROFILES_ACTIVE: prod
+      DEPLOYMENT_ENVIRONMENT: local
       DB_URL: jdbc:postgresql://postgres:5432/oficina_mecanica
       DB_USERNAME: oficina
       DB_PASSWORD: oficina123
-      JWT_SECRET: ${JWT_SECRET:-mude-esta-chave-em-producao-use-minimo-32-caracteres}
+      JWT_SECRET: ${JWT_SECRET:?Configure JWT_SECRET conforme docs/runbooks/jwt-trust.md}
+      JWT_STAFF_ISSUER: ${JWT_STAFF_ISSUER:?Configure JWT_STAFF_ISSUER}
+      JWT_STAFF_AUDIENCE: ${JWT_STAFF_AUDIENCE:?Configure JWT_STAFF_AUDIENCE}
+      JWT_STAFF_KEY_ID: ${JWT_STAFF_KEY_ID:?Configure JWT_STAFF_KEY_ID}
+      JWT_CUSTOMER_ISSUER: ${JWT_CUSTOMER_ISSUER:?Configure JWT_CUSTOMER_ISSUER}
+      JWT_CUSTOMER_AUDIENCE: ${JWT_CUSTOMER_AUDIENCE:?Configure JWT_CUSTOMER_AUDIENCE}
+      SPRING_APPLICATION_JSON: ${SPRING_APPLICATION_JSON:?Configure as chaves publicas conforme docs/runbooks/jwt-trust.md}
       JWT_EXPIRATION: 86400000
       SERVER_PORT: 8080
       JAVA_OPTS: "-Xms256m -Xmx512m"
       MAIL_HOST: mailhog
       MAIL_PORT: 1025
       MAIL_ENABLED: "true"
-      MAIL_STATUS_TOKEN: ${MAIL_STATUS_TOKEN:-oficina-email-status-token}
+      HISTORICO_ZONA_COMPATIBILIDADE: ${HISTORICO_ZONA_COMPATIBILIDADE:?Defina a zona conforme docs/runbooks/first-writer-cutover.md}
     ports:
       - "8080:8080"
     healthcheck:

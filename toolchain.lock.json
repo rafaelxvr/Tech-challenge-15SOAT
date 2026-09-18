@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "resolvedAt": "2026-09-15",
+  "javaMajor": 17,
+  "maven": {
+    "version": "3.9.16",
+    "wrapperVersion": "3.3.4",
+    "distributionUrl": "https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.9.16/apache-maven-3.9.16-bin.zip",
+    "distributionSha256": "5af3b743dd8b876b5c45da33b676251e5f1687712644abb4ee519ca56e1d89ce",
+    "publisherSha512": "ed41650d42485cfc243fad22158caf9cbb5dc408ce7a09ddb94dd42a019de929ca43065bfa450612cf12bf78b5cafa3884b96c090de326ff590448c933454af3"
+  },
+  "mavenImageDigest": "maven@sha256:880934ae394bf91bc3e57d573e4fc04774f064f3c4df7ccd7cc10b3b126737bf",
+  "terraform": {
+    "version": "1.15.8",
+    "windowsAmd64Sha256": "2ff41d2129afb1982733c132c61a8d6ef038f879f3aeede7fc28b8b8b24acf02"
+  },
+  "kind": {
+    "version": "0.33.0",
+    "windowsAmd64Sha256": "4b22adaa135368c5a465d56bbd8e520cbea87272a06ca00b6078e7b81515c9fc"
+  },
+  "helm": {
+    "cliVersion": null,
+    "status": "Resolve when infrastructure rendering first requires the Helm CLI"
+  },
+  "awsCli": {
+    "verifiedVersion": "2.36.44",
+    "windowsExecutable": "C:\\Program Files\\Amazon\\AWSCLIV2\\aws.exe"
+  },
+  "dependencies": {
+    "awsSdkV2Bom": {
+      "version": "2.54.18",
+      "artifact": "software.amazon.awssdk:bom",
+      "pomSha256": "a0731c0a26b3a4ac226ad43783c3ebf94b8d84c78bea38ed63cd35c3a2ed9832"
+    },
+    "awsLambdaJavaCore": {
+      "version": "1.4.0",
+      "artifact": "com.amazonaws:aws-lambda-java-core",
+      "jarSha1": "36eeddf1fee9a8b796c16f638c9d2d30404a827d"
+    },
+    "awsLambdaJavaEvents": {
+      "version": "3.16.1",
+      "artifact": "com.amazonaws:aws-lambda-java-events",
+      "jarSha1": "ef8c2c3bffb8f63c0b7c076dcc79b181bff3e50e"
+    },
+    "logstashLogbackEncoder": {
+      "version": "8.1",
+      "artifact": "net.logstash.logback:logstash-logback-encoder",
+      "jarSha1": "aca81cdb03c48f4e0213d3e351ab1befafa9991e",
+      "compatibility": "Jackson 2 line selected; release 9 requires Jackson 3"
+    },
+    "newRelicJavaAgent": {
+      "version": "9.4.0",
+      "artifact": "com.newrelic.agent.java:newrelic-agent",
+      "jarSha256": "1f8f42d25e6565a1a7088543deeeefacdd2b028761ac94743dd1715cf7ddf5f4"
+    }
+  },
+  "terraformProviders": {
+    "aws": {
+      "source": "hashicorp/aws",
+      "constraint": "~> 6.64.0",
+      "selectedVersion": "6.64.0",
+      "linuxAmd64Sha256": "17324d4335a7a7ac01cc23eded530775606680ff53b47cb74a3cb95d1121f836"
+    },
+    "kubernetes": {
+      "source": "hashicorp/kubernetes",
+      "constraint": "~> 3.2.1",
+      "selectedVersion": "3.2.1",
+      "linuxAmd64Sha256": "2f94f6b689c59c43e596e724228f2861095d02c2a2ac2a257a4619667135ac75"
+    },
+    "helm": {
+      "source": "hashicorp/helm",
+      "constraint": "~> 3.3.0",
+      "selectedVersion": "3.3.0",
+      "linuxAmd64Sha256": "24a942352667cf49bed467c51a951f17a6c13e0cdf1c505b01b41f75a1a60d0f"
+    },
+    "newrelic": {
+      "source": "newrelic/newrelic",
+      "constraint": "~> 3.97.5",
+      "selectedVersion": "3.97.5",
+      "linuxAmd64Sha256": "7fd924a08bf8397195dc670ff9a1bdd441fa6c6928ff354bad8dddbaf08bd38b"
+    }
+  }
+}

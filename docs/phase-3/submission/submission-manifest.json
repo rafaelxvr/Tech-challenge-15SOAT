@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "submissionMode": "template",
+  "releaseRevision": "NOT_CAPTURED",
+  "reviewerUsername": "soat-architecture",
+  "repositories": [
+    {"name":"APP","url":"NOT_PROVIDED","reviewerAccessVerified":false,"accessEvidence":"NOT_PROVIDED"},
+    {"name":"K8S","url":"NOT_PROVIDED","reviewerAccessVerified":false,"accessEvidence":"NOT_PROVIDED"},
+    {"name":"FUN","url":"NOT_PROVIDED","reviewerAccessVerified":false,"accessEvidence":"NOT_PROVIDED"},
+    {"name":"DB","url":"NOT_PROVIDED","reviewerAccessVerified":false,"accessEvidence":"NOT_PROVIDED"}
+  ],
+  "videoUrl": "NOT_PROVIDED",
+  "videoDurationSeconds": null,
+  "documentationUrls": [],
+  "status": "NOT_READY"
+}

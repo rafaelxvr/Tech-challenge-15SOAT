@@ -1,5 +1,13 @@
 package com.oficina.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.oficina.security.CustomerTokenValidator;
+import com.oficina.security.IdentidadeAutenticada;
+import com.oficina.security.TipoPrincipal;
+import org.springframework.security.authorization.AuthorizationDecision;
+import org.springframework.security.authorization.AuthorizationManager;
+import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
+import com.oficina.security.StaffTokenValidator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -25,17 +33,10 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-    private final JwtAuthenticationFilter jwtAuthFilter;
     private final UserDetailsService userDetailsService;
-
-    // Endpoints públicos - sem autenticação
-    private static final String[] PUBLIC_URLS = {
-            "/auth/**",
-            "/v3/api-docs/**",
-            "/swagger-ui/**",
-            "/swagger-ui.html",
-            "/actuator/health"
-    };
+    private final CustomerTokenValidator customerValidator;
+    private final StaffTokenValidator staffValidator;
+    private final ObjectMapper objectMapper;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -43,27 +44,42 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(errors -> errors.authenticationEntryPoint((request, response, exception) -> {
+                    response.setStatus(401);
+                    response.setContentType("application/json");
+                    response.getWriter().write("{\"error\":\"UNAUTHORIZED\"}");
+                }))
                 .authorizeHttpRequests(auth -> auth
-                        // Endpoints públicos
-                        .requestMatchers(PUBLIC_URLS).permitAll()
-
-                        // Consulta e aprovação de OS pelo cliente (sem JWT)
-                        .requestMatchers(HttpMethod.GET, "/ordens-servico/*/acompanhamento").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/ordens-servico/*/aprovar").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/ordens-servico/*/orcamento/notificacao").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/ordens-servico/email/atualizar-status").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/auth/login").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/liveness",
+                                "/actuator/health/readiness").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/ordens-servico/*/acompanhamento")
+                            .access(clienteComEscopo("SCOPE_orders:read:self"))
+                        .requestMatchers(HttpMethod.POST, "/ordens-servico/*/aprovar",
+                                "/ordens-servico/*/orcamento/notificacao", "/ordens-servico/*/orcamento/decisao")
+                            .access(clienteComEscopo("SCOPE_orders:decide:self"))
 
                         // Gestão administrativa - somente ADMIN
                         .requestMatchers(HttpMethod.DELETE, "/**").hasRole("ADMIN")
                         .requestMatchers("/admin/**").hasRole("ADMIN")
 
                         // Demais endpoints - autenticados
-                        .anyRequest().authenticated()
+                        .anyRequest().hasAnyRole("ADMIN", "MECANICO")
                 )
                 .authenticationProvider(authenticationProvider())
-                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(new JwtAuthenticationFilter(customerValidator, staffValidator, objectMapper),
+                        UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
+    }
+
+    private static AuthorizationManager<RequestAuthorizationContext> clienteComEscopo(String escopo) {
+        return (authentication, context) -> {
+            var auth = authentication.get();
+            return new AuthorizationDecision(auth.isAuthenticated()
+                    && auth.getPrincipal() instanceof IdentidadeAutenticada cliente
+                    && cliente.tipo() == TipoPrincipal.CUSTOMER && cliente.permissoes().contains(escopo));
+        };
     }
 
     @Bean

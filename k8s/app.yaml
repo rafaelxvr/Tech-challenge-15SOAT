@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: app
-          image: ghcr.io/OWNER/oficina-mecanica:latest
+          image: ghcr.io/OWNER/oficina-mecanica@sha256:a134339152035ce0044eaa1adc18851c0aee214b2d867f728bff2bfb09dc7c5f
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080

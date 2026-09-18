@@ -30,6 +30,34 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ExtendWith(MockitoExtension.class)
 class GlobalExceptionHandlerTest {
 
+    @Test void optimisticLockReturnsConcurrentModification() {
+        var response = handler.handleOptimisticLock(
+                new org.springframework.orm.ObjectOptimisticLockingFailureException("OrdemServico", UUID.randomUUID()),
+                new MockHttpServletRequest());
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(response.getBody().code()).isEqualTo("CONCURRENT_MODIFICATION");
+    }
+
+    @Test void onlyNamedSequenceConstraintReturnsConflict() {
+        var constraint = new org.hibernate.exception.ConstraintViolationException(
+                "duplicate sequence", new java.sql.SQLException("duplicate", "23505"), "uk_os_historico_os_sequencia");
+        var response = handler.handleIntegrityViolation(
+                new org.springframework.dao.DataIntegrityViolationException("write failed", new RuntimeException(constraint)),
+                new MockHttpServletRequest());
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(response.getBody().code()).isEqualTo("CONCURRENT_MODIFICATION");
+    }
+
+    @Test void unrelatedIntegrityOrMessageMatchingDoesNotReturnConflict() {
+        var constraint = new org.hibernate.exception.ConstraintViolationException(
+                "uk_os_historico_os_sequencia", new java.sql.SQLException("duplicate", "23505"), "other_unique");
+        var response = handler.handleIntegrityViolation(
+                new org.springframework.dao.DataIntegrityViolationException("uk_os_historico_os_sequencia", constraint),
+                new MockHttpServletRequest());
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+        assertThat(response.getBody().code()).isEqualTo("INTERNAL_ERROR");
+    }
+
     private final GlobalExceptionHandler handler = new GlobalExceptionHandler();
 
     @Mock

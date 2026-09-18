@@ -1,13 +1,8 @@
 package com.oficina.application.port.out;
 
-import com.oficina.entity.OrdemServico;
-import com.oficina.entity.StatusOrdemServico;
+import com.oficina.application.notificacao.StatusOrdemServicoRegistrado;
 
-/**
- * Porta de saída (hexagonal) para notificar mudanças de status da OS.
- * Adaptadores: e-mail (SMTP/MailHog), futuros webhooks, etc.
- */
+/** Persists notification intent atomically with the business transition. */
 public interface NotificacaoPort {
-
-    void notificarAtualizacaoStatus(OrdemServico ordem, StatusOrdemServico statusAnterior, String mensagem);
+    void notificarAtualizacaoStatus(StatusOrdemServicoRegistrado evento);
 }

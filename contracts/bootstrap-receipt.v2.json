@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 2,
+  "owner": "oficina-app",
+  "purpose": "Post-migration SQL authorization proof and immutable credential references",
+  "topLevelFields": ["schemaVersion", "environment", "sourceCommit", "outputs"],
+  "outputFields": [
+    "schemaVersion", "authViewVersion", "recipientViewVersion",
+    "migrationSecretArn", "migrationSecretVersionId",
+    "appSecretArn", "appSecretVersionId",
+    "authLookupSecretArn", "authLookupSecretVersionId",
+    "notificationLookupSecretArn", "notificationLookupSecretVersionId"
+  ],
+  "schemaVersions": {"schemaVersion": "V8", "authViewVersion": "V5", "recipientViewVersion": "V7"},
+  "forbidden": ["master secret reference", "credential values", "SQL text", "database host", "tokens"],
+  "compatibility": "Do not pass to the DB v1 exact-field validator or APP Terraform-output exporter; reviewed v2 consumer support is required."
+}

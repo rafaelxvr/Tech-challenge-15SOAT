@@ -25,6 +25,8 @@
         <testcontainers.version>1.19.8</testcontainers.version>
         <jacoco.version>0.8.11</jacoco.version>
         <lombok.version>1.18.32</lombok.version>
+        <aws.sdk.version>2.54.18</aws.sdk.version>
+        <logstash.logback.encoder.version>8.1</logstash.logback.encoder.version>
         <!-- SonarQube (docker compose: http://localhost:9000) -->
         <sonar.maven.plugin.version>4.0.0.4121</sonar.maven.plugin.version>
         <sonar.projectKey>com.oficina:oficina-mecanica</sonar.projectKey>
@@ -34,6 +36,55 @@
     </properties>
 
     <dependencies>
+
+        <!-- Standalone APP bootstrap only; never wired into application startup. -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>secretsmanager</artifactId>
+            <version>${aws.sdk.version}</version>
+            <exclusions>
+                <exclusion><groupId>software.amazon.awssdk</groupId><artifactId>apache5-client</artifactId></exclusion>
+                <exclusion><groupId>software.amazon.awssdk</groupId><artifactId>netty-nio-client</artifactId></exclusion>
+            </exclusions>
+        </dependency>
+
+        <!-- B1 toolchain.lock.json pin; no implicit SDK retries for the outbox. -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>sqs</artifactId>
+            <version>${aws.sdk.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>software.amazon.awssdk</groupId>
+                    <artifactId>apache5-client</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>software.amazon.awssdk</groupId>
+                    <artifactId>netty-nio-client</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>url-connection-client</artifactId>
+            <version>${aws.sdk.version}</version>
+        </dependency>
+        <!-- DefaultCredentialsProvider requires STS for EKS IRSA web identity. -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>sts</artifactId>
+            <version>${aws.sdk.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>software.amazon.awssdk</groupId>
+                    <artifactId>apache5-client</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>software.amazon.awssdk</groupId>
+                    <artifactId>netty-nio-client</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
 
         <!-- ======================== -->
         <!--     SPRING BOOT CORE     -->
@@ -61,6 +112,13 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!-- Java 17 / Jackson 2 compatible structured logging, pinned in toolchain.lock.json. -->
+        <dependency>
+            <groupId>net.logstash.logback</groupId>
+            <artifactId>logstash-logback-encoder</artifactId>
+            <version>${logstash.logback.encoder.version}</version>
         </dependency>
 
         <dependency>

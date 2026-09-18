@@ -2,6 +2,16 @@
 
 Back-end para gestão de ordens de serviço, clientes, veículos, catálogo e métricas, evoluído na **Fase 2** com foco em qualidade, resiliência, containerização, Kubernetes, IaC (Terraform) e CI/CD.
 
+## Fase 3: reviewed architecture
+
+Start with the [APP architecture guide](docs/architecture.md), [requirement/evidence matrix](docs/phase-3/evidence/requirements.md), and [disabled cloud adapter prerequisites](docs/i7-pipeline-contracts.md). The Phase 2 material below remains historical; its topology is not the Phase 3 cloud profile.
+
+The Phase 3 component, authentication, order-delivery, and relational-model evidence is in [the architecture index](docs/phase-3/README.md). Use the committed, credential-free [OpenAPI and Postman snapshots](docs/phase-3/api/contracts.md) for local contract review. They document source revision `7ca6e2948e423ea171c252eddeaca266179bd153`; they do not claim an active cloud endpoint. Run `./mvnw.cmd -q test` locally; the protected-cloud handoff remains an authorized R4 action.
+
+Run `./mvnw.cmd -B verify`, `python scripts/check-doc-links.py docs README.md`, and `python scripts/verify-api-snapshots.py` from this repository root. CI is [`.github/workflows/ci-cd.yml`](.github/workflows/ci-cd.yml): it runs on push and pull request for `main` and `develop`. PR checks have no deployment identity; GHCR publishing is push-only and Kind is explicitly local. Its image/deployment stages require their configured environment and do not make a cloud deployment claim in this document.
+
+The [Phase 3 offline submission guide](docs/phase-3/submission/README.md) includes the 14-minute recording plan, unfilled manifest and local PDF checks. Generated template PDFs remain `NOT_READY / FIXTURE_ONLY`; no video, publication, reviewer access or portal submission is claimed.
+
 ---
 
 ## Objetivos desta fase
@@ -90,7 +100,7 @@ flowchart TB
 | Domínio | `entity`, `exception`, `validation` | Regras e modelo de negócio (OS, estoque, transições) |
 | Aplicação | `service`, `application.port.out` | Casos de uso; portas de saída (ex.: `NotificacaoPort`) |
 | Adaptadores de entrada | `controller`, `dto` | REST / OpenAPI |
-| Adaptadores de saída | `repository`, `adapter.out.mail` | JPA/Postgres, e-mail SMTP |
+| Adaptadores de saída | `repository`, `adapter.out.outbox` | JPA/Postgres e intenção de notificação transacional |
 | Configuração | `config` | Security JWT, OpenAPI, wiring Spring |
 
 Classe de entrada: `OficinaApplication`.
@@ -103,7 +113,7 @@ Classe de entrada: `OficinaApplication`.
 | Banco | `k8s/postgres.yaml` | PostgreSQL 16 + PVC; schema via Flyway na API |
 | API | `k8s/app.yaml` | Deployment (2 réplicas), Service, HPA |
 | Config | `k8s/configmap.yaml` + `secret.yaml` | Variáveis e segredos (JWT, senhas, token e-mail) |
-| E-mail | MailHog (Compose profile `tools` / K8s) | Visualização de notificações de status |
+| E-mail local | MailHog (Compose profile `tools`) | Destino de testes do consumidor; ativação explícita com `local-mailhog` |
 
 ### Fluxo de deploy
 
@@ -123,9 +133,9 @@ Classe de entrada: `OficinaApplication`.
 | PostgreSQL | 16 | Banco |
 | Flyway | (Boot) | Migrações |
 | Spring Security + JWT | jjwt 0.12.x | API stateless |
-| Spring Mail + MailHog | — | Notificação / atualização de status via e-mail |
+| Spring Mail + MailHog | — | Testes locais de entrega após commit |
 | Kubernetes | Kind / manifests em `/k8s` | Orquestração + HPA |
-| Terraform | ≥ 1.5 | Provisionamento do cluster + apply |
+| Terraform | 1.15.8 | Provisionamento do cluster + apply |
 | GitHub Actions | `.github/workflows/ci-cd.yml` | CI/CD |
 | SpringDoc OpenAPI | 2.5 | Swagger |
 | Testcontainers | 1.19.x | Testes com Postgres |
@@ -134,8 +144,17 @@ Classe de entrada: `OficinaApplication`.
 
 ## Pré-requisitos
 
-- **Java 17+**, **Maven 3.9+**, **Docker Desktop** ativo
-- Para K8s local: **kubectl**, **kind**, **Terraform ≥ 1.5**
+- **Java 17**, **Docker Desktop** ativo; Maven 3.9.16 é fornecido pelo wrapper
+- Para K8s local: **kubectl**, **Kind 0.33.0**, **Terraform 1.15.8**
+
+Versões e checksums reproduzíveis estão em [`toolchain.lock.json`](toolchain.lock.json). No PowerShell, selecione um JDK 17 para a sessão e valide o ambiente:
+
+```powershell
+$env:JAVA_HOME = 'C:\Program Files\Eclipse Adoptium\jdk-17.0.20.101-hotspot'
+$env:PATH = "$env:JAVA_HOME\bin;$env:PATH"
+.\scripts\check-toolchain.ps1
+.\mvnw.cmd -B verify
+```
 
 ---
 
@@ -166,7 +185,7 @@ docker compose logs -f app
 ```bash
 docker compose up -d postgres
 docker compose --profile tools up -d mailhog
-mvn spring-boot:run -Dspring-boot.run.profiles=dev
+./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
 ```
 
 ---
@@ -236,60 +255,48 @@ Detalhes: [`infra/README.md`](infra/README.md).
 
 ---
 
-## APIs de Ordem de Serviço (Fase 2)
+## APIs de Ordem de Serviço (Fase 3)
 
 Base: **http://localhost:8080/api** (Compose) ou **http://localhost:30080/api** (Kind).
 
-| Método | Caminho | Descrição |
+| Método | Caminho | Autorização |
 |---|---|---|
-| POST | `/ordens-servico` | Abertura de OS (cliente, veículo, serviços, peças) → retorna id/número |
-| GET | `/ordens-servico/{numero}/acompanhamento` | Consulta de status (público) |
-| POST | `/ordens-servico/{numero}/orcamento/notificacao` | Notificação externa **APROVADO** / **RECUSADO** |
-| GET | `/ordens-servico` | Listagem: prioridade Execução > Aguardando > Diagnóstico > Recebida; mais antigas primeiro; **sem** FINALIZADA/ENTREGUE |
-| POST | `/ordens-servico/email/atualizar-status` | Atualização de status via ferramenta de e-mail (token) |
+| POST / GET | `/ordens-servico` | Staff ADMIN/MECANICO: abertura e listagem operacional |
+| GET | `/ordens-servico/{numero}/acompanhamento` | Customer, `orders:read:self`, própria OS |
+| POST | `/ordens-servico/{numero}/orcamento/decisao` | Customer, `orders:decide:self`, própria OS |
+| POST | `/ordens-servico/{numero}/aprovar` | Alias autenticado de aprovação; documento deve concordar com o cliente do JWT |
+| POST | `/ordens-servico/{numero}/orcamento/notificacao` | Alias autenticado de decisão; documento deve concordar com o cliente do JWT |
 
-Collection / contrato interativo: **Swagger UI** → http://localhost:8080/api/swagger-ui.html  
-OpenAPI JSON: http://localhost:8080/api/v3/api-docs  
+Use o **número retornado pela criação da OS**, não um número fixo. Ordem inexistente ou pertencente a outro cliente retorna 404. A resposta inclui valores e itens do orçamento e histórico de status, sem nome, documento, placa, contato, identificadores de atores ou observações internas.
 
-### Login seed
+O cliente obtém seu token no fluxo CPF + código de email do gateway. O token customer dura 15 minutos e não tem refresh. O login staff continua em `POST /api/auth/login`; ele não autentica o cliente. Tokens anteriores à atualização exigem **novo login**. Veja [migração das operações de cliente](docs/runbooks/customer-order-access.md).
 
-```json
-POST /api/auth/login
-{ "email": "admin@oficina.com", "senha": "Admin@123" }
-```
+### Exemplo — decisão autenticada
 
-### Exemplo — notificação de orçamento
+```http
+POST /api/ordens-servico/{{osNumero}}/orcamento/decisao
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
 
-```json
-POST /api/ordens-servico/1/orcamento/notificacao
 {
   "decisao": "APROVADO",
-  "documentoCliente": "39053344705",
-  "observacao": "Aprovado pelo app do cliente"
+  "observacao": "Autorizo este orçamento"
 }
 ```
 
-### Exemplo — status via e-mail
+Para recusar, envie `"decisao": "RECUSADO"`. O corpo canônico não recebe identidade. Os aliases legados exigem `documentoCliente`, apenas como conferência do cliente já autenticado.
 
-```json
-POST /api/ordens-servico/email/atualizar-status
-{
-  "numero": 1,
-  "novoStatus": "EM_DIAGNOSTICO",
-  "token": "oficina-email-status-token",
-  "observacao": "Clique no link do e-mail"
-}
-```
+`/ordens-servico/email/atualizar-status` foi removido: retorna 404 inclusive com o antigo token compartilhado e não executa serviços. Emails são notificações; a decisão exige login do cliente. A variável `MAIL_STATUS_TOKEN` não é mais consumida pela aplicação.
 
-Após mudanças de status, confira a mensagem no **MailHog** (http://localhost:8025).
+Swagger UI em `/api/swagger-ui.html` e OpenAPI em `/api/v3/api-docs` exigem JWT staff. Somente `POST /api/auth/login` e `GET /api/actuator/health` permitem acesso anônimo na APP. O fluxo CPF do gateway pertence ao serviço de autenticação separado.
 
 ---
 
 ## Testes
 
 ```bash
-mvn test
-mvn test jacoco:report
+./mvnw test
+./mvnw test jacoco:report
 ```
 
 Abrir: `target/site/jacoco/index.html`. Testcontainers exige Docker.
@@ -339,13 +346,16 @@ O PDF contém:
 | Variável | Padrão | Descrição |
 |---|---|---|
 | `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` | ver Compose | JDBC |
-| `JWT_SECRET` | — | Mín. 32 caracteres em produção |
-| `MAIL_HOST` / `MAIL_PORT` | localhost:1025 | SMTP (MailHog) |
-| `MAIL_ENABLED` | true | Liga/desliga envio |
-| `MAIL_STATUS_TOKEN` | `oficina-email-status-token` | Token do endpoint via e-mail |
+| `JWT_SECRET` | Obrigatório | Segredo staff com pelo menos 32 bytes UTF-8 e entropia aleatória; emissores, audiências, IDs e chaves públicas também são obrigatórios. Veja [configuração de confiança JWT](docs/runbooks/jwt-trust.md). |
+| `MAIL_HOST` / `MAIL_PORT` | localhost:1025 | SMTP para testes do consumidor com perfil `local-mailhog` |
+| `MAIL_ENABLED` | legado | Não seleciona mais a notificação; toda transição grava no [outbox transacional](docs/runbooks/transactional-notifications.md) |
+| `HISTORICO_ZONA_COMPATIBILIDADE` | obrigatório; `UTC` nos dados sintéticos novos | Zona comprovada para horários de compatibilidade; veja [primeiro cutover](docs/runbooks/first-writer-cutover.md) |
 
 ---
 
 ## Licença
 
 Projeto privado — todos os direitos reservados.
+# Phase 3 documentation
+
+See [architecture and operations](docs/phase-3/README.md). The repository records reviewed source artifacts; no cloud deployment is represented as active.

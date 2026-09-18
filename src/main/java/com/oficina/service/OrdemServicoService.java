@@ -1,34 +1,51 @@
 package com.oficina.service;
 
 import com.oficina.application.port.out.NotificacaoPort;
+import com.oficina.application.notificacao.StatusOrdemServicoRegistrado;
 import com.oficina.config.SecurityUtils;
+import com.oficina.config.CorrelationFilter;
+import com.oficina.application.observability.OrderTelemetry;
+import com.oficina.domain.identidade.Ator;
 import com.oficina.dto.*;
 import com.oficina.entity.*;
 import com.oficina.exception.BusinessRuleException;
 import com.oficina.exception.EntityNotFoundException;
 import com.oficina.repository.OrdemServicoRepository;
 import com.oficina.validation.ValidadorDocumento;
+import com.oficina.security.IdentidadeAutenticada;
+import com.oficina.security.TipoPrincipal;
+import org.springframework.security.access.AccessDeniedException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 @Service
 @RequiredArgsConstructor
 public class OrdemServicoService {
 
     private static final String ENTIDADE = "Ordem de serviço";
+    private static final Comparator<OsHistorico> ORDEM_HISTORICO = Comparator
+            .comparing(OsHistorico::getSequencia, Comparator.nullsFirst(Comparator.naturalOrder()))
+            .thenComparing(OsHistorico::getCriadoEm);
 
     /** Status excluídos logicamente da listagem operacional (não são apagados do banco). */
     private static final Set<StatusOrdemServico> STATUS_EXCLUIDOS_LISTAGEM = EnumSet.of(
@@ -42,12 +59,27 @@ public class OrdemServicoService {
     private final ServicoService servicoService;
     private final PecaService pecaService;
     private final NotificacaoPort notificacaoPort;
+    private final Clock clock;
+    private OrderTelemetry telemetry = (operation, outcome) -> { };
 
-    @Value("${oficina.mail.status-token:oficina-email-status-token}")
-    private String emailStatusToken;
+    @Autowired(required = false)
+    void setTelemetry(OrderTelemetry telemetry) { this.telemetry = telemetry; }
+
+    @Value("${oficina.historico.zona-compatibilidade}")
+    private String zonaCompatibilidade;
+
+    private Instant prepararHistorico(OrdemServico os) {
+        os.setZonaCompatibilidade(ZoneId.of(zonaCompatibilidade));
+        return clock.instant();
+    }
+
+    private Ator atorAtual() {
+        return SecurityUtils.usuarioAutenticadoId().map(Ator::staff).orElseGet(Ator::sistema);
+    }
 
     @Transactional
     public OrdemServicoDetalheResponse criar(CriarOrdemServicoRequest request) {
+        return command("order_create", () -> {
         Cliente cliente = clienteService.obterEntidadeAtivaPorDocumento(request.documentoCliente());
         Veiculo veiculo = resolverVeiculo(request, cliente);
 
@@ -59,8 +91,9 @@ public class OrdemServicoService {
                 .valorTotal(BigDecimal.ZERO)
                 .build();
 
-        UUID usuarioId = SecurityUtils.usuarioAutenticadoId().orElse(null);
-        os.registrarHistoricoInicial(usuarioId, "Abertura da ordem de serviço");
+        Ator ator = atorAtual();
+        Instant ocorridoEm = prepararHistorico(os);
+        os.registrarHistoricoInicial(ator, ocorridoEm, "Abertura da ordem de serviço");
 
         for (ItemServicoOsRequest item : request.servicos()) {
             var servico = servicoService.obterAtivo(item.servicoId());
@@ -90,10 +123,10 @@ public class OrdemServicoService {
 
         os.recalcularValorTotal();
         ordemServicoRepository.save(os);
-        ordemServicoRepository.flush();
-        OrdemServico salva = ordemServicoRepository.findById(os.getId()).orElseThrow();
-        notificacaoPort.notificarAtualizacaoStatus(salva, null, "Abertura da ordem de serviço");
+        OrdemServico salva = os;
+        registrarNotificacao(salva);
         return montarDetalhe(salva);
+        });
     }
 
     /**
@@ -121,175 +154,187 @@ public class OrdemServicoService {
     }
 
     @Transactional(readOnly = true)
-    public AcompanhamentoOsResponse acompanhamentoPublico(Long numero) {
+    public AcompanhamentoOsResponse acompanhamentoDoCliente(Long numero, IdentidadeAutenticada cliente) {
+        exigirCliente(cliente, "SCOPE_orders:read:self");
         OrdemServico os = ordemServicoRepository.findDetalheAcompanhamentoPorNumero(numero)
                 .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, numero));
+        exigirProprietario(os, numero, cliente);
+        return montarAcompanhamento(os);
+    }
 
-        os.getHistorico().size();
-        List<OrdemServicoDetalheResponse.HistoricoStatusResponse> historico = os.getHistorico().stream()
-                .sorted(Comparator.comparing(OsHistorico::getCriadoEm))
-                .map(h -> new OrdemServicoDetalheResponse.HistoricoStatusResponse(
-                        h.getStatusAnterior(),
-                        h.getStatusNovo(),
-                        h.getObservacao(),
-                        h.getCriadoEm()
-                ))
+    private AcompanhamentoOsResponse montarAcompanhamento(OrdemServico os) {
+        var historico = os.getHistorico().stream().sorted(ORDEM_HISTORICO)
+                .map(h -> new AcompanhamentoOsResponse.HistoricoCliente(
+                        h.getStatusAnterior(), h.getStatusNovo(), h.getCriadoEm(), h.getOcorridoEm()))
                 .toList();
-
-        LocalDateTime ultimo = os.getHistorico().stream()
-                .map(OsHistorico::getCriadoEm)
-                .max(Comparator.naturalOrder())
-                .orElse(os.getCriadoEm());
-
-        return new AcompanhamentoOsResponse(
-                os.getNumero(),
-                os.getStatus(),
-                os.getValorTotal(),
-                os.getCriadoEm(),
-                ultimo,
-                os.getCliente().getNome(),
-                os.getVeiculo().getPlaca(),
-                historico
-        );
+        LocalDateTime ultimo = os.getHistorico().stream().max(ORDEM_HISTORICO)
+                .map(OsHistorico::getCriadoEm).orElse(os.getCriadoEm());
+        var servicos = os.getServicos().stream()
+                .map(s -> new AcompanhamentoOsResponse.LinhaOrcamento(s.getServico().getNome(),
+                        s.getQuantidade(), s.getValorUnitario(), s.getValorTotal())).toList();
+        var pecas = os.getPecas().stream()
+                .map(p -> new AcompanhamentoOsResponse.LinhaOrcamento(p.getPeca().getNome(),
+                        p.getQuantidade(), p.getValorUnitario(), p.getValorTotal())).toList();
+        return new AcompanhamentoOsResponse(os.getNumero(), os.getStatus(), os.getValorTotal(),
+                os.getCriadoEm(), ultimo, servicos, pecas, historico);
     }
 
     @Transactional
     public OrdemServicoDetalheResponse iniciarDiagnostico(UUID id, AcaoOrdemRequest acao) {
+        return command("order_transition", () -> {
         OrdemServico os = ordemServicoRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, id));
-        StatusOrdemServico anterior = os.getStatus();
-        UUID usuarioId = SecurityUtils.usuarioAutenticadoId().orElse(null);
+        Ator ator = atorAtual();
+        Instant ocorridoEm = prepararHistorico(os);
         String obs = acao != null ? acao.observacao() : null;
-        os.iniciarDiagnostico(usuarioId, obs);
+        os.iniciarDiagnostico(ator, ocorridoEm, obs);
         OrdemServico salva = ordemServicoRepository.save(os);
-        notificacaoPort.notificarAtualizacaoStatus(salva, anterior, obs != null ? obs : "Diagnóstico iniciado");
+        registrarNotificacao(salva);
         return montarDetalhe(salva);
+        });
     }
 
     @Transactional
     public OrdemServicoDetalheResponse enviarOrcamento(UUID id, AcaoOrdemRequest acao) {
+        return command("order_transition", () -> {
         OrdemServico os = ordemServicoRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, id));
-        StatusOrdemServico anterior = os.getStatus();
-        UUID usuarioId = SecurityUtils.usuarioAutenticadoId().orElse(null);
+        Ator ator = atorAtual();
+        Instant ocorridoEm = prepararHistorico(os);
         String obs = acao != null ? acao.observacao() : "Orçamento enviado ao cliente";
-        os.enviarOrcamentoParaAprovacao(usuarioId, obs);
+        os.enviarOrcamentoParaAprovacao(ator, ocorridoEm, obs);
         OrdemServico salva = ordemServicoRepository.save(os);
-        notificacaoPort.notificarAtualizacaoStatus(salva, anterior, obs);
+        registrarNotificacao(salva);
         return montarDetalhe(salva);
+        });
     }
 
     @Transactional
-    public OrdemServicoDetalheResponse processarDecisaoOrcamento(Long numero, DecisaoOrcamentoRequest request) {
-        return switch (request.decisao()) {
-            case APROVADO -> aprovarPeloCliente(numero, new AprovacaoClienteRequest(request.documentoCliente()));
-            case RECUSADO -> recusarPeloCliente(numero, request);
-        };
+    public AcompanhamentoOsResponse decidirComoCliente(Long numero, IdentidadeAutenticada cliente,
+                                                     DecisaoClienteRequest pedido) {
+        return command("order_decision", () -> executarDecisaoCliente(numero, cliente, pedido, null));
     }
 
+    /** Compatibility input can only agree with the owner already selected by the signed principal. */
     @Transactional
-    public OrdemServicoDetalheResponse aprovarPeloCliente(Long numero, AprovacaoClienteRequest request) {
+    public AcompanhamentoOsResponse decidirComoClienteLegado(Long numero, IdentidadeAutenticada cliente,
+                                                           DecisaoOrcamentoRequest pedido) {
+        return command("order_decision", () -> executarDecisaoCliente(numero, cliente,
+                new DecisaoClienteRequest(pedido.decisao(), pedido.observacao()), pedido.documentoCliente()));
+    }
+
+    private AcompanhamentoOsResponse executarDecisaoCliente(Long numero, IdentidadeAutenticada cliente,
+                                                          DecisaoClienteRequest pedido, String documentoLegado) {
+        exigirCliente(cliente, "SCOPE_orders:decide:self");
         OrdemServico os = ordemServicoRepository.findComPecasEClientePorNumero(numero)
                 .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, numero));
+        exigirProprietario(os, numero, cliente);
+        if (documentoLegado != null) validarDocumentoCliente(os, documentoLegado);
 
-        validarDocumentoCliente(os, request.documentoCliente());
-        validarEstoqueDisponivel(os);
-
-        StatusOrdemServico anterior = os.getStatus();
-        UUID usuarioId = SecurityUtils.usuarioAutenticadoId().orElse(null);
-        os.aprovarExecucaoCliente(usuarioId, "Orçamento aprovado pelo cliente");
-
-        for (OsPecaItem item : os.getPecas()) {
-            item.getPeca().baixarEstoque(item.getQuantidade());
+        Ator ator = Ator.cliente(cliente.id());
+        Instant ocorridoEm = prepararHistorico(os);
+        boolean aprovado = pedido.decisao() == DecisaoOrcamentoRequest.DecisaoOrcamento.APROVADO;
+        String observacao = pedido.observacao() != null ? pedido.observacao()
+                : aprovado ? "Orçamento aprovado pelo cliente" : "Orçamento recusado pelo cliente";
+        if (aprovado) {
+            validarEstoqueDisponivel(os);
+            os.aprovarExecucaoCliente(ator, ocorridoEm, observacao);
+            for (OsPecaItem item : os.getPecas()) item.getPeca().baixarEstoque(item.getQuantidade());
+        } else {
+            os.recusarOrcamentoCliente(ator, ocorridoEm, observacao);
         }
-
         OrdemServico salva = ordemServicoRepository.save(os);
-        notificacaoPort.notificarAtualizacaoStatus(salva, anterior, "Orçamento aprovado pelo cliente");
-        return montarDetalhe(salva);
+        registrarNotificacao(salva);
+        return montarAcompanhamento(salva);
     }
 
-    @Transactional
-    public OrdemServicoDetalheResponse recusarPeloCliente(Long numero, DecisaoOrcamentoRequest request) {
-        OrdemServico os = ordemServicoRepository.findComPecasEClientePorNumero(numero)
-                .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, numero));
-
-        validarDocumentoCliente(os, request.documentoCliente());
-
-        StatusOrdemServico anterior = os.getStatus();
-        UUID usuarioId = SecurityUtils.usuarioAutenticadoId().orElse(null);
-        String obs = request.observacao() != null ? request.observacao() : "Orçamento recusado pelo cliente";
-        os.recusarOrcamentoCliente(usuarioId, obs);
-
-        OrdemServico salva = ordemServicoRepository.save(os);
-        notificacaoPort.notificarAtualizacaoStatus(salva, anterior, obs);
-        return montarDetalhe(salva);
+    private void exigirCliente(IdentidadeAutenticada cliente, String permissao) {
+        if (cliente == null || cliente.tipo() != TipoPrincipal.CUSTOMER || !cliente.permissoes().contains(permissao)) {
+            throw new AccessDeniedException("Identidade de cliente e escopo próprio obrigatórios.");
+        }
     }
 
-    /**
-     * Atualiza status da OS a partir de ferramenta de e-mail (link/token no corpo da mensagem).
-     * Transições permitidas seguem o mesmo fluxo operacional da oficina.
-     */
-    @Transactional
-    public OrdemServicoDetalheResponse atualizarStatusViaEmail(AtualizacaoStatusEmailRequest request) {
-        if (!emailStatusToken.equals(request.token())) {
-            throw new BusinessRuleException("Token de atualização por e-mail inválido.");
+    private void exigirProprietario(OrdemServico os, Long numero, IdentidadeAutenticada cliente) {
+        if (!os.getCliente().getId().equals(cliente.id())) {
+            throw new EntityNotFoundException(ENTIDADE, numero);
         }
-
-        StatusOrdemServico destino = request.novoStatus();
-        OrdemServico os = (destino == StatusOrdemServico.EM_EXECUCAO)
-                ? ordemServicoRepository.findComPecasEClientePorNumero(request.numero())
-                    .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, request.numero()))
-                : ordemServicoRepository.findByNumero(request.numero())
-                    .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, request.numero()));
-
-        StatusOrdemServico anterior = os.getStatus();
-        String obs = request.observacao() != null ? request.observacao() : "Atualização via e-mail";
-        UUID usuarioId = SecurityUtils.usuarioAutenticadoId().orElse(null);
-
-        switch (destino) {
-            case EM_DIAGNOSTICO -> os.iniciarDiagnostico(usuarioId, obs);
-            case AGUARDANDO_APROVACAO -> os.enviarOrcamentoParaAprovacao(usuarioId, obs);
-            case EM_EXECUCAO -> {
-                validarEstoqueDisponivel(os);
-                os.aprovarExecucaoCliente(usuarioId, obs);
-                for (OsPecaItem item : os.getPecas()) {
-                    item.getPeca().baixarEstoque(item.getQuantidade());
-                }
-            }
-            case FINALIZADA -> os.finalizarServico(usuarioId, obs);
-            case ENTREGUE -> os.registrarEntrega(usuarioId, obs);
-            case RECEBIDA -> throw new BusinessRuleException("Não é possível retornar para RECEBIDA via e-mail.");
-        }
-
-        OrdemServico salva = ordemServicoRepository.save(os);
-        notificacaoPort.notificarAtualizacaoStatus(salva, anterior, obs);
-        return montarDetalhe(salva);
     }
 
     @Transactional
     public OrdemServicoDetalheResponse finalizar(UUID id, AcaoOrdemRequest acao) {
+        return command("order_transition", () -> {
         OrdemServico os = ordemServicoRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, id));
-        StatusOrdemServico anterior = os.getStatus();
-        UUID usuarioId = SecurityUtils.usuarioAutenticadoId().orElse(null);
+        Ator ator = atorAtual();
+        Instant ocorridoEm = prepararHistorico(os);
         String obs = acao != null ? acao.observacao() : null;
-        os.finalizarServico(usuarioId, obs);
+        os.finalizarServico(ator, ocorridoEm, obs);
         OrdemServico salva = ordemServicoRepository.save(os);
-        notificacaoPort.notificarAtualizacaoStatus(salva, anterior, obs != null ? obs : "Serviço finalizado");
+        registrarNotificacao(salva);
         return montarDetalhe(salva);
+        });
     }
 
     @Transactional
     public OrdemServicoDetalheResponse registrarEntrega(UUID id, AcaoOrdemRequest acao) {
+        return command("order_transition", () -> {
         OrdemServico os = ordemServicoRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, id));
-        StatusOrdemServico anterior = os.getStatus();
-        UUID usuarioId = SecurityUtils.usuarioAutenticadoId().orElse(null);
+        Ator ator = atorAtual();
+        Instant ocorridoEm = prepararHistorico(os);
         String obs = acao != null ? acao.observacao() : null;
-        os.registrarEntrega(usuarioId, obs);
+        os.registrarEntrega(ator, ocorridoEm, obs);
         OrdemServico salva = ordemServicoRepository.save(os);
-        notificacaoPort.notificarAtualizacaoStatus(salva, anterior, obs != null ? obs : "Veículo entregue");
+        registrarNotificacao(salva);
         return montarDetalhe(salva);
+        });
+    }
+
+    /** Records outcomes only after the owning transaction has committed or rolled back. */
+    private <T> T command(String operation, Supplier<T> action) {
+        try {
+            T result = action.get();
+            afterTransaction(operation, "accepted");
+            return result;
+        } catch (BusinessRuleException | EntityNotFoundException | AccessDeniedException exception) {
+            afterTransaction(operation, "business-rejected");
+            throw exception;
+        } catch (org.springframework.orm.ObjectOptimisticLockingFailureException exception) {
+            afterTransaction(operation, "conflict");
+            throw exception;
+        } catch (RuntimeException exception) {
+            afterTransaction(operation, "technical-failure");
+            throw exception;
+        }
+    }
+
+    private void afterTransaction(String operation, String outcome) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()
+                && TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override public void afterCompletion(int status) {
+                    String completedOutcome = status == TransactionSynchronization.STATUS_COMMITTED
+                            || !"accepted".equals(outcome)
+                            ? outcome
+                            : "technical-failure";
+                    telemetry.commandCompleted(operation, completedOutcome);
+                }
+            });
+        } else telemetry.commandCompleted(operation, outcome);
+    }
+
+    private void registrarNotificacao(OrdemServico os) {
+        // Persist generated order number, optimistic versions and canonical history before JDBC insertion.
+        ordemServicoRepository.flush();
+        OsHistorico historico = os.getHistorico().stream()
+                .filter(h -> h.getSequencia() != null && h.getSequencia() == os.getSequenciaHistorico())
+                .findFirst().orElseThrow(() -> new IllegalStateException("Canonical history required"));
+        notificacaoPort.notificarAtualizacaoStatus(new StatusOrdemServicoRegistrado(
+                UUID.randomUUID(), StatusOrdemServicoRegistrado.EVENT_TYPE,
+                StatusOrdemServicoRegistrado.SCHEMA_VERSION, os.getId(), os.getNumero(),
+                os.getCliente().getId(), os.getCliente().getVersaoIdentidade(), historico.getSequencia(),
+                historico.getStatusAnterior() == null ? null : historico.getStatusAnterior().name(),
+                historico.getStatusNovo().name(), historico.getOcorridoEm(), CorrelationFilter.correlationId(), CorrelationFilter.traceparent()));
     }
 
     private void validarDocumentoCliente(OrdemServico os, String documentoInformado) {
@@ -394,12 +439,13 @@ public class OrdemServicoService {
                 .toList();
 
         List<OrdemServicoDetalheResponse.HistoricoStatusResponse> historico = os.getHistorico().stream()
-                .sorted(Comparator.comparing(OsHistorico::getCriadoEm))
+                .sorted(ORDEM_HISTORICO)
                 .map(h -> new OrdemServicoDetalheResponse.HistoricoStatusResponse(
                         h.getStatusAnterior(),
                         h.getStatusNovo(),
                         h.getObservacao(),
-                        h.getCriadoEm()
+                        h.getCriadoEm(),
+                        h.getOcorridoEm()
                 ))
                 .toList();
 
