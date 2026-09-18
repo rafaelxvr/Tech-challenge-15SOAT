@@ -359,3 +359,5 @@ Projeto privado — todos os direitos reservados.
 # Phase 3 documentation
 
 See [architecture and operations](docs/phase-3/README.md). The repository records reviewed source artifacts; no cloud deployment is represented as active.
+
+O [contrato de promoção para produção](docs/phase-3/app-production-promotion-contract.md) roda somente em `main`, condicionado a `vars.APP_PRODUCTION_DEPLOYMENT_ENABLED == 'true'` e ao ambiente protegido `production`. Valida inputs revisados e recibo staging do mesmo commit; não obtém credenciais AWS nem executa o launcher de produção. O gate permanece desligado por padrão; `develop` continua exclusivo de staging.

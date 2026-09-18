@@ -63,6 +63,8 @@ These records do not change `docs/phase-3/evidence/manifest.json`, whose eight-r
 
 ### R4 — cloud acceptance
 
+The [production promotion contract](../app-production-promotion-contract.md) adds a main-only, explicitly gated offline review job. Its negative tests require reviewed production inputs and a hash-pinned successful staging receipt for the same source commit. A valid contract still returns deployment-disabled; it does not invoke the production launcher, change any environment variable, or advance R4 acceptance.
+
 The latest APP local activation checkpoint is `LOCAL_ARTIFACTS_READY_AWS_AUTH_BLOCKED`: expired SSO prevented APP publication and CodeBuild execution. No APP S3 VersionIds, build ID or promotion receipt were created. R4 cloud acceptance remains pending; local build/contract success does not establish runtime readiness.
 
 All eight repository/environment records remain `NOT_RUN` in the [APP evidence manifest](manifest.json): APP staging/production, K8S staging/production, FUN staging/production and DB staging/production. The repository-specific status files remain explicit:
