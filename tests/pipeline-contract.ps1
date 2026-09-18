@@ -14,6 +14,9 @@ function Reject([scriptblock]$Action) { try { & $Action | Out-Null } catch { ret
 & "$PSScriptRoot/cloud-window-tests.ps1"
 & "$PSScriptRoot/release-guards-contract.ps1"
 & "$PSScriptRoot/staging-deploy-workflow-contract.ps1"
+# Isolate the mock AWS/sleep commands from this script's no-cloud guard.
+& pwsh -NoLogo -NoProfile -NonInteractive -File "$PSScriptRoot/start-deploy-contract.ps1"
+if ($LASTEXITCODE -ne 0) { throw 'Offline APP launcher contract failed.' }
 $workflow=Get-Content -LiteralPath "$repo/.github/workflows/ci-cd.yml" -Raw
 foreach($required in @('branches: [main, develop]','contents: read','cancel-in-progress: false','./mvnw -B verify','./tests/pipeline-contract.ps1','local-kind-smoke:')) {
     if(-not $workflow.Contains($required)) { throw "Missing APP workflow contract: $required" }

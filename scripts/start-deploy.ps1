@@ -21,6 +21,18 @@ param(
     [string]$ExpectedManifestSha256,
 
     [Parameter(Mandatory)]
+    [ValidateNotNullOrEmpty()]
+    [string]$TerraformVariablesFile,
+
+    [Parameter(Mandatory)]
+    [ValidatePattern('\A[a-f0-9]{64}\z')]
+    [string]$ExpectedTerraformVariablesSha256,
+
+    [Parameter(Mandatory)]
+    [ValidatePattern('\Asha256:[a-f0-9]{64}\z')]
+    [string]$DeployerImageDigest,
+
+    [Parameter(Mandatory)]
     [ValidatePattern('^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$')]
     [string]$Bucket,
 
@@ -57,6 +69,7 @@ function Get-Sha256([string]$Path) { return (Get-FileHash -LiteralPath $Path -Al
 
 if (-not (Test-Path -LiteralPath $SourceZip -PathType Leaf)) { Fail 'source zip does not exist.' }
 if (-not (Test-Path -LiteralPath $ReleaseManifest -PathType Leaf)) { Fail 'release manifest does not exist.' }
+if (-not (Test-Path -LiteralPath $TerraformVariablesFile -PathType Leaf)) { Fail 'Terraform variables file does not exist.' }
 $expectedProjectName = "oficina-phase3-oficina-app-$Environment-deploy"
 $expectedSourcePrefix = "releases/app/$Environment"
 if ($ProjectName -cne $expectedProjectName) { Fail 'project name is not the reviewed APP executor for the requested environment.' }
@@ -66,8 +79,16 @@ $actualSourceSha = Get-Sha256 $SourceZip
 if ($actualSourceSha -cne $ExpectedSha256) { Fail 'source digest mismatch.' }
 $actualManifestSha = Get-Sha256 $ReleaseManifest
 if ($actualManifestSha -cne $ExpectedManifestSha256) { Fail 'release-manifest digest mismatch.' }
+if ((Get-Sha256 $TerraformVariablesFile) -cne $ExpectedTerraformVariablesSha256) { Fail 'Terraform variables digest mismatch.' }
+try { $tfvars = Get-Content -LiteralPath $TerraformVariablesFile -Raw | ConvertFrom-Json -NoEnumerate }
+catch { Fail 'Terraform variables must be valid JSON.' }
+if ($tfvars -isnot [pscustomobject]) { Fail 'Terraform variables must be a JSON object.' }
 try { $manifest = Get-Content -LiteralPath $ReleaseManifest -Raw | ConvertFrom-Json }
 catch { Fail 'release manifest is not valid JSON.' }
+if ($manifest.PSObject.Properties['deployerImageDigest'] -eq $null -or
+    $manifest.deployerImageDigest -cne $DeployerImageDigest) { Fail 'release manifest does not bind the reviewed deployer image digest.' }
+if ($manifest.PSObject.Properties['terraformVariablesSha256'] -eq $null -or
+    $manifest.terraformVariablesSha256 -cne $ExpectedTerraformVariablesSha256) { Fail 'release manifest does not bind the reviewed Terraform variables digest.' }
 
 if ($manifest.schemaVersion -ne 1 -or $manifest.environment -cne $Environment -or $manifest.sourceCommit -cne $SourceCommit -or $manifest.artifactSha256 -cne $ExpectedSha256) {
     Fail 'release manifest does not bind the reviewed source/environment.'
@@ -90,6 +111,7 @@ if ($DryRun) {
 # passed to CodeBuild so a later overwrite cannot change the source being run.
 $sourceKey = "$SourcePrefix/bundle.zip"
 $manifestKey = "$SourcePrefix/manifests/$SourceCommit.json"
+$tfvarsKey = "$SourcePrefix/config/$SourceCommit.tfvars.json"
 $sourceResult = & aws s3api put-object --bucket $Bucket --key $sourceKey --body $SourceZip --output json 2>$null
 if ($LASTEXITCODE -ne 0) { Fail 'versioned source upload failed.' }
 try { $sourceUpload = $sourceResult | ConvertFrom-Json } catch { Fail 'source upload returned invalid JSON.' }
@@ -99,6 +121,14 @@ $manifestResult = & aws s3api put-object --bucket $Bucket --key $manifestKey --b
 if ($LASTEXITCODE -ne 0) { Fail 'versioned release-manifest upload failed.' }
 try { $manifestUpload = $manifestResult | ConvertFrom-Json } catch { Fail 'release-manifest upload returned invalid JSON.' }
 if ([string]::IsNullOrWhiteSpace($manifestUpload.VersionId)) { Fail 'release-manifest upload returned no S3 VersionId.' }
+
+$tfvarsResult = & aws s3api put-object --bucket $Bucket --key $tfvarsKey --body $TerraformVariablesFile --output json 2>$null
+if ($LASTEXITCODE -ne 0) { Fail 'versioned Terraform variables upload failed.' }
+try { $tfvarsUpload = $tfvarsResult | ConvertFrom-Json } catch { Fail 'Terraform variables upload returned invalid JSON.' }
+if ($null -eq $tfvarsUpload -or $null -eq $tfvarsUpload.PSObject.Properties['VersionId'] -or
+    [string]::IsNullOrWhiteSpace([string]$tfvarsUpload.VersionId) -or [string]$tfvarsUpload.VersionId -ceq 'null') {
+    Fail 'Terraform variables upload returned no immutable S3 VersionId.'
+}
 
 # Keep this list closed. In particular, no secret, arbitrary command or
 # operator-supplied override is forwarded to the platform-owned project.
@@ -111,7 +141,11 @@ $overrides = @(
     "name=RELEASE_MANIFEST_KEY,value=$manifestKey,type=PLAINTEXT",
     "name=RELEASE_MANIFEST_VERSION_ID,value=$($manifestUpload.VersionId),type=PLAINTEXT",
     "name=EXPECTED_MANIFEST_SHA256,value=$ExpectedManifestSha256,type=PLAINTEXT",
-    "name=SOURCE_COMMIT,value=$SourceCommit,type=PLAINTEXT"
+    "name=SOURCE_COMMIT,value=$SourceCommit,type=PLAINTEXT",
+    "name=DEPLOYER_IMAGE_DIGEST,value=$DeployerImageDigest,type=PLAINTEXT",
+    "name=TFVARS_OBJECT_KEY,value=$tfvarsKey,type=PLAINTEXT",
+    "name=TFVARS_VERSION_ID,value=$($tfvarsUpload.VersionId),type=PLAINTEXT",
+    "name=EXPECTED_TFVARS_SHA256,value=$ExpectedTerraformVariablesSha256,type=PLAINTEXT"
 )
 $started = & aws codebuild start-build --project-name $ProjectName --source-version $sourceUpload.VersionId --environment-variables-override $overrides --output json 2>$null
 if ($LASTEXITCODE -ne 0) { Fail 'CodeBuild launch failed.' }
@@ -142,6 +176,10 @@ do {
                     releaseManifestKey = $manifestKey
                     releaseManifestVersionId = [string]$manifestUpload.VersionId
                     releaseManifestSha256 = $ExpectedManifestSha256
+                    terraformVariablesKey = $tfvarsKey
+                    terraformVariablesVersionId = [string]$tfvarsUpload.VersionId
+                    terraformVariablesSha256 = $ExpectedTerraformVariablesSha256
+                    deployerImageDigest = $DeployerImageDigest
                     codeBuildProjectName = $ProjectName
                     codeBuildBuildId = $buildId
                     buildStatus = 'SUCCEEDED'
@@ -167,6 +205,10 @@ do {
                         codeBuildBuildId = $buildId
                         artifactSha256 = $ExpectedSha256
                         releaseManifestSha256 = $ExpectedManifestSha256
+                        terraformVariablesKey = $tfvarsKey
+                        terraformVariablesVersionId = [string]$tfvarsUpload.VersionId
+                        terraformVariablesSha256 = $ExpectedTerraformVariablesSha256
+                        deployerImageDigest = $DeployerImageDigest
                     } | ConvertTo-Json | Set-Content -LiteralPath $PromotionEvidenceOutputFile -NoNewline
                 }
             }

@@ -34,6 +34,18 @@ Require 'APP_PROJECT_NAME: oficina-phase3-oficina-app-staging-deploy' 'reviewed 
 Require 'APP_RELEASE_INPUT_PATH' 'reviewed release input variable.'
 Require 'APP_PLATFORM_INPUTS_PATH' 'reviewed platform input variable.'
 Require 'APP_CLOUD_WINDOW_EVIDENCE_PATH' 'reviewed cloud-window evidence variable.'
+foreach ($name in @('APP_TERRAFORM_VARIABLES_PATH', 'APP_TERRAFORM_VARIABLES_SHA256', 'APP_DEPLOYER_IMAGE_DIGEST')) {
+    Require ($name + ': ${{ vars.' + $name + ' }}') "reviewed $name configuration."
+    Require ($name + ' = $env:' + $name) "missing $name must fail required-input validation."
+}
+Require '$env:APP_CLOUD_WINDOW_EVIDENCE_PATH, $env:APP_TERRAFORM_VARIABLES_PATH)' 'reviewed tfvars file must exist before credentials.'
+Require 'name: Validate immutable deployment bindings without AWS' 'offline launcher preflight.'
+Require '-DryRun' 'preflight must not perform AWS mutations.'
+foreach ($binding in @('-TerraformVariablesFile $env:APP_TERRAFORM_VARIABLES_PATH', '-ExpectedTerraformVariablesSha256 $env:APP_TERRAFORM_VARIABLES_SHA256', '-DeployerImageDigest $env:APP_DEPLOYER_IMAGE_DIGEST')) {
+    if ([regex]::Matches($workflow, [regex]::Escape($binding)).Count -ne 2) { throw "Both preflight and launch must pass the same reviewed binding: $binding" }
+}
+if ($workflow.IndexOf('name: Validate immutable deployment bindings without AWS') -gt $workflow.IndexOf('name: Configure AWS OIDC')) { throw 'Immutable input validation must happen before requesting AWS credentials.' }
+Reject 'APP_TERRAFORM_VARIABLES_SHA256\s*=\s*\(?Get-FileHash' 'tfvars review digest must be independently supplied, not minted by the workflow.'
 Require 'cancel-in-progress: false' 'deployment runs must not be cancelled.'
 
 Reject 'pull_request|pull_request_target|workflow_dispatch|workflow_dispatch:|schedule:|tags:' 'PR, manual, scheduled and tag activation.'

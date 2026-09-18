@@ -40,12 +40,18 @@ jobs:
           APP_RELEASE_INPUT_PATH: ${{ vars.APP_RELEASE_INPUT_PATH }}
           APP_PLATFORM_INPUTS_PATH: ${{ vars.APP_PLATFORM_INPUTS_PATH }}
           APP_CLOUD_WINDOW_EVIDENCE_PATH: ${{ vars.APP_CLOUD_WINDOW_EVIDENCE_PATH }}
+          APP_TERRAFORM_VARIABLES_PATH: ${{ vars.APP_TERRAFORM_VARIABLES_PATH }}
+          APP_TERRAFORM_VARIABLES_SHA256: ${{ vars.APP_TERRAFORM_VARIABLES_SHA256 }}
+          APP_DEPLOYER_IMAGE_DIGEST: ${{ vars.APP_DEPLOYER_IMAGE_DIGEST }}
         run: |
           $required = @{
             APP_CLOUD_DEPLOYMENT_ROLE_ARN = $env:APP_CLOUD_DEPLOYMENT_ROLE_ARN
             APP_RELEASE_INPUT_PATH = $env:APP_RELEASE_INPUT_PATH
             APP_PLATFORM_INPUTS_PATH = $env:APP_PLATFORM_INPUTS_PATH
             APP_CLOUD_WINDOW_EVIDENCE_PATH = $env:APP_CLOUD_WINDOW_EVIDENCE_PATH
+            APP_TERRAFORM_VARIABLES_PATH = $env:APP_TERRAFORM_VARIABLES_PATH
+            APP_TERRAFORM_VARIABLES_SHA256 = $env:APP_TERRAFORM_VARIABLES_SHA256
+            APP_DEPLOYER_IMAGE_DIGEST = $env:APP_DEPLOYER_IMAGE_DIGEST
           }
           foreach ($entry in $required.GetEnumerator()) {
             if ([string]::IsNullOrWhiteSpace($entry.Value)) {
@@ -55,7 +61,7 @@ jobs:
           if ($env:APP_CLOUD_DEPLOYMENT_ROLE_ARN -cnotmatch '^arn:aws:iam::[0-9]{12}:role/[A-Za-z0-9+=,.@_/-]+$') {
             throw 'APP_CLOUD_DEPLOYMENT_ROLE_ARN must be a reviewed same-account IAM role ARN.'
           }
-          foreach ($path in @($env:APP_RELEASE_INPUT_PATH, $env:APP_PLATFORM_INPUTS_PATH, $env:APP_CLOUD_WINDOW_EVIDENCE_PATH)) {
+          foreach ($path in @($env:APP_RELEASE_INPUT_PATH, $env:APP_PLATFORM_INPUTS_PATH, $env:APP_CLOUD_WINDOW_EVIDENCE_PATH, $env:APP_TERRAFORM_VARIABLES_PATH)) {
             if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
               throw "Reviewed staging input file does not exist: $path."
             }
@@ -87,6 +93,32 @@ jobs:
           "source_sha=$sourceSha" >> $env:GITHUB_OUTPUT
           "manifest_sha=$manifestSha" >> $env:GITHUB_OUTPUT
 
+      - name: Validate immutable deployment bindings without AWS
+        shell: pwsh
+        env:
+          APP_CLOUD_WINDOW_EVIDENCE_PATH: ${{ vars.APP_CLOUD_WINDOW_EVIDENCE_PATH }}
+          APP_TERRAFORM_VARIABLES_PATH: ${{ vars.APP_TERRAFORM_VARIABLES_PATH }}
+          APP_TERRAFORM_VARIABLES_SHA256: ${{ vars.APP_TERRAFORM_VARIABLES_SHA256 }}
+          APP_DEPLOYER_IMAGE_DIGEST: ${{ vars.APP_DEPLOYER_IMAGE_DIGEST }}
+        run: |
+          & ./scripts/start-deploy.ps1 `
+            -Environment staging `
+            -SourceZip '${{ steps.package.outputs.source_zip }}' `
+            -ExpectedSha256 '${{ steps.package.outputs.source_sha }}' `
+            -ReleaseManifest '${{ steps.package.outputs.manifest }}' `
+            -ExpectedManifestSha256 '${{ steps.package.outputs.manifest_sha }}' `
+            -TerraformVariablesFile $env:APP_TERRAFORM_VARIABLES_PATH `
+            -ExpectedTerraformVariablesSha256 $env:APP_TERRAFORM_VARIABLES_SHA256 `
+            -DeployerImageDigest $env:APP_DEPLOYER_IMAGE_DIGEST `
+            -Bucket $env:APP_ARTIFACT_BUCKET `
+            -SourcePrefix $env:APP_SOURCE_PREFIX `
+            -ProjectName $env:APP_PROJECT_NAME `
+            -SourceCommit $env:GITHUB_SHA `
+            -CloudWindowEvidenceFile $env:APP_CLOUD_WINDOW_EVIDENCE_PATH `
+            -EventName $env:GITHUB_EVENT_NAME `
+            -BranchRef $env:GITHUB_REF `
+            -DryRun
+
       - name: Configure AWS OIDC for reviewed staging launcher
         uses: aws-actions/configure-aws-credentials@cabfdba3510de1431bac9dba27511d97497fc100 # v5
         with:
@@ -98,6 +130,9 @@ jobs:
         shell: pwsh
         env:
           APP_CLOUD_WINDOW_EVIDENCE_PATH: ${{ vars.APP_CLOUD_WINDOW_EVIDENCE_PATH }}
+          APP_TERRAFORM_VARIABLES_PATH: ${{ vars.APP_TERRAFORM_VARIABLES_PATH }}
+          APP_TERRAFORM_VARIABLES_SHA256: ${{ vars.APP_TERRAFORM_VARIABLES_SHA256 }}
+          APP_DEPLOYER_IMAGE_DIGEST: ${{ vars.APP_DEPLOYER_IMAGE_DIGEST }}
         run: |
           $promotion = Join-Path $env:RUNNER_TEMP 'app-staging-promotion-receipt.json'
           & ./scripts/start-deploy.ps1 `
@@ -106,6 +141,9 @@ jobs:
             -ExpectedSha256 '${{ steps.package.outputs.source_sha }}' `
             -ReleaseManifest '${{ steps.package.outputs.manifest }}' `
             -ExpectedManifestSha256 '${{ steps.package.outputs.manifest_sha }}' `
+            -TerraformVariablesFile $env:APP_TERRAFORM_VARIABLES_PATH `
+            -ExpectedTerraformVariablesSha256 $env:APP_TERRAFORM_VARIABLES_SHA256 `
+            -DeployerImageDigest $env:APP_DEPLOYER_IMAGE_DIGEST `
             -Bucket $env:APP_ARTIFACT_BUCKET `
             -SourcePrefix $env:APP_SOURCE_PREFIX `
             -ProjectName $env:APP_PROJECT_NAME `
