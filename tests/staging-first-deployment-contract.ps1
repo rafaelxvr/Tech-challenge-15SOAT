@@ -37,12 +37,13 @@ function kubectl {
         $global:LASTEXITCODE=1; return 'secret-canary: restricted executor error'
     }
     if ($verb -ceq 'get') {
+        if ($f.Responses.ContainsKey($kind)) { return $f.Responses[$kind] }
         if ($kind -ceq 'pods') {
             $podList=@{items=@()}
             if($f.Failure -ceq 'orphan') { $podList.items=@(@{metadata=@{name='orphan'}}) }
             return ($podList | ConvertTo-Json -Depth 10)
         }
-        if ($kind -ceq 'job') { return (@{status=@{conditions=@(@{type='Complete';status='True'})};spec=@{template=@{spec=@{containers=@(@{image=$f.Release.migrationImage})}}}} | ConvertTo-Json -Depth 12) }
+        if ($kind -ceq 'job') { return (@{apiVersion='batch/v1';kind='Job';metadata=@{name=$a[6];namespace='oficina-staging'};status=@{conditions=@(@{type='Complete';status='True'})};spec=@{template=@{spec=@{containers=@(@{image=$f.Release.migrationImage})}}}} | ConvertTo-Json -Depth 12) }
         if ($f.Objects.ContainsKey($kind)) { return ($f.Objects[$kind] | ConvertTo-Json -Depth 50) }
         Assert ($a -contains '--ignore-not-found=true') 'Only successful ignore-not-found may prove absence.'
         return ''
@@ -73,7 +74,7 @@ function Fixture([switch]$Existing) {
     $bundle=@{apiVersion='v1';kind='List';items=@($deployment,$account,$hpa)}; Save $bundle workload
     $release=@{schemaVersion=1;environment='staging';mode='FirstWriter';sourceCommit=('b'*40);contractVersion='phase3-v2';databaseSchemaVersion='V8';platformInputsSha256=(Get-AppFileHash "$temp/platform.json");image=$platform.Image;previousImage=$platform.Image;migrationImage=($prefix+'flyway@sha256:'+('d'*64));kubeContext='arn:aws:eks:us-east-1:123456789012:cluster/oficina';migrationSecretName='oficina-migration-staging';migrationServiceAccount='oficina-migration-staging';migrationSqlSha256=(Get-AppMigrationDigest);stagingWorkloadSha256=(Get-AppFileHash "$temp/workload.json");artifactSha256=(Get-AppFileHash "$temp/source.zip");deployerImageDigest=('sha256:'+('e'*64))}
     $window=@{windowStartUtc=[DateTimeOffset]::UtcNow.AddHours(-1).ToString('o');windowEndUtc=[DateTimeOffset]::UtcNow.AddHours(1).ToString('o');recordedAtUtc=[DateTimeOffset]::UtcNow.ToString('o');accountEvidenceReference='review/fixture';projectAllowanceUsd=100;reserveUsd=10;currentEstimatedSpendUsd=1}; Save $window window
-    $global:firstDeploymentFixture=@{Calls=[Collections.Generic.List[string]]::new();Failure='';Locked=$false;Owner='';Objects=@{};Release=$release;Bundle=$bundle;Window=$window;SourceKey='releases/app/staging/bundle.zip'}
+    $global:firstDeploymentFixture=@{Calls=[Collections.Generic.List[string]]::new();Failure='';Locked=$false;Owner='';Objects=@{};Responses=@{};Release=$release;Bundle=$bundle;Window=$window;SourceKey='releases/app/staging/bundle.zip'}
     if ($Existing) { $global:firstDeploymentFixture.Objects=@{deployment=$deployment;serviceaccount=$account;hpa=$hpa} }
 }
 function Run([switch]$Execute) {
@@ -92,6 +93,31 @@ try {
     Fixture -Existing; Run -Execute
     $calls=$global:firstDeploymentFixture.Calls -join "`n"
     Assert ($calls.Contains('delete hpa') -and -not $calls.Contains('bootstrap-deployment.json')) 'Existing workload must use the validated drain path without bootstrap writes.'
+    foreach ($kind in @('deployment','hpa','serviceaccount')) {
+        foreach ($response in @('null','{}','[]','[{}]','true','"text"','0','{')) {
+            Fixture; $global:firstDeploymentFixture.Responses[$kind]=$response
+            Reject { Run -Execute }
+            $calls=$global:firstDeploymentFixture.Calls -join "`n"
+            Assert (-not ($calls -match 'create -f|patch deployment|delete hpa|apply -f')) 'Malformed nonempty response cannot imply absence or allow writes/migration.'
+            Assert (-not $global:firstDeploymentFixture.Locked) 'Rejected cluster response must release its lock.'
+        }
+        foreach ($mutation in @(
+            {param($item) $item.kind='Job'},
+            {param($item) $item.metadata.name='other-app'},
+            {param($item) $item.metadata.namespace='oficina-production'},
+            {param($item) $item.apiVersion='wrong/v1'},
+            {param($item) $item.kind=@($item.kind)},
+            {param($item) $item.metadata.name=@($item.metadata.name)},
+            {param($item) $item.metadata.namespace=$null},
+            {param($item) $item.Remove('metadata')}
+        )) {
+            Fixture -Existing; & $mutation $global:firstDeploymentFixture.Objects[$kind]
+            Reject { Run -Execute }
+            $calls=$global:firstDeploymentFixture.Calls -join "`n"
+            Assert (-not ($calls -match 'create -f|patch deployment|delete hpa|apply -f')) 'Wrong cluster object identity must fail before writes/migration.'
+            Assert (-not $global:firstDeploymentFixture.Locked) 'Rejected identity must release its lock.'
+        }
+    }
     foreach ($failure in @('read','create','migration','rollout','orphan','window-expires','lock')) {
         Fixture; $global:firstDeploymentFixture.Failure=$failure; Reject { Run -Execute }
         $calls=$global:firstDeploymentFixture.Calls -join "`n"

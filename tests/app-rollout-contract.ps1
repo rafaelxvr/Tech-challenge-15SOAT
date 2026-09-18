@@ -32,6 +32,12 @@ function kubectl {
             job { @{status=@{conditions=@(@{type='Complete';status=$(if($f.Failure -ceq 'incomplete'){'False'}else{'True'})})};spec=@{template=@{spec=@{containers=@(@{image=$f.Release.migrationImage})}}}} }
             default { throw "Unexpected mock read $kind" }
         }
+        if ($kind -cne 'pods') {
+            $r.kind = @{deployment='Deployment'; hpa='HorizontalPodAutoscaler'; serviceaccount='ServiceAccount'; job='Job'}[$kind]
+            $r.apiVersion = @{deployment='apps/v1'; hpa='autoscaling/v2'; serviceaccount='v1'; job='batch/v1'}[$kind]
+            if (-not $r.ContainsKey('metadata')) { $r.metadata=@{} }
+            $r.metadata.name=$a[6]; $r.metadata.namespace="oficina-$($f.Environment)"
+        }
         return ($r | ConvertTo-Json -Depth 20)
     }
     return 'mock operation accepted'

@@ -56,9 +56,28 @@ function Read-ClusterObject([string]$Kind, [string]$Name) {
     $arguments = @('get', $Kind, $Name, '-o', 'json')
     if ($initializeStaging) { $arguments += '--ignore-not-found=true' }
     $json = (Invoke-ReleaseKubectl $arguments) -join "`n"
-    if ([string]::IsNullOrWhiteSpace($json)) { return $null }
-    try { return ConvertFrom-Json -InputObject $json -NoEnumerate }
+    if ([string]::IsNullOrWhiteSpace($json)) {
+        if ($initializeStaging) { return $null }
+        throw 'APP cluster response is unexpectedly empty.'
+    }
+    try { $object = ConvertFrom-Json -InputObject $json -NoEnumerate }
     catch { throw 'APP cluster response is not valid JSON.' }
+    $expected = @{
+        deployment = @{Kind='Deployment'; ApiVersion='apps/v1'}
+        hpa = @{Kind='HorizontalPodAutoscaler'; ApiVersion='autoscaling/v2'}
+        serviceaccount = @{Kind='ServiceAccount'; ApiVersion='v1'}
+        job = @{Kind='Job'; ApiVersion='batch/v1'}
+    }[$Kind]
+    try {
+        if ($object -isnot [pscustomobject] -or
+            $object.kind -isnot [string] -or $object.kind -cne $expected.Kind -or
+            $object.apiVersion -isnot [string] -or $object.apiVersion -cne $expected.ApiVersion -or
+            $object.metadata -isnot [pscustomobject] -or
+            $object.metadata.name -isnot [string] -or $object.metadata.name -cne $Name -or
+            $object.metadata.namespace -isnot [string] -or $object.metadata.namespace -cne "oficina-$($release.environment)" -or
+            ($Kind -cne 'serviceaccount' -and $object.spec -isnot [pscustomobject])) { throw 'Invalid object.' }
+    } catch { throw 'APP cluster response does not match the requested Kubernetes object.' }
+    return $object
 }
 $lockAcquired = $false
 $owner = [guid]::NewGuid().ToString()
