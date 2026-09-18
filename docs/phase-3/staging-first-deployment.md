@@ -1,6 +1,6 @@
 # Reviewed staging first deployment
 
-`scripts/deploy-app.ps1` accepts an optional `-StagingWorkloadFile` adapter for staging `FirstWriter` releases. Without `-ExecuteReviewedPlan` it only validates and renders files; there are no AWS or Kubernetes calls. This change does not connect or enable the cloud executor: `scripts/deploy.ps1` still throws `APP_DEPLOYMENT_DISABLED`, and production initialization is rejected.
+`scripts/deploy-app.ps1` accepts an optional `-StagingWorkloadFile` adapter for staging `FirstWriter` releases. Without `-ExecuteReviewedPlan` it only validates and renders files; there are no AWS or Kubernetes calls. The separate `scripts/deploy.ps1` executor is staging-only and requires the explicit `-ApplyReviewedPlan` switch plus the reviewed staging Terraform root; production initialization is rejected. The launcher performs the cloud-window check before the CodeBuild handoff.
 
 ## Reviewed inputs
 

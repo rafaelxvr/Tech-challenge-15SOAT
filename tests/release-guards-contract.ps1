@@ -21,6 +21,28 @@ function RejectWithMessage([scriptblock]$Action, [string]$ExpectedMessage) {
 function Save($object, $path) { $object | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $path -NoNewline }
 function Sha($path) { (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() }
 try {
+    $terraformRoot = Join-Path $repo 'infra/environments/staging'
+    $createdTerraformRoot = $false
+    if (-not (Test-Path -LiteralPath $terraformRoot -PathType Container)) {
+        New-Item -ItemType Directory -Path $terraformRoot -Force | Out-Null
+        $createdTerraformRoot = $true
+    }
+    $tfvarsDirectory = '/tmp/oficina'
+    $tfvarsPathForApply = '/tmp/oficina/app_staging.tfvars.json'
+    $createdTfvarsDirectory = $false
+    if (-not (Test-Path -LiteralPath $tfvarsDirectory -PathType Container)) {
+        New-Item -ItemType Directory -Path $tfvarsDirectory -Force | Out-Null
+        $createdTfvarsDirectory = $true
+    }
+    $tfvarsWasPresent = Test-Path -LiteralPath $tfvarsPathForApply -PathType Leaf
+    if (-not $tfvarsWasPresent) { Save @{ reviewedFixture = $true } $tfvarsPathForApply }
+    $terraformLog = Join-Path $temp 'terraform.log'
+    function terraform {
+        Add-Content -LiteralPath $terraformLog -Value (($args | ForEach-Object { [string]$_ }) -join ' ')
+        $out = @($args | Where-Object { [string]$_ -like '-out=*' })
+        if ($out.Count -eq 1) { New-Item -ItemType File -Path ([string]$out[0]).Substring(5) -Force | Out-Null }
+        $global:LASTEXITCODE = 0
+    }
     $now = [datetime]::UtcNow
     $evidence = @{ windowStartUtc=$now.AddMinutes(-2).ToString('o'); windowEndUtc=$now.AddMinutes(30).ToString('o'); recordedAtUtc=$now.ToString('o'); accountEvidenceReference='offline-fixture'; projectAllowanceUsd=80; reserveUsd=20; currentEstimatedSpendUsd=0 }
     $window = Join-Path $temp 'window.json'; Save $evidence $window
@@ -38,14 +60,35 @@ try {
         $launch.DeployerImageDigest = $manifest.deployerImageDigest
         if ((& "$repo/scripts/start-deploy.ps1" @launch -DryRun) -cne 'INPUTS_VALIDATED_DEPLOYMENT_DISABLED') { throw 'Dry run must remain explicitly disabled.' }
         Reject { & "$repo/scripts/start-deploy.ps1" @launch }
-        # Both environments use the canonical APP Terraform namespace. This
-        # contract remains disabled and does not activate either environment.
+        # Both environments use the canonical APP Terraform namespace. The
+        # default and dry-run paths remain side-effect free.
         $executorNamespace = 'app'
         $deploy=@{Environment=$environment; ReleaseManifest=$manifestPath; ExpectedSourceSha256=(Sha $bundle); ExpectedManifestSha256=(Sha $manifestPath); SourceCommit=('a'*40); ExpectedDeployerImageDigest=('sha256:' + ('b'*64)); TerraformVariablesFile="/tmp/oficina/${executorNamespace}_$environment.tfvars.json"; TerraformBackendBucket='oficina-state-fixture'; TerraformBackendKey="$executorNamespace/$environment.tfstate"; TerraformBackendLockKey="$executorNamespace/$environment.tfstate.tflock"; TerraformBackendRegion='us-east-1'}
         if ((& "$repo/scripts/deploy.ps1" @deploy -DryRun) -cne 'INPUTS_VALIDATED_DEPLOYMENT_DISABLED') { throw 'Executor dry-run must not report deployment success.' }
-        RejectWithMessage { & "$repo/scripts/deploy.ps1" @deploy } 'APP_DEPLOYMENT_DISABLED:'
-        RejectWithMessage { & "$repo/scripts/deploy.ps1" @deploy -ApplyReviewedPlan } 'APP_DEPLOYMENT_DISABLED:'
-        RejectWithMessage { & "$repo/scripts/deploy.ps1" @deploy -ApplyReviewedPlan -DryRun } 'APP_DEPLOYMENT_DISABLED:'
+        if ($environment -eq 'staging') {
+            RejectWithMessage { & "$repo/scripts/deploy.ps1" @deploy } 'APP_DEPLOYMENT_DISABLED:'
+        }
+        else {
+            RejectWithMessage { & "$repo/scripts/deploy.ps1" @deploy } 'APP_PRODUCTION_DEPLOYMENT_DISABLED:'
+        }
+        if ((& "$repo/scripts/deploy.ps1" @deploy -ApplyReviewedPlan -DryRun) -cne 'INPUTS_VALIDATED_DEPLOYMENT_DISABLED') { throw 'Dry-run must remain disabled even when apply was requested.' }
+        if ($environment -eq 'staging') {
+            Remove-Item -LiteralPath $terraformLog -Force -ErrorAction SilentlyContinue
+            $stagingDeploy = $deploy.Clone(); $stagingDeploy.TerraformVariablesFile = $tfvarsPathForApply
+            $activationOutput = & "$repo/scripts/deploy.ps1" @stagingDeploy -ApplyReviewedPlan
+            if ($activationOutput -cne 'Reviewed Terraform plan applied.') { throw 'Explicit staging activation must apply the reviewed Terraform plan.' }
+            $terraformCalls = @(Get-Content -LiteralPath $terraformLog)
+            if ($terraformCalls.Count -ne 4 -or
+                $terraformCalls[0] -notmatch 'init.*-backend-config=bucket=oficina-state-fixture.*-backend-config=key=app/staging.tfstate.*-backend-config=region=us-east-1.*use_lockfile=true' -or
+                $terraformCalls[1] -notmatch 'validate' -or
+                $terraformCalls[2] -notmatch 'plan.*-var-file=/tmp/oficina/app_staging.tfvars.json.*-out=' -or
+                $terraformCalls[3] -notmatch 'apply.*oficina-app-staging-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\.tfplan') {
+                throw 'Staging activation must invoke Terraform init, validate, plan and apply with reviewed inputs.'
+            }
+        }
+        else {
+            RejectWithMessage { & "$repo/scripts/deploy.ps1" @deploy -ApplyReviewedPlan } 'APP_PRODUCTION_DEPLOYMENT_DISABLED:'
+        }
         $otherEnvironment = if ($environment -ceq 'staging') { 'production' } else { 'staging' }
         $otherNamespace = 'application'
         foreach ($entry in @(
@@ -82,10 +125,13 @@ try {
     Reject { & $lock -Action Acquire -OwnerToken $second @lockInputs }
     Reject { & $lock -Action Release -OwnerToken $second @lockInputs }
     & $lock -Action Release -OwnerToken $first @lockInputs | Out-Null
-    Write-Output 'PASS: release branch, immutable source/runtime digest, closed window, staging promotion and non-stealable lock contracts; live deployment disabled.'
+    Write-Output 'PASS: release branch, immutable source/runtime digest, closed window, staging promotion, guarded staging Terraform activation and non-stealable lock contracts.'
 }
 finally {
     $resolved=[IO.Path]::GetFullPath($temp)
     if(-not $resolved.StartsWith([IO.Path]::GetFullPath([IO.Path]::GetTempPath()),[StringComparison]::OrdinalIgnoreCase) -or -not [IO.Path]::GetFileName($resolved).StartsWith('oficina-release-guards-')) { throw 'Unsafe test cleanup.' }
     Remove-Item -LiteralPath $resolved -Recurse -Force
+    if ($createdTerraformRoot -and (Test-Path -LiteralPath $terraformRoot -PathType Container)) { Remove-Item -LiteralPath $terraformRoot -Recurse -Force }
+    if (-not $tfvarsWasPresent -and (Test-Path -LiteralPath $tfvarsPathForApply -PathType Leaf)) { Remove-Item -LiteralPath $tfvarsPathForApply -Force }
+    if ($createdTfvarsDirectory -and (Test-Path -LiteralPath $tfvarsDirectory -PathType Container)) { Remove-Item -LiteralPath $tfvarsDirectory -Recurse -Force }
 }

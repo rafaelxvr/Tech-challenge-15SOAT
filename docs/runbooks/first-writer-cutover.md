@@ -1,6 +1,6 @@
 # Reviewed APP migration and rollout contract
 
-Status: source-only I6 adapter. `scripts/deploy-app.ps1` renders locally by default; the existing I7 `start-deploy.ps1` and `deploy.ps1` remain disabled. No cluster rehearsal, schema upgrade, interruption measurement or cloud release is claimed. Run the offline [contract tests](../../tests/app-rollout-contract.ps1) with `pwsh -File tests/app-rollout-contract.ps1`.
+Status: source-only I6 adapter. `scripts/deploy-app.ps1` renders locally by default; the I7 launcher remains opt-in and the APP Terraform adapter is staging-only with an explicit apply switch. No cluster rehearsal, schema upgrade, interruption measurement or cloud release is claimed. Run the offline [contract tests](../../tests/app-rollout-contract.ps1) with `pwsh -File tests/app-rollout-contract.ps1`.
 
 ## Inputs and ownership
 

@@ -1,9 +1,11 @@
 # APP staging activation contract
 
-Status: **review specification; deployment disabled**. This contract defines the
-nonsecret artifacts and acceptance checks required before a separately reviewed
-activation. It does not enable the workflow gate, activate `scripts/deploy.ps1`,
-modify CodeBuild, migrate Terraform state or authorize an apply. The metadata
+Status: **reviewed staging-only executor contract**. The workflow gate remains
+disabled unless `APP_CLOUD_DEPLOYMENT_ENABLED=true`; the platform-owned CodeBuild
+executor remains the only cloud entry point. `scripts/deploy.ps1` accepts its
+explicit `-ApplyReviewedPlan` switch only for staging, validates the reviewed
+manifest and canonical Terraform paths, and fails closed when the reviewed
+staging Terraform root is absent. Production has no apply path. The metadata
 checker is a test/review aid, not a production preflight or an attestation.
 
 ## Required GitHub inputs
@@ -143,8 +145,11 @@ ECR returned `ImageNotFoundException` for that digest. It also observed the wron
 not hardcoded approvals or claims about subsequent platform changes. Resolve or
 supersede each with fresh evidence.
 
-`scripts/deploy.ps1` must continue throwing `APP_DEPLOYMENT_DISABLED` for invocation
-without switches, with `-ApplyReviewedPlan`, or with both apply and dry-run.
-Dry-run alone may return `INPUTS_VALIDATED_DEPLOYMENT_DISABLED`. Passing metadata
-checks must never remove those guards. This specification changes no production
-script, workflow variable, AWS configuration, production environment or apply path.
+`scripts/deploy.ps1` must return `INPUTS_VALIDATED_DEPLOYMENT_DISABLED` for every
+dry-run, reject staging without `-ApplyReviewedPlan`, and reject every production
+invocation with `APP_PRODUCTION_DEPLOYMENT_DISABLED` before Terraform. Staging
+apply is permitted only after the immutable manifest and canonical backend/tfvars
+checks pass and only when `infra/environments/staging` exists. The launcher remains
+responsible for the fresh cloud-window check before CodeBuild starts; the adapter
+does not accept an operator-supplied window override. Passing metadata checks does
+not prove a successful cloud deployment.
