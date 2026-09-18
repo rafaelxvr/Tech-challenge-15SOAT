@@ -43,7 +43,9 @@ def main():
 
     def link(url):
         safe = escape(url, quote=True)
-        return "NOT_PROVIDED - publication/access pending" if url == "NOT_PROVIDED" else f'<link href="{safe}" color="#136f73">{safe}</link>'
+        if url == "NOT_PROVIDED":
+            return "NOT_PROVIDED - publication/access pending"
+        return safe if template else f'<link href="{safe}" color="#136f73">{safe}</link>'
 
     def decorate(canvas, document):
         canvas.saveState()
@@ -72,12 +74,16 @@ def main():
     story.append(paragraph("Repositories and reviewer access", "Heading2"))
     for repo in manifest["repositories"]:
         story.append(paragraph("Repository " + escape(repo["name"]) + "<br/>" + link(repo["url"]) +
+                               ("<br/>Reviewed source: " + escape(repo["reviewedRevision"]) if "reviewedRevision" in repo else "") +
                                "<br/>Access evidence: " + link(repo["accessEvidence"])))
     story += [PageBreak(), paragraph("Documentation and release context", "Title"), paragraph("Documentation", "Heading2")]
     if manifest["documentationUrls"]:
         story.extend(paragraph(link(url)) for url in manifest["documentationUrls"])
     else:
         story.append(paragraph("NOT_PROVIDED - published architecture, API, ADR/RFC and evidence URLs must be supplied after review."))
+    if manifest.get("pendingEvidence"):
+        story.append(paragraph("Pending evidence", "Heading2"))
+        story.extend(paragraph(escape(item)) for item in manifest["pendingEvidence"])
     story.append(paragraph("Recording plan", "Heading2"))
     story.append(paragraph("Target: 14 minutes. Maximum: 15 minutes. This is a planned schedule, not a measured video duration."))
     for line in [
