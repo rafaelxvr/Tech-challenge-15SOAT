@@ -1,9 +1,9 @@
 # Phase 3 implementation evidence audit
 
-**Audit date:** 2026-09-17  
+**Audit date:** 2026-09-18  
 **Scope:** local source, tests, repository contracts and CI definitions in the four delivery repositories.
 
-This audit records locally evidenced implementation work. It does not claim that AWS resources, protected environments, external publishing or end-to-end cloud acceptance exist.
+This audit records locally evidenced implementation work and the staging receipts that have since been captured. It does not claim production, application end-to-end acceptance, protected-environment completeness, external publishing or portal submission.
 
 ## Repository and CI evidence
 
@@ -28,11 +28,21 @@ The canonical local evidence index is [the requirements matrix](requirements.md)
 
 Representative local checks include `Phase3ContractTest`, `ClienteIdentityTest`, `ConcorrenciaAgregadosTest`, `TokenTrustTest`, `CustomerOrderSecurityTest`, `OutboxTransactionTest`, `OutboxPublisherTest`, `RelatorioPeriodoTest`, `CpfAuthenticationTest`, `DynamoDesafioStoreTest`, `TokenAndRoutePolicyTest`, `NotificarStatusTest`, K8S `pipeline-contract.ps1`, `executor-bootstrap-harness.ps1`, `newrelic-chart-tests.ps1`, and DB `pipeline-contract.ps1` plus PostgreSQL Terraform tests.
 
+## Staging receipts now available
+
+The central matrix remains fail-closed until every required repository/environment record is complete, but these reviewed staging receipts are now durable:
+
+- [K8S platform acceptance](../../../../oficina-k8s-infra/docs/evidence/staging-platform-acceptance-2026-09-17.md) — platform Terraform executor `SUCCEEDED`; application/runtime behavior remains outside this receipt.
+- [DB platform acceptance](../../../../oficina-db-infra/docs/evidence/staging-database-platform-acceptance-2026-09-17.md) — private encrypted PostgreSQL `SUCCEEDED`; SQL grants, migrations and APP integration remain outside this receipt.
+- [FUN staging runtime receipt](../../../../oficina-functions/docs/evidence/staging-runtime-handoff-contract.md) — workflow `35304367076`, verification and private CodeBuild deployment succeeded with immutable source/artifact/manifest hashes; production was skipped.
+
+These records do not change `docs/phase-3/evidence/manifest.json`, whose eight-record verification still correctly refuses an incomplete acceptance matrix.
+
 ## Explicitly not run
 
 ### R4 — cloud acceptance
 
-All eight repository/environment records remain `NOT_RUN` in the [APP evidence manifest](manifest.json): APP staging/production, K8S staging/production, FUN staging/production and DB staging/production. The repository-specific status files remain explicit:
+The [APP evidence manifest](manifest.json) remains `NOT_RUN` because APP staging runtime, all production runs, and the required failure/recovery matrix are still incomplete. The repository-specific status files remain explicit:
 
 - [FUN R4 status](../../../../oficina-functions/docs/evidence/r4-local-status.json)
 - [K8S R4 status](../../../../oficina-k8s-infra/docs/evidence/r4-local-status.json)
