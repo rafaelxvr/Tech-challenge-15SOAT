@@ -18,6 +18,11 @@ foreach($binding in @('uses: actions/download-artifact@v4','repository: ${{ gith
 if($workflow -match 'id-token:|configure-aws|start-deploy|deploy-app|secrets\.|workflow_dispatch|pull_request|schedule:|refs/heads/develop') { throw 'Production contract cannot obtain cloud credentials or invoke a launcher.' }
 if(-not $staging.Contains("github.ref == 'refs/heads/develop'") -or $staging -match 'production|refs/heads/main') { throw 'develop must remain staging-only.' }
 if(-not $workflow.Contains('./scripts/check-production-promotion.ps1')) { throw 'Workflow must execute the tested guard.' }
+if(-not $workflow.Contains("if: vars.APP_PRODUCTION_RUNTIME_ENABLED == 'true'") -or
+    -not $workflow.Contains('./scripts/deploy-production.ps1') -or
+    $workflow -match '-ExecuteReviewedPlan|-ApplyReviewedPlan|RuntimeEnabled\s+true') {
+    throw 'Runtime workflow must explicitly gate preflight without enabling execution.'
+}
 $script:externalCalls=0
 function aws { $script:externalCalls++; throw 'Forbidden AWS call' }
 function kubectl { $script:externalCalls++; throw 'Forbidden kubectl call' }

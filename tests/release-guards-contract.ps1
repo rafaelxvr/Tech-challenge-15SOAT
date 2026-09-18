@@ -46,19 +46,21 @@ try {
         # default and dry-run paths remain side-effect free.
         $executorNamespace = 'app'
         $deploy=@{Environment=$environment; ReleaseManifest=$manifestPath; ExpectedSourceSha256=(Sha $bundle); ExpectedManifestSha256=(Sha $manifestPath); SourceCommit=('a'*40); ExpectedDeployerImageDigest=('sha256:' + ('b'*64)); TerraformVariablesFile="/tmp/oficina/${executorNamespace}_$environment.tfvars.json"; TerraformBackendBucket='oficina-state-fixture'; TerraformBackendKey="$executorNamespace/$environment.tfstate"; TerraformBackendLockKey="$executorNamespace/$environment.tfstate.tflock"; TerraformBackendRegion='us-east-1'}
-        if ((& "$repo/scripts/deploy.ps1" @deploy -DryRun) -cne 'INPUTS_VALIDATED_DEPLOYMENT_DISABLED') { throw 'Executor dry-run must not report deployment success.' }
         if ($environment -eq 'staging') {
+            if ((& "$repo/scripts/deploy.ps1" @deploy -DryRun) -cne 'INPUTS_VALIDATED_DEPLOYMENT_DISABLED') { throw 'Executor dry-run must not report deployment success.' }
             RejectWithMessage { & "$repo/scripts/deploy.ps1" @deploy } 'APP_DEPLOYMENT_DISABLED:'
+            if ((& "$repo/scripts/deploy.ps1" @deploy -ApplyReviewedPlan -DryRun) -cne 'INPUTS_VALIDATED_DEPLOYMENT_DISABLED') { throw 'Dry-run must remain disabled even when apply was requested.' }
         }
         else {
-            RejectWithMessage { & "$repo/scripts/deploy.ps1" @deploy } 'APP_PRODUCTION_DEPLOYMENT_DISABLED:'
+            RejectWithMessage { & "$repo/scripts/deploy.ps1" @deploy } 'APP_PRODUCTION_GATE_DISABLED'
+            RejectWithMessage { & "$repo/scripts/deploy.ps1" @deploy -DryRun } 'APP_PRODUCTION_GATE_DISABLED'
+            RejectWithMessage { & "$repo/scripts/deploy.ps1" @deploy -ApplyReviewedPlan -DryRun } 'APP_PRODUCTION_GATE_DISABLED'
         }
-        if ((& "$repo/scripts/deploy.ps1" @deploy -ApplyReviewedPlan -DryRun) -cne 'INPUTS_VALIDATED_DEPLOYMENT_DISABLED') { throw 'Dry-run must remain disabled even when apply was requested.' }
         if ($environment -eq 'staging') {
             RejectWithMessage { & "$repo/scripts/deploy.ps1" @deploy -ApplyReviewedPlan } 'APP_STAGING_INPUTS_INVALID:'
         }
         else {
-            RejectWithMessage { & "$repo/scripts/deploy.ps1" @deploy -ApplyReviewedPlan } 'APP_PRODUCTION_DEPLOYMENT_DISABLED:'
+            RejectWithMessage { & "$repo/scripts/deploy.ps1" @deploy -ApplyReviewedPlan } 'APP_PRODUCTION_GATE_DISABLED'
         }
         $otherEnvironment = if ($environment -ceq 'staging') { 'production' } else { 'staging' }
         $otherNamespace = 'application'

@@ -58,5 +58,24 @@ jobs:
             -SourceCommit $env:GITHUB_SHA `
             -EventName $env:GITHUB_EVENT_NAME `
             -BranchRef $env:GITHUB_REF
-          # Contract validation is not deployment. The production runtime
-          # adapter remains disabled pending a separately reviewed change.
+          # This workflow never executes a rollout or obtains cloud identity.
+
+      - name: Preflight explicitly selected production runtime adapter
+        if: vars.APP_PRODUCTION_RUNTIME_ENABLED == 'true'
+        shell: pwsh
+        env:
+          APP_PRODUCTION_DEPLOYMENT_ENABLED: ${{ vars.APP_PRODUCTION_DEPLOYMENT_ENABLED }}
+          APP_PRODUCTION_RUNTIME_ENABLED: ${{ vars.APP_PRODUCTION_RUNTIME_ENABLED }}
+          APP_PRODUCTION_ROLE_ARN: ${{ vars.APP_PRODUCTION_ROLE_ARN }}
+          APP_PRODUCTION_INPUTS_SHA256: ${{ vars.APP_PRODUCTION_INPUTS_SHA256 }}
+        run: |
+          & ./scripts/deploy-production.ps1 `
+            -Enabled $env:APP_PRODUCTION_DEPLOYMENT_ENABLED `
+            -RuntimeEnabled $env:APP_PRODUCTION_RUNTIME_ENABLED `
+            -ProtectedEnvironment production `
+            -RoleArn $env:APP_PRODUCTION_ROLE_ARN `
+            -InputsFile (Join-Path $env:RUNNER_TEMP 'app-production-review/production-inputs.json') `
+            -ExpectedInputsSha256 $env:APP_PRODUCTION_INPUTS_SHA256 `
+            -SourceCommit $env:GITHUB_SHA -EventName $env:GITHUB_EVENT_NAME -BranchRef $env:GITHUB_REF `
+            -OutputDirectory (Join-Path $env:RUNNER_TEMP 'app-production-preflight')
+          # Deliberately no execute switch or cloud identity in this workflow.
