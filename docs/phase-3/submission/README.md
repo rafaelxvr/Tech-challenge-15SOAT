@@ -1,6 +1,8 @@
 # Phase 3 offline submission preparation
 
-Current status: **NOT_READY**. The [manifest template](submission-manifest.json) leaves repository/video/documentation URLs unprovided, access unverified, release revision uncaptured and measured video duration `null`. The [14-minute script](video-script.md) is a recording plan, not a recording. The [eight R4 records](../evidence/manifest.json) remain separate deployment acceptance evidence; a PDF never changes them.
+Current status: **NOT_READY**. The [manifest template](submission-manifest.json) now records the four canonical repository URLs and reviewed source references: APP `7584afa`, K8S `22d60af`, FUN `dbceabcf`, DB `33b7da9`. Architecture/evidence links are pinned to those commits. These are source references, not successful release/deployment claims or verified external-access evidence. Reviewer access remains false, access evidence/video URL remain `NOT_PROVIDED`, and measured duration remains `null`. The [14-minute script](video-script.md) is a recording plan, not a recording. The [eight R4 records](../evidence/manifest.json) remain separate deployment acceptance evidence; a PDF never changes them.
+
+The optional schema-v1 `reviewedRevision` fields require all four immutable revisions and bind APP to `releaseRevision`; `pendingEvidence` explicitly lists R4/cloud activation, authenticated reviewer access, recording and final submission gaps. Template validation permits reviewed references while refusing access/video/readiness assertions. No AWS operation, live URL/access verification, recording or publication was performed for this refresh.
 
 ## Local runtime and checks
 
@@ -15,7 +17,7 @@ python scripts/submission/build_pdf.py --manifest docs/phase-3/submission/submis
 python scripts/submission/check_submission.py --manifest docs/phase-3/submission/submission-manifest.json --allow-template --output artifacts/phase-3-submission.template.pdf --render-pages artifacts/submission-template-pages
 ```
 
-Without `--allow-template`, the committed template is rejected. Its generated PDF is watermarked `NOT_READY / FIXTURE_ONLY` on **every page**, has no external link annotations and cannot assert a release or reviewer access. The actual recorded duration stays `NOT_RECORDED`; the 14-minute target is explicitly labeled as a plan. Generated PDFs/page images stay under ignored `artifacts/`; regenerate them from the committed sources. Fixed PDF metadata makes the same template reproducible; metadata timestamps are not capture/deployment evidence.
+Without `--allow-template`, the committed template is rejected. Its generated PDF is watermarked `NOT_READY / FIXTURE_ONLY` on **every page**, renders known URLs as plain references with no external link annotations, and does not assert a completed release or reviewer access. The actual recorded duration stays `NOT_RECORDED`; the 14-minute target is explicitly labeled as a plan. Generated PDFs/page images stay under ignored `artifacts/`; regenerate them from the committed sources. Fixed PDF metadata makes the same template reproducible; metadata timestamps are not capture/deployment evidence.
 
 The test-only `--allow-fixture` mode is separate. Its reserved `example.invalid` URLs, synthetic revision, duration and access assertions exist solely to exercise clickable-link rendering in a temporary directory. Never copy those values to the submission manifest. The tests prove that placeholders cannot pass submission mode, flags cannot validate incomplete real metadata, a `%PDF` header alone is insufficient, changed link targets are rejected and the PDF's manifest digest must match. They also render every template page; manually inspect the PNGs for legibility after layout changes.
 
@@ -27,9 +29,9 @@ A successful **submission-mode structural check** only checks supplied metadata.
 
 ## Remaining evidence before final rendering
 
-1. Obtain the exact tested release revision and real deployment/evidence records; describe PASS, FAIL and NOT_RUN honestly. The separate staging control-plane note is not APP/FUN deployment proof.
+1. Complete R4 cloud acceptance and APP cloud activation/promotion evidence against reviewed revisions; describe PASS, FAIL and NOT_RUN honestly. Existing source references and separate platform receipts do not prove APP runtime acceptance.
 2. Record the planned chapters with synthetic data; disclose prior recordings/time compression. Measure the finished video's actual duration (maximum 900 seconds), review audio/text readability and redact secrets/PII.
-3. Obtain concrete authorization/destinations for publication and any reviewer invitation, then supply the four actual repository URLs, video URL and documentation URLs. Do not fabricate destinations to unblock the renderer.
+3. Obtain concrete authorization/destinations for publication and any reviewer invitation, verify the supplied repository/documentation references, and supply the actual video URL. Do not fabricate destinations to unblock the renderer.
 4. Verify video playback and authenticated reviewer access to every repository, record durable redacted evidence links, and complete the manifest with that evidence. The source checks require four distinct repositories and a positive measured duration at most 900 seconds.
 5. Render the final single PDF without preview flags; parse/render every page and manually exercise each actual exported link with the intended access context. Portal submission remains a separate authorized action after review of the finished file.
 

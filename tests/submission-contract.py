@@ -36,6 +36,32 @@ with tempfile.TemporaryDirectory() as directory:
         invalid[field] = value
         changed.write_text(json.dumps(invalid))
         require(run(CHECK, "--manifest", changed, "--allow-template"), 1, "Submission refused")
+    for mutation in [
+        lambda m: m["repositories"][0].update(reviewerAccessVerified=True),
+        lambda m: m["repositories"][0].update(accessEvidence="https://github.com/reviewer/access"),
+        lambda m: m["repositories"][0].update(reviewedRevision=None),
+        lambda m: m["repositories"][0].update(reviewedRevision=[]),
+        lambda m: m["repositories"][0].update(url=m["repositories"][1]["url"]),
+        lambda m: m["repositories"][0].update(url="https://example.invalid/unknown"),
+        lambda m: m.update(videoUrl="https://videos.example.org/not-recorded"),
+        lambda m: m.update(pendingEvidence=[None]),
+        lambda m: m.update(documentationUrls=["http://github.com/unreviewed"]),
+    ]:
+        invalid = copy.deepcopy(template)
+        mutation(invalid)
+        changed.write_text(json.dumps(invalid))
+        require(run(CHECK, "--manifest", changed, "--allow-template"), 1, "Submission refused")
+    blank = copy.deepcopy(template)
+    blank.update(releaseRevision="NOT_CAPTURED", documentationUrls=[])
+    for repo in blank["repositories"]:
+        repo.pop("reviewedRevision")
+        repo["url"] = "NOT_PROVIDED"
+    changed.write_text(json.dumps(blank))
+    require(run(CHECK, "--manifest", changed, "--allow-template"), 0, "PASS: template-only")
+    pending_fixture = copy.deepcopy(fixture)
+    pending_fixture["pendingEvidence"] = ["R4 pending"]
+    changed.write_text(json.dumps(pending_fixture))
+    require(run(CHECK, "--manifest", changed, "--allow-fixture"), 1, "pending evidence")
     for field, value in [("schemaVersion", True), ("releaseRevision", []), ("videoDurationSeconds", True),
                          ("videoDurationSeconds", 901), ("repositories", []), ("documentationUrls", [])]:
         invalid = copy.deepcopy(fixture)
@@ -64,7 +90,8 @@ with tempfile.TemporaryDirectory() as directory:
     assert not template_pdf.exists()
     require(run(BUILD, "--manifest", TEMPLATE, "--allow-template", "--output", template_pdf), 0, "PDF built and checked")
     require(run(CHECK, "--manifest", TEMPLATE, "--allow-template", "--output", template_pdf, "--render-pages", directory / "pages"), 0, "PASS: template-only")
-    assert len(list((directory / "pages").glob("page-*.png"))) == 2
+    from pypdf import PdfReader
+    assert len(list((directory / "pages").glob("page-*.png"))) == len(PdfReader(template_pdf).pages)
     original_bytes = template_pdf.read_bytes()
     require(run(BUILD, "--manifest", TEMPLATE, "--allow-template", "--output", template_pdf), 0, "PDF built and checked")
     assert template_pdf.read_bytes() == original_bytes, "Same template must reproduce identical PDF bytes"
