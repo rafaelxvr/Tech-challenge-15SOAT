@@ -5,11 +5,17 @@
 
 This audit records locally evidenced implementation work. It does not claim that AWS resources, protected environments, external publishing or end-to-end cloud acceptance exist.
 
+## APP offline release handoff receipt
+
+Merged PR [#11](https://github.com/rafaelxvr/Tech-challenge-15SOAT/pull/11) landed as reviewed revision `6edc75898a4624e2969e0cd87238717865643b14`. The deterministic offline handoff packages that source revision, verifies the archive and canonical release manifest, renders the migration/rollout outputs, and writes a receipt with `status: INPUTS_VALIDATED_DEPLOYMENT_DISABLED`, `success: false`, and `deploymentAttempted: false`. The exact contract path is `tests/pipeline-contract.ps1`, which runs `deployment-lock-race-contract.ps1`, `app-rollout-contract.ps1`, `source-package-contract.ps1`, `offline-release-handoff-contract.ps1`, `workflow-context-contract.ps1`, `cloud-window-tests.ps1`, and `release-guards-contract.ps1`; the workflow then runs `./mvnw -B verify`.
+
+CI run [35307790732](https://github.com/rafaelxvr/Tech-challenge-15SOAT/actions/runs/35307790732) completed successfully for the PR head, including the offline contract gate, Java/Maven verification, and Docker-backed integration verification. The PR-only Docker image and local Kind smoke jobs were skipped. This is local contract/build evidence only: no AWS, OIDC, CodeBuild, Terraform or `kubectl` deployment was attempted, and no APP runtime acceptance `PASS` is claimed. The APP R4 staging/production records in [manifest.json](manifest.json) remain `NOT_RUN`.
+
 ## Repository and CI evidence
 
 | Repository | Reviewed revision | Local CI/contract evidence |
 | --- | --- | --- |
-| APP | `d181e6b9c248e9f255199eed64f97e3d902b0c55` | Java 17 Maven wrapper/toolchain files, focused application tests, `mvnw.cmd verify` work, and `.github/workflows/ci-cd.yml` |
+| APP | `6edc75898a4624e2969e0cd87238717865643b14` | Java 17 Maven wrapper/toolchain files, the exact offline release contract suite, `mvnw.cmd verify`, and `.github/workflows/ci-cd.yml`; CI run `35307790732` passed for the PR validation |
 | FUN | `af73d643a49b73eec54a854311519f02fbecf4f2` | Maven/runtime tests, `tests/pipeline-contract.ps1`, and `.github/workflows/ci.yml` |
 | K8S | `105f7f31e5df0b1ce781aae442c73d266009efc8` | Terraform/PowerShell contract suite, pinned Terraform/Helm setup, provider initialization and `.github/workflows/ci-cd.yml` |
 | DB | `e1047320ab76347c0400f6e8b6781043d9f46868` | PostgreSQL/root Terraform tests, `tests/pipeline-contract.ps1`, and `.github/workflows/ci-cd.yml` |
