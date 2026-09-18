@@ -57,6 +57,10 @@ All eight repository/environment records remain `NOT_RUN` in the [APP evidence m
 - [K8S R4 status](../../../../oficina-k8s-infra/docs/evidence/r4-local-status.json)
 - [DB R4 status](../../../../oficina-db-infra/docs/evidence/r4-local-status.json)
 
+### Read-only deployment-input inventory — 2026-09-18
+
+The GitHub environment secret listing was inspected by name and timestamp only; no secret values were read. APP staging and production have no listed deployment secrets. FUN staging lists `CLOUD_WINDOW_EVIDENCE_JSON` (`2026-09-18T03:40:13Z`) and `TERRAFORM_TFVARS_JSON` (`2026-09-17T23:53:09Z`); FUN production has none. K8S staging lists `CLOUD_WINDOW_EVIDENCE_JSON` (`2026-09-18T00:24:26Z`) and `TERRAFORM_TFVARS_JSON` (`2026-09-17T22:14:52Z`); K8S production has none. DB staging lists `CLOUD_WINDOW_EVIDENCE_JSON` (`2026-09-17T23:26:47Z`) and `TERRAFORM_TFVARS_JSON` (`2026-09-16T22:41:29Z`); DB production has none. The timestamps and secret contents must be refreshed or reviewed before staging, and the missing APP inputs must be supplied; this inventory does not change the R4 `NOT_RUN` status.
+
 Read-only GitHub API verification on 2026-09-18 confirmed that all four delivery repositories have protected `main` and `develop` branches (`enforce_admins: true`, force pushes and deletions disabled, and pull-request review protection configured) and `staging`/`production` environments with custom branch policies mapping `staging` to `develop` and `production` to `main`. The protection configuration has zero required approvals and no required status checks. This verifies repository policy configuration only: no screenshots or runtime R4 acceptance are captured, and cloud deployment, production, failure-recovery and observability acceptance remain `NOT_RUN`.
 
 The K8S staging control-plane observation records only the base API/platform handoff. It is not evidence of application, functions, database, production, protected-route, telemetry, failure-recovery or eight-run acceptance. Live AWS deployment, measured capacity/costs, SES/SNS/New Relic enrollment and cleanup authorization remain outstanding.
