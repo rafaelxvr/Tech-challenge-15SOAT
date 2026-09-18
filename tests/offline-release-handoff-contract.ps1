@@ -14,12 +14,13 @@ try {
     $prefix = '123456789012.dkr.ecr.us-east-1.amazonaws.com/'
     $platform = [ordered]@{ Environment='staging'; Image=($prefix + 'oficina@sha256:' + ('a'*64)); DbHost='private.example.test'; AppIrsaRoleArn='arn:aws:iam::123456789012:role/oficina-staging-app' }
     $platformPath = Join-Path $temp 'platform.json'; Save-Json $platform $platformPath
+    $tfvarsPath = Join-Path $temp 'reviewed.tfvars.json'; Save-Json @{ environment='staging' } $tfvarsPath
     . "$repo/scripts/app-release-contract.ps1"
     $release = [ordered]@{
         schemaVersion=1; environment='staging'; mode='FirstWriter'; sourceCommit=$sourceCommit; contractVersion='phase3-v2'; databaseSchemaVersion='V8'
         platformInputsSha256=(Hash $platformPath); image=$platform.Image; previousImage=($prefix + 'oficina@sha256:' + ('b'*64)); migrationImage=($prefix + 'flyway@sha256:' + ('c'*64))
         kubeContext='arn:aws:eks:us-east-1:123456789012:cluster/oficina'; migrationSecretName='oficina-migration-staging'; migrationServiceAccount='oficina-migration-staging'; migrationSqlSha256=(Get-AppMigrationDigest)
-        runtimeArtifactDigest=('sha256:' + ('d'*64)); deployerImageDigest=('sha256:' + ('e'*64))
+        runtimeArtifactDigest=('sha256:' + ('d'*64)); deployerImageDigest=('sha256:' + ('e'*64)); terraformVariablesSha256=(Hash $tfvarsPath)
     }
     $releaseInputPath = Join-Path $temp 'release-input.json'; Save-Json $release $releaseInputPath
     $outOne = Join-Path $temp 'one'; $outTwo = Join-Path $temp 'two'
@@ -30,6 +31,9 @@ try {
     $manifest = Get-Content -LiteralPath (Join-Path $outOne 'release-manifest.json') -Raw | ConvertFrom-Json
     $receipt = Get-Content -LiteralPath (Join-Path $outOne 'release-receipt.json') -Raw | ConvertFrom-Json
     Assert ($manifest.sourceCommit -ceq $sourceCommit -and $manifest.artifactSha256 -ceq (Hash (Join-Path $outOne 'source.zip'))) 'Manifest does not bind source archive.'
+    Assert ($manifest.deployerImageDigest -ceq $release.deployerImageDigest) 'Packaging changed or dropped the reviewed deployer digest.'
+    Assert ($manifest.terraformVariablesSha256 -ceq (Hash $tfvarsPath)) 'Packaging changed or dropped the reviewed Terraform variables digest.'
+    Assert ($receipt.releaseManifestSha256 -ceq (Hash (Join-Path $outOne 'release-manifest.json'))) 'Handoff receipt must bind the manifest including executor and Terraform variables digests.'
     Assert ($receipt.status -ceq 'INPUTS_VALIDATED_DEPLOYMENT_DISABLED' -and $receipt.success -eq $false -and $receipt.deploymentAttempted -eq $false) 'Receipt must be an explicit non-success disabled result.'
     Reject { & "$repo/scripts/offline-release-handoff.ps1" -SourceCommit $sourceCommit -ReleaseInputFile $releaseInputPath -PlatformInputsFile $platformPath -OutputDirectory $outOne }
     Write-Output 'PASS: deterministic offline APP handoff packages, verifies, renders and records disabled deployment.'
