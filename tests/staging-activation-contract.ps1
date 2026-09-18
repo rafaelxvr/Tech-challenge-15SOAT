@@ -11,8 +11,16 @@ if (-not (Test-Path -LiteralPath $contractPath -PathType Leaf)) { throw 'APP sta
 function Assert-ExecutorMetadata($Metadata) {
     $fields = @('schemaVersion','recordedAtUtc','projectName','sourceLocation','configuredDeployerImage','reviewedDeployerDigest','ecrRepositoryUri','ecrImageDigests')
     if ($Metadata -isnot [pscustomobject] -or
-        (@($Metadata.PSObject.Properties.Name | Sort-Object) -join ',') -cne (@($fields | Sort-Object) -join ',') -or
-        $Metadata.schemaVersion -ne 1) { throw 'INVALID_METADATA_FIELDS' }
+        (@($Metadata.PSObject.Properties.Name | Sort-Object) -join ',') -cne (@($fields | Sort-Object) -join ',')) { throw 'INVALID_METADATA_FIELDS' }
+    if ($Metadata.schemaVersion -isnot [int] -and $Metadata.schemaVersion -isnot [long]) { throw 'INVALID_METADATA_TYPES' }
+    foreach ($field in @('recordedAtUtc','projectName','sourceLocation','configuredDeployerImage','reviewedDeployerDigest','ecrRepositoryUri')) {
+        if ($Metadata.$field -isnot [string] -or [string]::IsNullOrWhiteSpace($Metadata.$field)) { throw 'INVALID_METADATA_TYPES' }
+    }
+    if ($Metadata.ecrImageDigests -isnot [array] -or
+        @($Metadata.ecrImageDigests | Where-Object { $_ -isnot [string] -or $_ -cnotmatch '\Asha256:[a-f0-9]{64}\z' }).Count -ne 0) {
+        throw 'INVALID_ECR_DIGEST_LIST'
+    }
+    if ($Metadata.schemaVersion -ne 1) { throw 'INVALID_METADATA_FIELDS' }
     try { $recorded = [datetimeoffset]::Parse($Metadata.recordedAtUtc, [Globalization.CultureInfo]::InvariantCulture) }
     catch { throw 'INVALID_METADATA_TIMESTAMP' }
     if ($recorded.Offset -ne [timespan]::Zero -or $recorded -gt [datetimeoffset]::UtcNow) { throw 'INVALID_METADATA_TIMESTAMP' }
@@ -26,10 +34,6 @@ function Assert-ExecutorMetadata($Metadata) {
     $configuredDigest = $Matches.digest
     if ($Metadata.reviewedDeployerDigest -cnotmatch '\Asha256:[a-f0-9]{64}\z' -or
         $Metadata.reviewedDeployerDigest -cne $configuredDigest) { throw 'DEPLOYER_DIGEST_MISMATCH' }
-    if ($Metadata.ecrImageDigests -isnot [array] -or
-        @($Metadata.ecrImageDigests | Where-Object { $_ -isnot [string] -or $_ -cnotmatch '\Asha256:[a-f0-9]{64}\z' }).Count -ne 0) {
-        throw 'INVALID_ECR_DIGEST_LIST'
-    }
     if ($Metadata.ecrImageDigests -cnotcontains $configuredDigest) { throw 'DEPLOYER_IMAGE_NOT_FOUND' }
     return 'METADATA_VALIDATED_DEPLOYMENT_DISABLED'
 }
@@ -41,6 +45,13 @@ function Reject-Metadata($Metadata, [string]$Expected) {
         throw "Expected '$Expected', received '$($_.Exception.Message)'."
     }
     throw "Expected metadata rejection: $Expected"
+}
+
+function Read-MetadataJson([string]$Json) {
+    $options = @{InputObject=$Json; NoEnumerate=$true}
+    # PowerShell 7.5+ otherwise turns ISO date strings into DateTime values.
+    if ((Get-Command ConvertFrom-Json).Parameters.ContainsKey('DateKind')) { $options.DateKind = 'String' }
+    return ,(ConvertFrom-Json @options)
 }
 
 $fixture = [pscustomobject]@{
@@ -74,6 +85,38 @@ $extra = $fixture.PSObject.Copy()
 $extra | Add-Member -NotePropertyName unexpectedField -NotePropertyValue 'not-allowlisted'
 Reject-Metadata $extra 'INVALID_METADATA_FIELDS'
 
+# Exercise JSON types, including arrays that PowerShell comparison operators
+# would otherwise filter/coerce instead of comparing as scalar strings.
+$fixtureJson = $fixture | ConvertTo-Json -Depth 5 -Compress
+if ((Assert-ExecutorMetadata (Read-MetadataJson $fixtureJson)) -cne 'METADATA_VALIDATED_DEPLOYMENT_DISABLED') {
+    throw 'Valid JSON metadata must remain a disabled result.'
+}
+foreach ($field in @('projectName','sourceLocation','configuredDeployerImage','reviewedDeployerDigest','ecrRepositoryUri','recordedAtUtc')) {
+    foreach ($case in @(@{Value=@()}, @{Value=@($fixture.$field)}, @{Value=$null}, @{Value=1}, @{Value=$true}, @{Value=''})) {
+        $bad = $fixture.PSObject.Copy()
+        $bad.$field = $case.Value
+        Reject-Metadata (Read-MetadataJson ($bad | ConvertTo-Json -Depth 5 -Compress)) 'INVALID_METADATA_TYPES'
+    }
+}
+foreach ($field in $fixture.PSObject.Properties.Name) {
+    $bad = $fixture.PSObject.Copy()
+    $bad.PSObject.Properties.Remove($field)
+    Reject-Metadata (Read-MetadataJson ($bad | ConvertTo-Json -Depth 5 -Compress)) 'INVALID_METADATA_FIELDS'
+}
+foreach ($case in @(@{Value=@()}, @{Value=@(1)}, @{Value=$null}, @{Value='1'}, @{Value=$true}, @{Value=1.5})) {
+    $bad = $fixture.PSObject.Copy()
+    $bad.schemaVersion = $case.Value
+    Reject-Metadata (Read-MetadataJson ($bad | ConvertTo-Json -Depth 5 -Compress)) 'INVALID_METADATA_TYPES'
+}
+foreach ($json in @('[]', ('[' + $fixtureJson + ']'), 'null')) {
+    Reject-Metadata (Read-MetadataJson $json) 'INVALID_METADATA_FIELDS'
+}
+foreach ($case in @(@{Value=$null}, @{Value=('sha256:' + ('a'*64))}, @{Value=@($null)})) {
+    $bad = $fixture.PSObject.Copy()
+    $bad.ecrImageDigests = $case.Value
+    Reject-Metadata (Read-MetadataJson ($bad | ConvertTo-Json -Depth 5 -Compress)) 'INVALID_ECR_DIGEST_LIST'
+}
+
 # A removed gate or renamed variable must invalidate the documented contract.
 $contract = Get-Content -LiteralPath $contractPath -Raw
 $workflow = Get-Content -LiteralPath (Join-Path $repo '.github/workflows/staging-deploy.yml') -Raw
@@ -84,7 +127,7 @@ foreach ($name in $variables) {
 if (-not $workflow.Contains('APP_SOURCE_PREFIX: releases/app/staging')) { throw 'Workflow source prefix differs from activation specification.' }
 
 if ($MetadataFile) {
-    $metadata = Get-Content -LiteralPath $MetadataFile -Raw | ConvertFrom-Json
+    $metadata = Read-MetadataJson (Get-Content -LiteralPath $MetadataFile -Raw)
     Assert-ExecutorMetadata $metadata
 } else {
     Write-Output 'PASS: staging activation metadata rejects absent/mismatched deployer images and wrong source locations; metadata validation never activates deployment.'

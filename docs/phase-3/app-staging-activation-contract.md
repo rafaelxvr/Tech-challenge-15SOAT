@@ -111,6 +111,13 @@ date/provenance and review its age; the checker does not attest authenticity,
 enforce a freshness window or prove image execution. Refresh live metadata before
 any separately approved activation.
 
+The snapshot root must be a JSON object with exactly the listed fields.
+`schemaVersion` must be the integer `1`; timestamp, project, location, image,
+reviewed digest and repository must be nonempty scalar strings. Arrays (including
+singleton arrays), nulls, booleans and numbers cannot substitute for those strings.
+`ecrImageDigests` must be an array of digest strings; an empty list cannot establish
+image existence. Missing fields are rejected before any binding comparison.
+
 Run `pwsh -File tests/staging-activation-contract.ps1 -MetadataFile <snapshot.json>`.
 The checker performs no AWS request. It rejects missing/mismatched deployer
 digests, wrong source locations and unexpected fields. A passing result is only
