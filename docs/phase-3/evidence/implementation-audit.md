@@ -32,9 +32,9 @@ Representative local checks include `Phase3ContractTest`, `ClienteIdentityTest`,
 
 The central matrix remains fail-closed until every required repository/environment record is complete, but these reviewed staging receipts are now durable:
 
-- [K8S platform acceptance](../../../../oficina-k8s-infra/docs/evidence/staging-platform-acceptance-2026-09-17.md) — platform Terraform executor `SUCCEEDED`; application/runtime behavior remains outside this receipt.
-- [DB platform acceptance](../../../../oficina-db-infra/docs/evidence/staging-database-platform-acceptance-2026-09-17.md) — private encrypted PostgreSQL `SUCCEEDED`; SQL grants, migrations and APP integration remain outside this receipt.
-- [FUN staging runtime receipt](../../../../oficina-functions/docs/evidence/staging-runtime-handoff-contract.md) — workflow `35304367076`, verification and private CodeBuild deployment succeeded with immutable source/artifact/manifest hashes; production was skipped.
+- [K8S platform acceptance](https://github.com/rafaelxvr/Tech-challenge-15SOAT-k8s-infra/blob/5ecf7234bc4fc741e6cf7272f53622099cc74bf5/docs/evidence/staging-platform-acceptance-2026-09-17.md) — platform Terraform executor `SUCCEEDED`; application/runtime behavior remains outside this receipt.
+- [DB platform acceptance](https://github.com/rafaelxvr/Tech-challenge-15SOAT-db-infra/blob/33b7da9172c45d766d36e7561d59ee289053b02b/docs/evidence/staging-database-platform-acceptance-2026-09-17.md) — private encrypted PostgreSQL `SUCCEEDED`; SQL grants, migrations and APP integration remain outside this receipt.
+- [FUN staging runtime receipt](https://github.com/rafaelxvr/Tech-challenge-15SOAT-functions/blob/329c4e95ee6ac63a40b6abd2234c4522992987ff/docs/evidence/staging-runtime-handoff-contract.md) — workflow `35304367076`, verification and private CodeBuild deployment succeeded with immutable source/artifact/manifest hashes; production was skipped.
 
 These records do not change `docs/phase-3/evidence/manifest.json`, whose eight-record verification still correctly refuses an incomplete acceptance matrix.
 
