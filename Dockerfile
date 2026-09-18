@@ -31,19 +31,20 @@ RUN mvn -B org.apache.maven.plugins:maven-dependency-plugin:3.6.1:copy \
 # ========================
 FROM eclipse-temurin:17-jre-alpine@sha256:27cc0849148c0fd32ee8e95988917becf9bc96a3182a24f99d9763aa8e90f8cb AS runtime
 
-# Criar usuário não-root por segurança
-RUN addgroup -S oficina && adduser -S oficina -G oficina
+# Criar usuário não-root por segurança. Keep the UID/GID explicit so Kubernetes
+# can verify runAsNonRoot before starting the container.
+RUN addgroup -S -g 10001 oficina && adduser -S -D -u 10001 -G oficina oficina
 
 WORKDIR /app
 
 # Copiar o JAR gerado
 COPY --from=builder /app/target/*.jar app.jar
-COPY --from=newrelic-agent --chown=oficina:oficina /opt/newrelic/newrelic.jar /app/newrelic/newrelic.jar
+COPY --from=newrelic-agent --chown=10001:10001 /opt/newrelic/newrelic.jar /app/newrelic/newrelic.jar
 
 # Ajustar permissões
-RUN chown oficina:oficina app.jar
+RUN chown 10001:10001 app.jar
 
-USER oficina
+USER 10001:10001
 
 # Porta da aplicação
 EXPOSE 8080

@@ -90,8 +90,10 @@ try {
 
     $entry=Get-Content -LiteralPath (Join-Path $repo 'docker/bootstrap/entrypoint.sh') -Raw
     $docker=Get-Content -LiteralPath (Join-Path $repo 'docker/bootstrap/Dockerfile') -Raw
+    $appDocker=Get-Content -LiteralPath (Join-Path $repo 'Dockerfile') -Raw
     Assert ($entry.Contains('com.oficina.bootstrap.BootstrapMain') -and $entry.Contains('BOOTSTRAP_RECEIPT_JSON_BEGIN') -and $entry.Contains('BOOTSTRAP_RECEIPT_JSON_END')) 'Bootstrap wrapper must execute BootstrapMain and emit a bounded receipt.'
     Assert ($docker.Contains('target/classes') -and $docker.Contains('target/bootstrap-libs') -and $docker.Contains('addgroup -S -g 10001') -and $docker.Contains('adduser -S -D -u 10001') -and $docker.Contains('ENTRYPOINT ["/opt/oficina/entrypoint.sh"]')) 'Dedicated bootstrap image must contain the reviewed Java entrypoint, dependencies and numeric identity.'
+    Assert ($appDocker.Contains('addgroup -S -g 10001 oficina') -and $appDocker.Contains('adduser -S -D -u 10001 -G oficina oficina') -and $appDocker.Contains('--chown=10001:10001') -and $appDocker.Contains('RUN chown 10001:10001 app.jar') -and $appDocker.Contains('USER 10001:10001')) 'Application image must use the reviewed numeric 10001:10001 identity under Kubernetes runAsNonRoot.'
     Write-Output "PASS: $assertions bootstrap review/image/job/receipt assertions; no AWS or Kubernetes calls."
 } finally {
     $resolved=[IO.Path]::GetFullPath($temp)
