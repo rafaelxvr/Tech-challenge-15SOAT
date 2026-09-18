@@ -69,15 +69,16 @@ The launcher and the CodeBuild project's automatic source download must agree:
 | Source prefix | `releases/app/staging` |
 | CodeBuild S3 source location | `oficina-phase3-artifacts-16225b7358/releases/app/staging/bundle.zip` |
 | Deployer ECR repository | `638612472889.dkr.ecr.us-east-1.amazonaws.com/oficina-phase3-deployer` |
-| Executor tfvars path | `/tmp/oficina/application_staging.tfvars.json` |
-| State / lock key | `application/staging.tfstate` / `application/staging.tfstate.tflock` |
+| Executor tfvars path | `/tmp/oficina/app_staging.tfvars.json` |
+| State / lock key | `app/staging.tfstate` / `app/staging.tfstate.tflock` |
 | Backend region | `us-east-1` |
 
-The `application` state namespace does not change the `app` source prefix. Reject
-`releases/application/staging`, other environments, buckets or executor projects;
-do not add a source-location override to hide project drift. S3 VersionIds belong
-to the exact uploaded object key. The platform owner must correct any mismatched
-project source location through its separate reviewed change.
+The `app` state namespace is intentionally aligned with the `app` source prefix.
+Reject `releases/application/staging`, other environments, buckets or executor
+projects; do not add a source-location override to hide project drift. S3
+VersionIds belong to the exact uploaded object key. The platform owner must
+correct any mismatched project source location through its separate reviewed
+change.
 
 ## Deployer existence check without secret access
 

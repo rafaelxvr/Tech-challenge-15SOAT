@@ -38,16 +38,16 @@ try {
         $launch.DeployerImageDigest = $manifest.deployerImageDigest
         if ((& "$repo/scripts/start-deploy.ps1" @launch -DryRun) -cne 'INPUTS_VALIDATED_DEPLOYMENT_DISABLED') { throw 'Dry run must remain explicitly disabled.' }
         Reject { & "$repo/scripts/start-deploy.ps1" @launch }
-        # Staging matches the reviewed live inline CodeBuild contract. Production
-        # retains its existing namespace; this change does not activate either.
-        $executorNamespace = if ($environment -ceq 'staging') { 'application' } else { 'app' }
+        # Both environments use the canonical APP Terraform namespace. This
+        # contract remains disabled and does not activate either environment.
+        $executorNamespace = 'app'
         $deploy=@{Environment=$environment; ReleaseManifest=$manifestPath; ExpectedSourceSha256=(Sha $bundle); ExpectedManifestSha256=(Sha $manifestPath); SourceCommit=('a'*40); ExpectedDeployerImageDigest=('sha256:' + ('b'*64)); TerraformVariablesFile="/tmp/oficina/${executorNamespace}_$environment.tfvars.json"; TerraformBackendBucket='oficina-state-fixture'; TerraformBackendKey="$executorNamespace/$environment.tfstate"; TerraformBackendLockKey="$executorNamespace/$environment.tfstate.tflock"; TerraformBackendRegion='us-east-1'}
         if ((& "$repo/scripts/deploy.ps1" @deploy -DryRun) -cne 'INPUTS_VALIDATED_DEPLOYMENT_DISABLED') { throw 'Executor dry-run must not report deployment success.' }
         RejectWithMessage { & "$repo/scripts/deploy.ps1" @deploy } 'APP_DEPLOYMENT_DISABLED:'
         RejectWithMessage { & "$repo/scripts/deploy.ps1" @deploy -ApplyReviewedPlan } 'APP_DEPLOYMENT_DISABLED:'
         RejectWithMessage { & "$repo/scripts/deploy.ps1" @deploy -ApplyReviewedPlan -DryRun } 'APP_DEPLOYMENT_DISABLED:'
         $otherEnvironment = if ($environment -ceq 'staging') { 'production' } else { 'staging' }
-        $otherNamespace = if ($environment -ceq 'staging') { 'app' } else { 'application' }
+        $otherNamespace = 'application'
         foreach ($entry in @(
             @('TerraformBackendKey', "$otherNamespace/$environment.tfstate"),
             @('TerraformBackendKey', "$executorNamespace/$otherEnvironment.tfstate"),
