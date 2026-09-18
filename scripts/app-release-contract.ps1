@@ -1,4 +1,5 @@
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot 'bootstrap-release-contract.ps1')
 function Get-AppFileHash([string]$Path) {
     (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
 }
@@ -21,6 +22,15 @@ function Read-AppRelease([string]$ReleaseFile, [string]$ExpectedSha256, [string]
     $account = $Matches[1]
     foreach ($image in @($release.previousImage, $release.migrationImage)) {
         if ($image -cnotmatch $imagePattern -or $Matches[1] -cne $account) { throw 'Previous and migration images must be immutable references in the reviewed account.' }
+    }
+    if ($release.mode -cne 'Rollback') {
+        if ($release.bootstrapImage -isnot [string] -or $release.bootstrapImage -cnotmatch $imagePattern -or $Matches[1] -cne $account) {
+            throw 'Writer releases require a dedicated immutable APP bootstrap image in the reviewed account.'
+        }
+        $bootstrapReview = Read-BootstrapReview $release $account
+        if ($bootstrapReview.Review.databaseHost -cne $platform.DbHost) {
+            throw 'bootstrapReview databaseHost must match the reviewed platform database host.'
+        }
     }
     $environment = $release.environment
     if ($release.kubeContext -cnotmatch "\Aarn:aws:eks:us-east-1:${account}:cluster/[a-zA-Z0-9][a-zA-Z0-9_-]+\z") { throw 'Reviewed EKS context must match the image account and region.' }

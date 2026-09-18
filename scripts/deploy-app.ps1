@@ -79,6 +79,20 @@ function Read-ClusterObject([string]$Kind, [string]$Name) {
     } catch { throw 'APP cluster response does not match the requested Kubernetes object.' }
     return $object
 }
+function Read-BootstrapJobReceipt([string]$JobName) {
+    $logs = (Invoke-ReleaseKubectl @('logs', "job/$JobName", '--all-containers=true', '--tail=-1')) -join "`n"
+    $begin = 'BOOTSTRAP_RECEIPT_JSON_BEGIN'
+    $end = 'BOOTSTRAP_RECEIPT_JSON_END'
+    $start = $logs.IndexOf($begin, [StringComparison]::Ordinal)
+    $finish = $logs.IndexOf($end, [StringComparison]::Ordinal)
+    if ($start -lt 0 -or $finish -le $start) { throw 'Bootstrap Job completed without a bounded receipt.' }
+    $jsonStart = $start + $begin.Length
+    $receiptJson = $logs.Substring($jsonStart, $finish - $jsonStart).Trim()
+    $account = [regex]::Match($release.image, '\A([0-9]{12})\.dkr\.ecr\.us-east-1\.amazonaws\.com/').Groups[1].Value
+    $validated = Read-BootstrapReceipt $receiptJson $release $account
+    [IO.File]::WriteAllText((Join-Path $OutputDirectory 'bootstrap-receipt.json'), $receiptJson, [Text.UTF8Encoding]::new($false))
+    return $validated
+}
 $lockAcquired = $false
 $owner = [guid]::NewGuid().ToString()
 try {
@@ -124,6 +138,7 @@ if ($release.mode -cne 'FirstWriter' -and
 
 $startedAt = [DateTimeOffset]::UtcNow
 $migration = 'NOT_RUN_ROLLBACK'
+$bootstrapReceiptSha256 = 'NOT_RUN_ROLLBACK'
 if ($release.mode -ceq 'FirstWriter') {
     if (-not $fresh) { Invoke-ReleaseKubectl @('delete', 'hpa', 'oficina-app', '--wait=true') | Out-Null }
     Invoke-ReleaseKubectl @('patch', 'deployment', 'oficina-app', '--type=strategic', '--patch-file', (Join-Path $OutputDirectory 'drain-patch.json')) | Out-Null
@@ -138,15 +153,17 @@ if ($release.mode -ceq 'FirstWriter') {
 }
 if ($release.mode -cne 'Rollback') {
     # create fails on an existing Job: a stale completed Job cannot satisfy this release.
-    Invoke-ReleaseKubectl @('create', '-f', (Join-Path $OutputDirectory 'migration-config.json')) | Out-Null
+    Invoke-ReleaseKubectl @('create', '-f', (Join-Path $OutputDirectory 'bootstrap-review.json')) | Out-Null
     Invoke-ReleaseKubectl @('create', '-f', (Join-Path $OutputDirectory 'migration-job.json')) | Out-Null
     $jobName = 'oficina-migrate-' + $ExpectedReleaseSha256.Substring(0, 12)
     Invoke-ReleaseKubectl @('wait', "job/$jobName", '--for=condition=complete', '--timeout=660s') | Out-Null
     $job = Read-ClusterObject 'job' $jobName
     if (@($job.status.conditions | Where-Object { $_.type -ceq 'Complete' -and $_.status -ceq 'True' }).Count -ne 1 -or
         @($job.status.conditions | Where-Object { $_.type -ceq 'Failed' -and $_.status -ceq 'True' }).Count -gt 0 -or
-        $job.spec.template.spec.containers[0].image -cne $release.migrationImage) { throw 'Migration Job did not prove completion for the reviewed image.' }
-    $migration = 'COMPLETE'
+        $job.spec.template.spec.containers[0].image -cne $release.bootstrapImage) { throw 'Bootstrap Job did not prove completion for the reviewed immutable image.' }
+    $bootstrapReceipt = Read-BootstrapJobReceipt $jobName
+    $bootstrapReceiptSha256 = $bootstrapReceipt.Sha256
+    $migration = 'BOOTSTRAP_V2_V8_VERIFIED'
 }
 # Strategic merge retains platform probes, resources, secret refs and other env entries.
 Invoke-ReleaseKubectl @('patch', 'deployment', 'oficina-app', '--type=strategic', '--patch-file', (Join-Path $OutputDirectory 'rollout-patch.json')) | Out-Null
@@ -154,7 +171,7 @@ Invoke-ReleaseKubectl @('rollout', 'status', 'deployment/oficina-app', '--timeou
 if ($release.mode -ceq 'FirstWriter') { Invoke-ReleaseKubectl @('apply', '-f', (Join-Path $OutputDirectory 'hpa.json')) | Out-Null }
 $targetImage = if ($release.mode -ceq 'Rollback') { $release.rollback.image } else { $release.image }
 @{schemaVersion=1; environment=$release.environment; sourceCommit=$release.sourceCommit; releaseSha256=$ExpectedReleaseSha256;
-    image=$targetImage; databaseSchemaVersion='V8'; contractVersion='phase3-v2'; migration=$migration;
+    image=$targetImage; databaseSchemaVersion='V8'; contractVersion='phase3-v2'; migration=$migration; bootstrapReceiptSha256=$bootstrapReceiptSha256;
     startedAt=$startedAt.ToString('o'); completedAt=[DateTimeOffset]::UtcNow.ToString('o'); status='ROLLOUT_COMPLETE'
 } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $OutputDirectory 'rollout-receipt.json')
 Write-Output 'ROLLOUT_COMPLETE: local receipt written; no promotion or publication implied.'

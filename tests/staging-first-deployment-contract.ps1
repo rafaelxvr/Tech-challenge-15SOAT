@@ -36,6 +36,9 @@ function kubectl {
         ($f.Failure -ceq 'migration' -and $verb -ceq 'wait') -or ($f.Failure -ceq 'rollout' -and $verb -ceq 'rollout')) {
         $global:LASTEXITCODE=1; return 'secret-canary: restricted executor error'
     }
+    if ($verb -ceq 'logs') {
+        $f.Release.bootstrapReceipt | ConvertTo-Json -Depth 10 -Compress | ForEach-Object { return "BOOTSTRAP_RECEIPT_JSON_BEGIN`n$_`nBOOTSTRAP_RECEIPT_JSON_END" }
+    }
     if ($verb -ceq 'get') {
         if ($f.Responses.ContainsKey($kind)) { return $f.Responses[$kind] }
         if ($kind -ceq 'pods') {
@@ -43,7 +46,7 @@ function kubectl {
             if($f.Failure -ceq 'orphan') { $podList.items=@(@{metadata=@{name='orphan'}}) }
             return ($podList | ConvertTo-Json -Depth 10)
         }
-        if ($kind -ceq 'job') { return (@{apiVersion='batch/v1';kind='Job';metadata=@{name=$a[6];namespace='oficina-staging'};status=@{conditions=@(@{type='Complete';status='True'})};spec=@{template=@{spec=@{containers=@(@{image=$f.Release.migrationImage})}}}} | ConvertTo-Json -Depth 12) }
+        if ($kind -ceq 'job') { return (@{apiVersion='batch/v1';kind='Job';metadata=@{name=$a[6];namespace='oficina-staging'};status=@{conditions=@(@{type='Complete';status='True'})};spec=@{template=@{spec=@{containers=@(@{image=$f.Release.bootstrapImage})}}}} | ConvertTo-Json -Depth 12) }
         if ($f.Objects.ContainsKey($kind)) { return ($f.Objects[$kind] | ConvertTo-Json -Depth 50) }
         Assert ($a -contains '--ignore-not-found=true') 'Only successful ignore-not-found may prove absence.'
         return ''
@@ -72,7 +75,9 @@ function Fixture([switch]$Existing) {
     $account=@{apiVersion='v1';kind='ServiceAccount';metadata=@{name='oficina-app';namespace='oficina-staging';annotations=@{'eks.amazonaws.com/role-arn'=$platform.AppIrsaRoleArn}}}
     $hpa=@{apiVersion='autoscaling/v2';kind='HorizontalPodAutoscaler';metadata=@{name='oficina-app';namespace='oficina-staging'};spec=@{minReplicas=1;maxReplicas=2;scaleTargetRef=@{apiVersion='apps/v1';kind='Deployment';name='oficina-app'};metrics=@(@{type='Resource';resource=@{name='cpu';target=@{type='Utilization';averageUtilization=60}}})}}
     $bundle=@{apiVersion='v1';kind='List';items=@($deployment,$account,$hpa)}; Save $bundle workload
-    $release=@{schemaVersion=1;environment='staging';mode='FirstWriter';sourceCommit=('b'*40);contractVersion='phase3-v2';databaseSchemaVersion='V8';platformInputsSha256=(Get-AppFileHash "$temp/platform.json");image=$platform.Image;previousImage=$platform.Image;migrationImage=($prefix+'flyway@sha256:'+('d'*64));kubeContext='arn:aws:eks:us-east-1:123456789012:cluster/oficina';migrationSecretName='oficina-migration-staging';migrationServiceAccount='oficina-migration-staging';migrationSqlSha256=(Get-AppMigrationDigest);stagingWorkloadSha256=(Get-AppFileHash "$temp/workload.json");artifactSha256=(Get-AppFileHash "$temp/source.zip");deployerImageDigest=('sha256:'+('e'*64))}
+    $review=@{schemaVersion=1;environment='staging';sourceCommit=('b'*40);databaseHost='private.example.test';caSha256=('f'*64);master=@{arn='arn:aws:secretsmanager:us-east-1:123456789012:secret:rds!db-example';versionId=('1'*32)};roles=@{migration=@{arn='arn:aws:secretsmanager:us-east-1:123456789012:secret:oficina/staging/migration-AbCdEf';versionId=('2'*32)};app=@{arn='arn:aws:secretsmanager:us-east-1:123456789012:secret:oficina/staging/app-AbCdEf';versionId=('3'*32)};auth=@{arn='arn:aws:secretsmanager:us-east-1:123456789012:secret:oficina/staging/auth-AbCdEf';versionId=('4'*32)};notification=@{arn='arn:aws:secretsmanager:us-east-1:123456789012:secret:oficina/staging/notification-AbCdEf';versionId=('5'*32)}}}
+    $bootstrapReceipt=@{schemaVersion=2;environment='staging';sourceCommit=('b'*40);outputs=@{schemaVersion='V8';authViewVersion='V5';recipientViewVersion='V7';migrationSecretArn=$review.roles.migration.arn;migrationSecretVersionId=$review.roles.migration.versionId;appSecretArn=$review.roles.app.arn;appSecretVersionId=$review.roles.app.versionId;authLookupSecretArn=$review.roles.auth.arn;authLookupSecretVersionId=$review.roles.auth.versionId;notificationLookupSecretArn=$review.roles.notification.arn;notificationLookupSecretVersionId=$review.roles.notification.versionId}}
+    $release=@{schemaVersion=1;environment='staging';mode='FirstWriter';sourceCommit=('b'*40);contractVersion='phase3-v2';databaseSchemaVersion='V8';platformInputsSha256=(Get-AppFileHash "$temp/platform.json");image=$platform.Image;previousImage=$platform.Image;migrationImage=($prefix+'flyway@sha256:'+('d'*64));bootstrapImage=($prefix+'bootstrap@sha256:'+('e'*64));bootstrapReview=$review;bootstrapReceipt=$bootstrapReceipt;kubeContext='arn:aws:eks:us-east-1:123456789012:cluster/oficina';migrationSecretName='oficina-migration-staging';migrationServiceAccount='oficina-migration-staging';migrationSqlSha256=(Get-AppMigrationDigest);stagingWorkloadSha256=(Get-AppFileHash "$temp/workload.json");artifactSha256=(Get-AppFileHash "$temp/source.zip");deployerImageDigest=('sha256:'+('e'*64))}
     $window=@{windowStartUtc=[DateTimeOffset]::UtcNow.AddHours(-1).ToString('o');windowEndUtc=[DateTimeOffset]::UtcNow.AddHours(1).ToString('o');recordedAtUtc=[DateTimeOffset]::UtcNow.ToString('o');accountEvidenceReference='review/fixture';projectAllowanceUsd=100;reserveUsd=10;currentEstimatedSpendUsd=1}; Save $window window
     $global:firstDeploymentFixture=@{Calls=[Collections.Generic.List[string]]::new();Failure='';Locked=$false;Owner='';Objects=@{};Responses=@{};Release=$release;Bundle=$bundle;Window=$window;SourceKey='releases/app/staging/bundle.zip'}
     if ($Existing) { $global:firstDeploymentFixture.Objects=@{deployment=$deployment;serviceaccount=$account;hpa=$hpa} }
@@ -87,7 +92,7 @@ try {
     Assert ((Get-Content "$temp/rendered/bootstrap-deployment.json" -Raw | ConvertFrom-Json).spec.replicas -eq 0) 'Reviewed bootstrap render is inert.'
     Run -Execute
     $calls=$global:firstDeploymentFixture.Calls -join "`n"
-    Assert ($calls -match '(?s)put-object.*bootstrap-serviceaccount.json.*bootstrap-deployment.json.*migration-job.json.*wait job/.*rollout-patch.json.*rollout status.*apply .*hpa.json.*head-object.*delete-object') 'Fresh cluster must keep lock through zero-writer creation, migration, rollout and HPA.'
+    Assert ($calls -match '(?s)put-object.*bootstrap-serviceaccount.json.*bootstrap-deployment.json.*bootstrap-review.json.*migration-job.json.*wait job/.*rollout-patch.json.*rollout status.*apply .*hpa.json.*head-object.*delete-object') 'Fresh cluster must keep lock through zero-writer creation, review ConfigMap, migration, rollout and HPA.'
     Assert (-not $calls.Contains('delete hpa')) 'Absent HPA must not be deleted.'
     Assert (-not $global:firstDeploymentFixture.Locked) 'Success must release its own lock.'
     Fixture -Existing; Run -Execute

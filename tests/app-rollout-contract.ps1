@@ -18,6 +18,10 @@ function kubectl {
     $verb=$a[4]; $kind=$a[5]
     if ($verb -ceq 'patch' -and $a[-1].EndsWith('drain-patch.json')) { $f.Drained=$true }
     if (($verb -ceq 'wait' -and $f.Failure -ceq 'migration') -or ($verb -ceq 'rollout' -and $f.Failure -ceq 'rollout')) { $global:LASTEXITCODE=1; return 'Mock failure' }
+    if ($verb -ceq 'logs') {
+        if ($f.Failure -ceq 'receipt') { return 'BOOTSTRAP_RECEIPT_JSON_BEGIN`nnot-json`nBOOTSTRAP_RECEIPT_JSON_END' }
+        $f.Release.bootstrapReceipt | ConvertTo-Json -Depth 10 -Compress | ForEach-Object { return "BOOTSTRAP_RECEIPT_JSON_BEGIN`n$_`nBOOTSTRAP_RECEIPT_JSON_END" }
+    }
     if ($verb -ceq 'get') {
         $r = switch ($kind) {
             deployment {
@@ -29,7 +33,7 @@ function kubectl {
             hpa { $min=if($f.Environment -ceq 'production'){2}else{1}; @{spec=@{minReplicas=$min; maxReplicas=($min*2); scaleTargetRef=@{kind='Deployment';name='oficina-app'};metrics=@(@{resource=@{name='cpu';target=@{averageUtilization=60}}})}} }
             serviceaccount { @{metadata=@{annotations=@{'eks.amazonaws.com/role-arn'="arn:aws:iam::123456789012:role/oficina-$($f.Environment)-app"}}} }
             pods { if($f.Failure -ceq 'drain'){@{items=@(@{metadata=@{name='old-writer'}})}}else{@{items=@()}} }
-            job { @{status=@{conditions=@(@{type='Complete';status=$(if($f.Failure -ceq 'incomplete'){'False'}else{'True'})})};spec=@{template=@{spec=@{containers=@(@{image=$f.Release.migrationImage})}}}} }
+            job { @{status=@{conditions=@(@{type='Complete';status=$(if($f.Failure -ceq 'incomplete'){'False'}else{'True'})})};spec=@{template=@{spec=@{containers=@(@{image=$f.Release.bootstrapImage})}}}} }
             default { throw "Unexpected mock read $kind" }
         }
         if ($kind -cne 'pods') {
@@ -46,8 +50,14 @@ function Write-Fixture([string]$Mode='FirstWriter', [string]$Environment='stagin
     $prefix='123456789012.dkr.ecr.us-east-1.amazonaws.com/'
     $platform=@{Environment=$Environment; Image=($prefix+'oficina@sha256:'+('a'*64)); DbHost='private.example.test'; AppIrsaRoleArn="arn:aws:iam::123456789012:role/oficina-$Environment-app"}
     $platform | ConvertTo-Json | Set-Content -LiteralPath "$temp/platform.json"
+    $review=@{schemaVersion=1;environment=$Environment;sourceCommit=('b'*40);databaseHost='private.example.test';caSha256=('f'*64);master=@{arn="arn:aws:secretsmanager:us-east-1:123456789012:secret:rds!db-example";versionId=('1'*32)};roles=@{
+        migration=@{arn="arn:aws:secretsmanager:us-east-1:123456789012:secret:oficina/$Environment/migration-AbCdEf";versionId=('2'*32)};
+        app=@{arn="arn:aws:secretsmanager:us-east-1:123456789012:secret:oficina/$Environment/app-AbCdEf";versionId=('3'*32)};
+        auth=@{arn="arn:aws:secretsmanager:us-east-1:123456789012:secret:oficina/$Environment/auth-AbCdEf";versionId=('4'*32)};
+        notification=@{arn="arn:aws:secretsmanager:us-east-1:123456789012:secret:oficina/$Environment/notification-AbCdEf";versionId=('5'*32)}}}
+    $bootstrapReceipt=@{schemaVersion=2;environment=$Environment;sourceCommit=('b'*40);outputs=@{schemaVersion='V8';authViewVersion='V5';recipientViewVersion='V7';migrationSecretArn=$review.roles.migration.arn;migrationSecretVersionId=$review.roles.migration.versionId;appSecretArn=$review.roles.app.arn;appSecretVersionId=$review.roles.app.versionId;authLookupSecretArn=$review.roles.auth.arn;authLookupSecretVersionId=$review.roles.auth.versionId;notificationLookupSecretArn=$review.roles.notification.arn;notificationLookupSecretVersionId=$review.roles.notification.versionId}}
     $script:release=@{schemaVersion=1; environment=$Environment; mode=$Mode; sourceCommit=('b'*40); contractVersion='phase3-v2';databaseSchemaVersion='V8';
-        platformInputsSha256=(Get-AppFileHash "$temp/platform.json");image=$platform.Image;previousImage=($prefix+'oficina@sha256:'+('c'*64)); migrationImage=($prefix+'flyway@sha256:'+('d'*64));
+        platformInputsSha256=(Get-AppFileHash "$temp/platform.json");image=$platform.Image;previousImage=($prefix+'oficina@sha256:'+('c'*64)); migrationImage=($prefix+'flyway@sha256:'+('d'*64)); bootstrapImage=($prefix+'bootstrap@sha256:'+('e'*64)); bootstrapReview=$review; bootstrapReceipt=$bootstrapReceipt;
         kubeContext='arn:aws:eks:us-east-1:123456789012:cluster/oficina';migrationSecretName="oficina-migration-$Environment";migrationServiceAccount="oficina-migration-$Environment";
         migrationSqlSha256=(Get-AppMigrationDigest);rollback=@{image=($prefix+'oficina@sha256:'+('e'*64));databaseSchemaVersion='V8';contractVersion='phase3-v2';compatibilityEvidence='review/compatible-v8'}}
     $global:appRolloutFixture.Release=$script:release; $global:appRolloutFixture.Mode=$Mode; $global:appRolloutFixture.Environment=$Environment
@@ -64,18 +74,19 @@ try {
         Assert ($global:appRolloutFixture.Calls.Count -eq 0) 'Default must only render.'
         $job=Get-Content "$temp/rendered/migration-job.json" -Raw | ConvertFrom-Json
         $container=$job.spec.template.spec.containers[0]
-        Assert ($container.image -ceq $release.migrationImage -and $job.spec.backoffLimit -eq 0) 'Migration digest/retry bound.'
+        Assert ($container.image -ceq $release.bootstrapImage -and $job.spec.backoffLimit -eq 0) 'Bootstrap digest/retry bound.'
         Assert ($job.spec.template.spec.serviceAccountName -ceq "oficina-migration-$environment" -and -not $job.spec.template.spec.automountServiceAccountToken) 'Distinct migration identity.'
         Assert ($job.spec.template.metadata.labels.'app.kubernetes.io/name' -cne 'oficina-app') 'Migration must never join the APP Service.'
-        Assert (@($container.env | Where-Object {$_.name -in @('FLYWAY_USER','FLYWAY_PASSWORD')} | ForEach-Object {$_.valueFrom.secretKeyRef.name} | Select-Object -Unique)[0] -ceq "oficina-migration-$environment") 'Credentials must be Secret references.'
-        Assert (($container.env | Where-Object name -CEQ 'FLYWAY_URL').value.Contains('sslmode=verify-full')) 'DB TLS required.'
+        Assert (($container.args[1] -ceq (Get-BootstrapReviewSha256 (Get-BootstrapReviewJson $release.bootstrapReview))) -and $container.args[0] -ceq '/work/review.json') 'Bootstrap args must bind the exact review bytes.'
+        Assert ((Get-Content "$temp/rendered/migration-job.json" -Raw) -notmatch '(?i)password|username|secretString|secretValue') 'Rendered bootstrap job must contain references only.'
+        Assert ($container.env[0].name -ceq 'AWS_REGION' -and $container.env[0].value -ceq 'us-east-1') 'Bootstrap region must be explicit.'
         $patch=Get-Content "$temp/rendered/rollout-patch.json" -Raw | ConvertFrom-Json
         Assert ($patch.spec.strategy.type -ceq 'Recreate') 'FirstWriter requires Recreate.'
         Assert (($patch.spec.template.spec.containers[0].env | Where-Object name -CEQ 'SPRING_FLYWAY_ENABLED').value -ceq 'false') 'Cloud automatic migration disabled.'
         Assert (($patch.spec.template.spec.containers[0].env | Where-Object name -CEQ 'SPRING_JPA_HIBERNATE_DDL_AUTO').value -ceq 'validate') 'Hibernate must not mutate cloud schema.'
         Invoke-Fixture -Execute
         $calls=$global:appRolloutFixture.Calls -join "`n"
-        Assert ($calls -match '(?s)delete hpa.*drain-patch.json.*get pods.*create .*migration-job.json.*wait job/.*get job.*rollout-patch.json.*rollout status.*apply .*hpa.json') 'Strict first-writer sequencing.'
+        Assert ($calls -match '(?s)delete hpa.*drain-patch.json.*get pods.*create .*bootstrap-review.json.*create .*migration-job.json.*wait job/.*get job.*logs .*rollout-patch.json.*rollout status.*apply .*hpa.json') 'Strict first-writer sequencing with bootstrap ConfigMap and receipt.'
         Assert ($calls -match 'patch deployment oficina-app --type=strategic') 'Retain platform env/resources/probes via strategic merge.'
     }
     foreach($failure in @('migration','incomplete','drain')) {
