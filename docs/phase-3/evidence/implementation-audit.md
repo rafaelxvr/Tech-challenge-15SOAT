@@ -7,16 +7,16 @@ This audit records locally evidenced implementation work. It does not claim that
 
 ## Verification refresh — 2026-09-18
 
-The merged revisions were rechecked from clean detached worktrees after the APP checklist and K8S contract-test fixes landed:
+The current develop revisions were rechecked from clean detached worktrees after the APP checklist, FUN contract-byte, and K8S contract-test fixes landed:
 
 | Repository | Current reviewed revision | Verification evidence |
 | --- | --- | --- |
-| APP | `ffbd53f1b7abe3d9118d5ca46494889b19ad043e` | Pipeline contracts, documentation links, and the pinned submission suite passed. The submission suite completed 27 checks, including deterministic `NOT_READY / FIXTURE_ONLY` PDF rendering with `reportlab==4.4.9`, `pypdf==6.10.0`, and `pypdfium2==5.13.0`. |
+| APP | `9725629b6666b60169447265f1f55e0cf85983d9` | Pipeline contracts, documentation links, and the pinned submission suite passed. The submission suite completed 27 checks, including deterministic `NOT_READY / FIXTURE_ONLY` PDF rendering with `reportlab==4.4.9`, `pypdf==6.10.0`, and `pypdfium2==5.13.0`. |
 | K8S | `7991a322b7bb7f1ee70e11404f817e11e318d9b2` | PR [#25](https://github.com/rafaelxvr/Tech-challenge-15SOAT-k8s-infra/pull/25) passed CI run [35313825314](https://github.com/rafaelxvr/Tech-challenge-15SOAT-k8s-infra/actions/runs/35313825314). The portable route hash and foundation-addons chart-pin contracts pass; deployment jobs were skipped. |
-| FUN | `329c4e95ee6ac63a40b6abd2234c4522992987ff` | Cloud-window, lock, release-guard, secret-preparation, JWT-sync and workflow-context contracts passed locally. |
+| FUN | `c2b2cdcf1d4101c268dbdc273549eae84fa0870d` | Cloud-window, lock, release-guard, secret-preparation, JWT-sync and workflow-context contracts passed locally; the merged push workflow also reached its deployment guard in CI run [35315358633](https://github.com/rafaelxvr/Tech-challenge-15SOAT-functions/actions/runs/35315358633). |
 | DB | `33b7da9172c45d766d36e7561d59ee289053b02b` | Bootstrap, cloud-window, lock, launcher, outputs, pipeline, source-package and workflow-context contracts passed locally. |
 
-These checks are source and contract evidence only. They did not call AWS, OIDC, CodeBuild, Terraform apply, Kubernetes APIs, external URLs, video hosting or the student portal.
+The local checks made no cloud calls. The merged FUN push workflow run [35315358633](https://github.com/rafaelxvr/Tech-challenge-15SOAT-functions/actions/runs/35315358633) and K8S push workflow run [35313930756](https://github.com/rafaelxvr/Tech-challenge-15SOAT-k8s-infra/actions/runs/35313930756) assumed their configured OIDC launcher roles, then stopped at the closed cloud-window guard before making S3, CodeBuild or deployment API calls; neither attempted a deployment. These runs provide workflow-guard evidence, while the local checks remain source and contract evidence only; no Terraform apply, Kubernetes API, external URL, video-hosting or student-portal operation was performed.
 
 ## APP offline release handoff receipt
 
@@ -28,10 +28,10 @@ CI run [35307790732](https://github.com/rafaelxvr/Tech-challenge-15SOAT/actions/
 
 | Repository | Reviewed revision | Local CI/contract evidence |
 | --- | --- | --- |
-| APP | `6edc75898a4624e2969e0cd87238717865643b14` | Java 17 Maven wrapper/toolchain files, the exact offline release contract suite, `mvnw.cmd verify`, and `.github/workflows/ci-cd.yml`; CI run `35307790732` passed for the PR validation |
-| FUN | `af73d643a49b73eec54a854311519f02fbecf4f2` | Maven/runtime tests, `tests/pipeline-contract.ps1`, and `.github/workflows/ci.yml` |
-| K8S | `105f7f31e5df0b1ce781aae442c73d266009efc8` | Terraform/PowerShell contract suite, pinned Terraform/Helm setup, provider initialization and `.github/workflows/ci-cd.yml` |
-| DB | `e1047320ab76347c0400f6e8b6781043d9f46868` | PostgreSQL/root Terraform tests, `tests/pipeline-contract.ps1`, and `.github/workflows/ci-cd.yml` |
+| APP | `9725629b6666b60169447265f1f55e0cf85983d9` | Java 17 Maven wrapper/toolchain files, the exact offline release contract suite, `mvnw.cmd verify`, and `.github/workflows/ci-cd.yml`; CI run `35307790732` passed for the PR validation |
+| FUN | `c2b2cdcf1d4101c268dbdc273549eae84fa0870d` | Maven/runtime tests, `tests/pipeline-contract.ps1`, and `.github/workflows/ci.yml`; merged push run `35315358633` reached the closed cloud-window deployment guard |
+| K8S | `7991a322b7bb7f1ee70e11404f817e11e318d9b2` | Terraform/PowerShell contract suite, pinned Terraform/Helm setup, provider initialization and `.github/workflows/ci-cd.yml`; merged push run `35313930756` reached the closed cloud-window deployment guard |
+| DB | `33b7da9172c45d766d36e7561d59ee289053b02b` | PostgreSQL/root Terraform tests, `tests/pipeline-contract.ps1`, and `.github/workflows/ci-cd.yml` |
 
 The canonical local evidence index is [the requirements matrix](requirements.md). The APP baseline is recorded in [baseline.md](baseline.md). The K8S staging control-plane observation is deliberately separate from acceptance evidence in [staging-control-plane-observation.md](staging-control-plane-observation.md).
 
