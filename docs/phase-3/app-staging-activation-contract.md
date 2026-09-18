@@ -1,5 +1,7 @@
 # APP staging activation contract
 
+The executable adapter and `APP_STAGING_WORKLOAD_PATH` requirement are defined in [staging-executor-contract.md](staging-executor-contract.md). The reviewed platform, workload and window files are now transported as versioned, hash-bound public inputs.
+
 Status: **reviewed staging-only executor contract**. The workflow gate remains
 disabled unless `APP_CLOUD_DEPLOYMENT_ENABLED=true`; the platform-owned CodeBuild
 executor remains the only cloud entry point. `scripts/deploy.ps1` accepts its
@@ -145,11 +147,4 @@ ECR returned `ImageNotFoundException` for that digest. It also observed the wron
 not hardcoded approvals or claims about subsequent platform changes. Resolve or
 supersede each with fresh evidence.
 
-`scripts/deploy.ps1` must return `INPUTS_VALIDATED_DEPLOYMENT_DISABLED` for every
-dry-run, reject staging without `-ApplyReviewedPlan`, and reject every production
-invocation with `APP_PRODUCTION_DEPLOYMENT_DISABLED` before Terraform. Staging
-apply is permitted only after the immutable manifest and canonical backend/tfvars
-checks pass and only when `infra/environments/staging` exists. The launcher remains
-responsible for the fresh cloud-window check before CodeBuild starts; the adapter
-does not accept an operator-supplied window override. Passing metadata checks does
-not prove a successful cloud deployment.
+`scripts/deploy.ps1` returns `INPUTS_VALIDATED_DEPLOYMENT_DISABLED` for dry-run, rejects staging without `-ApplyReviewedPlan`, and rejects production execution before rollout. Staging execution requires FirstWriter, all reviewed file hashes, canonical backend/tfvars metadata and an existing real `scripts/deploy-app.ps1`. Both launcher and adapter validate the exact hash-bound cloud-window evidence. Passing metadata checks does not prove a successful deployment. There is no APP cloud Terraform root in this execution path; the local Kind root remains separate.

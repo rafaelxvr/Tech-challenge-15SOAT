@@ -6,6 +6,7 @@ $ErrorActionPreference='Stop'
 & (Join-Path $PSScriptRoot 'app-rollout-contract.ps1')
 & (Join-Path $PSScriptRoot 'staging-rollout-contract.ps1')
 & (Join-Path $PSScriptRoot 'staging-first-deployment-contract.ps1')
+& (Join-Path $PSScriptRoot 'staging-first-deployment-contract.ps1') -ExecutorEntrypoint
 & (Join-Path $PSScriptRoot 'bootstrap-release-adapter-contract.ps1')
 $repo=Split-Path -Parent $PSScriptRoot
 function aws { throw 'Offline tests forbid AWS.' }

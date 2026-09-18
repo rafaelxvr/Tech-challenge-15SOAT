@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param()
+param([switch]$ExecutorEntrypoint)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
@@ -84,9 +84,61 @@ function Fixture([switch]$Existing) {
 }
 function Run([switch]$Execute) {
     $f=$global:firstDeploymentFixture; Save $f.Release release
+    if($ExecutorEntrypoint) {
+        $f.Release.cloudWindowEvidenceSha256=Get-AppFileHash "$temp/window.json"
+        $f.Release.terraformVariablesSha256=Get-AppFileHash '/tmp/oficina/app_staging.tfvars.json'
+        Save $f.Release release
+        $script:executorArgs=@{
+            Environment='staging'; ReleaseManifest="$temp/release.json"; ExpectedManifestSha256=(Get-AppFileHash "$temp/release.json")
+            ExpectedSourceSha256=$f.Release.artifactSha256; SourceCommit=$f.Release.sourceCommit; ExpectedDeployerImageDigest=$f.Release.deployerImageDigest
+            TerraformVariablesFile='/tmp/oficina/app_staging.tfvars.json'; TerraformBackendBucket='fixture-state-bucket'
+            TerraformBackendKey='app/staging.tfstate'; TerraformBackendLockKey='app/staging.tfstate.tflock'; TerraformBackendRegion='us-east-1'
+            PlatformInputsFile="$temp/platform.json"; StagingWorkloadFile="$temp/workload.json"; CloudWindowEvidenceFile="$temp/window.json"
+            SourceArchiveFile="$temp/source.zip"; StateBucket='fixture-state-bucket'; SourceKey=$f.SourceKey
+        }
+        & "$repo/scripts/deploy.ps1" @script:executorArgs -ApplyReviewedPlan:$Execute -DryRun:(-not $Execute) | Out-Null
+        return
+    }
     & "$repo/scripts/deploy-app.ps1" -ReleaseFile "$temp/release.json" -ExpectedReleaseSha256 (Get-AppFileHash "$temp/release.json") -PlatformInputsFile "$temp/platform.json" -OutputDirectory "$temp/rendered" -StagingWorkloadFile "$temp/workload.json" -CloudWindowEvidenceFile "$temp/window.json" -StateBucket 'fixture-state-bucket' -SourceArchiveFile "$temp/source.zip" -SourceKey $f.SourceKey -ExpectedDeployerImageDigest ('sha256:'+('e'*64)) -ExecuteReviewedPlan:$Execute | Out-Null
 }
 try {
+    if($ExecutorEntrypoint) {
+        $executorTfvars='/tmp/oficina/app_staging.tfvars.json'
+        if(Test-Path -LiteralPath $executorTfvars){throw 'Offline entrypoint test refuses to replace an existing canonical executor configuration.'}
+        New-Item -ItemType Directory -Path (Split-Path -Parent $executorTfvars) -Force | Out-Null
+        [IO.File]::WriteAllText($executorTfvars,'{"environment":"staging"}')
+        $script:createdExecutorTfvars=$true
+        function terraform {throw 'The APP rollout entrypoint must not invoke a fake Terraform root.'}
+        Fixture; Run
+        Assert ($global:firstDeploymentFixture.Calls.Count -eq 0) 'Entrypoint dry-run must remain disabled.'
+        Run -Execute
+        $calls=$global:firstDeploymentFixture.Calls -join "`n"
+        Assert ($calls -match '(?s)put-object.*bootstrap-serviceaccount.json.*bootstrap-deployment.json.*migration-job.json.*rollout status.*delete-object') 'Real deploy.ps1 must reach the real locked migration and rollout sequence.'
+        $receipt=Get-Content "$temp/app-rollout/rollout-receipt.json" -Raw | ConvertFrom-Json
+        Assert ($receipt.status -ceq 'ROLLOUT_COMPLETE') 'Entrypoint must produce a real rollout completion receipt.'
+        foreach($field in @('PlatformInputsFile','StagingWorkloadFile','CloudWindowEvidenceFile','SourceArchiveFile')) {
+            $bad=$script:executorArgs.Clone(); $bad[$field]="$temp/missing.json"
+            $global:firstDeploymentFixture.Calls.Clear()
+            Reject { & "$repo/scripts/deploy.ps1" @bad -ApplyReviewedPlan }
+            Assert ($global:firstDeploymentFixture.Calls.Count -eq 0) 'Missing executor input must fail before cloud operations.'
+            $changed=Join-Path $temp 'changed.json'; [IO.File]::WriteAllText($changed,'{}')
+            $bad[$field]=$changed
+            Reject { & "$repo/scripts/deploy.ps1" @bad -ApplyReviewedPlan }
+            Assert ($global:firstDeploymentFixture.Calls.Count -eq 0) 'Changed input must fail before cloud operations.'
+        }
+        foreach($mode in @('Compatible','Rollback')) {
+            Fixture; $global:firstDeploymentFixture.Release.mode=$mode
+            Reject { Run -Execute }
+            Assert ($global:firstDeploymentFixture.Calls.Count -eq 0) 'Unimplemented executor release modes must remain closed.'
+        }
+        Fixture; Run
+        $isolated=Join-Path $temp 'missing-entrypoint/scripts'; New-Item -ItemType Directory -Path $isolated -Force | Out-Null
+        Copy-Item -LiteralPath "$repo/scripts/deploy.ps1" -Destination "$isolated/deploy.ps1"
+        Reject { & "$isolated/deploy.ps1" @script:executorArgs -ApplyReviewedPlan }
+        Assert ($global:firstDeploymentFixture.Calls.Count -eq 0) 'An absent real rollout script must fail, never be replaced by an empty root.'
+        Write-Output "PASS: $global:firstDeploymentChecks real executor-entrypoint assertions; AWS/Kubernetes boundaries mocked, rollout scripts real."
+        return
+    }
     Fixture; Run
     Assert ($global:firstDeploymentFixture.Calls.Count -eq 0) 'Default render cannot contact AWS or Kubernetes.'
     Assert ((Get-Content "$temp/rendered/bootstrap-deployment.json" -Raw | ConvertFrom-Json).spec.replicas -eq 0) 'Reviewed bootstrap render is inert.'
@@ -171,6 +223,9 @@ try {
     Reject { Run -Execute }; Assert ($global:firstDeploymentFixture.Calls.Count -eq 0) 'Even a valid production release cannot initialize workloads.'
     Write-Output "PASS: $global:firstDeploymentChecks staging first-deployment assertions; AWS/kubectl mocked."
 } finally {
+    if($ExecutorEntrypoint -and (Get-Variable -Name createdExecutorTfvars -Scope Script -ErrorAction SilentlyContinue)) {
+        Remove-Item -LiteralPath '/tmp/oficina/app_staging.tfvars.json' -Force
+    }
     Remove-Variable -Name firstDeploymentFixture -Scope Global -ErrorAction SilentlyContinue
     Remove-Variable -Name firstDeploymentChecks -Scope Global -ErrorAction SilentlyContinue
     $resolved=[IO.Path]::GetFullPath($temp)

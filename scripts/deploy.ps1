@@ -11,6 +11,12 @@ param(
     [Parameter(Mandatory)][string]$TerraformBackendKey,
     [Parameter(Mandatory)][string]$TerraformBackendLockKey,
     [Parameter(Mandatory)][string]$TerraformBackendRegion,
+    [string]$SourceArchiveFile,
+    [string]$PlatformInputsFile,
+    [string]$StagingWorkloadFile,
+    [string]$CloudWindowEvidenceFile,
+    [string]$StateBucket,
+    [string]$SourceKey,
     [switch]$ApplyReviewedPlan,
     [switch]$DryRun
 )
@@ -50,42 +56,35 @@ if ($DryRun) {
     return
 }
 if ($Environment -cne 'staging') {
-    throw 'APP_PRODUCTION_DEPLOYMENT_DISABLED: only the reviewed staging executor may apply Terraform.'
+    throw 'APP_PRODUCTION_DEPLOYMENT_DISABLED: only the reviewed staging FirstWriter adapter is executable.'
 }
 if (-not $ApplyReviewedPlan) {
     throw 'APP_DEPLOYMENT_DISABLED: staging execution requires the explicit -ApplyReviewedPlan activation.'
 }
 
-$repoRoot = Split-Path -Parent $PSScriptRoot
-$terraformRoot = Join-Path $repoRoot 'infra/environments/staging'
-if (-not (Test-Path -LiteralPath $terraformRoot -PathType Container)) {
-    throw "APP_TERRAFORM_ROOT_MISSING: reviewed staging Terraform root does not exist at '$terraformRoot'."
+$entrypoint = Join-Path $PSScriptRoot 'deploy-app.ps1'
+if (-not (Test-Path -LiteralPath $entrypoint -PathType Leaf)) { throw 'APP_ROLLOUT_ENTRYPOINT_MISSING: scripts/deploy-app.ps1 is required.' }
+. (Join-Path $PSScriptRoot 'staging-executor-inputs.ps1')
+Assert-StagingExecutorInputs $manifest $PlatformInputsFile $StagingWorkloadFile $CloudWindowEvidenceFile
+if ($StateBucket -cne $TerraformBackendBucket -or $SourceKey -cne 'releases/app/staging/bundle.zip' -or
+    [string]::IsNullOrWhiteSpace($SourceArchiveFile) -or -not (Test-Path -LiteralPath $SourceArchiveFile -PathType Leaf) -or
+    (Get-FileHash -LiteralPath $SourceArchiveFile -Algorithm SHA256).Hash.ToLowerInvariant() -cne $ExpectedSourceSha256) {
+    throw 'APP_STAGING_INPUTS_INVALID: source archive, source key or shared lock bucket mismatch.'
 }
-if (-not (Test-Path -LiteralPath $TerraformVariablesFile -PathType Leaf)) {
-    throw 'APP_TERRAFORM_VARIABLES_MISSING: reviewed Terraform variables file does not exist.'
+$tfvarsSha=Require-ScalarString $manifest 'terraformVariablesSha256'
+if ($tfvarsSha -cnotmatch '\A[a-f0-9]{64}\z' -or -not (Test-Path -LiteralPath $TerraformVariablesFile -PathType Leaf) -or
+    (Get-FileHash -LiteralPath $TerraformVariablesFile -Algorithm SHA256).Hash.ToLowerInvariant() -cne $tfvarsSha) {
+    throw 'APP_STAGING_INPUTS_INVALID: reviewed executor configuration digest mismatch.'
 }
-
-$plan = Join-Path ([System.IO.Path]::GetTempPath()) "oficina-app-staging-$SourceCommit.tfplan"
-try {
-    $terraformChdir = "-chdir=$terraformRoot"
-    & terraform $terraformChdir init -input=false `
-        "-backend-config=bucket=$TerraformBackendBucket" `
-        "-backend-config=key=$TerraformBackendKey" `
-        "-backend-config=region=$TerraformBackendRegion" `
-        '-backend-config=use_lockfile=true'
-    if ($LASTEXITCODE -ne 0) { throw 'APP_TERRAFORM_INIT_FAILED: Terraform init failed.' }
-
-    & terraform $terraformChdir validate
-    if ($LASTEXITCODE -ne 0) { throw 'APP_TERRAFORM_VALIDATE_FAILED: Terraform validate failed.' }
-
-    & terraform $terraformChdir plan -input=false -lock-timeout=5m `
-        "-var-file=$TerraformVariablesFile" "-out=$plan"
-    if ($LASTEXITCODE -ne 0) { throw 'APP_TERRAFORM_PLAN_FAILED: apply was not attempted.' }
-
-    & terraform $terraformChdir apply -input=false $plan
-    if ($LASTEXITCODE -ne 0) { throw 'APP_TERRAFORM_APPLY_FAILED: reviewed Terraform plan failed.' }
-    Write-Output 'Reviewed Terraform plan applied.'
+& (Join-Path $PSScriptRoot 'check-cloud-window.ps1') -EvidenceFile $CloudWindowEvidenceFile -Environment staging | Out-Null
+$inputs=@{
+    ReleaseFile=$ReleaseManifest; ExpectedReleaseSha256=$ExpectedManifestSha256
+    PlatformInputsFile=$PlatformInputsFile; StagingWorkloadFile=$StagingWorkloadFile
+    CloudWindowEvidenceFile=$CloudWindowEvidenceFile; StateBucket=$StateBucket
+    SourceArchiveFile=$SourceArchiveFile; SourceKey=$SourceKey; ExpectedDeployerImageDigest=$ExpectedDeployerImageDigest
+    OutputDirectory=(Join-Path (Split-Path -Parent ([IO.Path]::GetFullPath($ReleaseManifest))) 'app-rollout')
 }
-finally {
-    Remove-Item -LiteralPath $plan -Force -ErrorAction SilentlyContinue
-}
+# Invoke the real I6 entry point. Its preflight verifies the complete release and
+# workload before its executing path acquires the shared lock and touches EKS.
+& $entrypoint @inputs | Out-Null
+& $entrypoint @inputs -ExecuteReviewedPlan
