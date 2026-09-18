@@ -7,11 +7,11 @@ This audit records locally evidenced implementation work. It does not claim that
 
 ## Verification refresh — 2026-09-18
 
-The current develop revisions were rechecked from clean detached worktrees after the APP checklist, FUN contract-byte, and K8S contract-test fixes landed:
+The current develop revisions were rechecked from clean detached worktrees after the merged APP staging-executor input-binding fix, FUN contract-byte fix, and K8S contract-test fix landed:
 
 | Repository | Current reviewed revision | Verification evidence |
 | --- | --- | --- |
-| APP | `9725629b6666b60169447265f1f55e0cf85983d9` | Pipeline contracts, documentation links, and the pinned submission suite passed. The submission suite completed 27 checks, including deterministic `NOT_READY / FIXTURE_ONLY` PDF rendering with `reportlab==4.4.9`, `pypdf==6.10.0`, and `pypdfium2==5.13.0`. |
+| APP | `91e2d80f748a849f766aa8f76ad0550229b447d4` | Merged PR [#21](https://github.com/rafaelxvr/Tech-challenge-15SOAT/pull/21) binds the reviewed Terraform variables path/hash and deployer image digest through packaging, the AWS-free pre-OIDC dry-run, and the guarded launcher contract. APP pipeline, workflow, launcher, offline handoff, documentation-link, and pinned submission checks passed; the submission suite completed 27 checks, including deterministic `NOT_READY / FIXTURE_ONLY` PDF rendering with `reportlab==4.4.9`, `pypdf==6.10.0`, and `pypdfium2==5.13.0`. |
 | K8S | `7991a322b7bb7f1ee70e11404f817e11e318d9b2` | PR [#25](https://github.com/rafaelxvr/Tech-challenge-15SOAT-k8s-infra/pull/25) passed CI run [35313825314](https://github.com/rafaelxvr/Tech-challenge-15SOAT-k8s-infra/actions/runs/35313825314). The portable route hash and foundation-addons chart-pin contracts pass; deployment jobs were skipped. |
 | FUN | `c2b2cdcf1d4101c268dbdc273549eae84fa0870d` | Cloud-window, lock, release-guard, secret-preparation, JWT-sync and workflow-context contracts passed locally; the merged push workflow also reached its deployment guard in CI run [35315358633](https://github.com/rafaelxvr/Tech-challenge-15SOAT-functions/actions/runs/35315358633). |
 | DB | `33b7da9172c45d766d36e7561d59ee289053b02b` | Bootstrap, cloud-window, lock, launcher, outputs, pipeline, source-package and workflow-context contracts passed locally. |
@@ -19,6 +19,8 @@ The current develop revisions were rechecked from clean detached worktrees after
 The local checks made no cloud calls. The merged FUN push workflow run [35315358633](https://github.com/rafaelxvr/Tech-challenge-15SOAT-functions/actions/runs/35315358633) and K8S push workflow run [35313930756](https://github.com/rafaelxvr/Tech-challenge-15SOAT-k8s-infra/actions/runs/35313930756) assumed their configured OIDC launcher roles, then stopped at the closed cloud-window guard before making S3, CodeBuild or deployment API calls; neither attempted a deployment. These runs provide workflow-guard evidence, while the local checks remain source and contract evidence only; no Terraform apply, Kubernetes API, external URL, video-hosting or student-portal operation was performed.
 
 ## APP offline release handoff receipt
+
+The merged APP input-binding fix is contract evidence only. The workflow still requires the explicit staging gate, validates the reviewed bindings with `start-deploy.ps1 -DryRun` before OIDC, and retains the fail-closed disabled path; no APP staging build or deployment occurred. The separate read-only staging control-plane observation reports no APP CodeBuild builds and an empty internal ALB target health list.
 
 Merged PR [#11](https://github.com/rafaelxvr/Tech-challenge-15SOAT/pull/11) landed as reviewed revision `6edc75898a4624e2969e0cd87238717865643b14`. The deterministic offline handoff packages that source revision, verifies the archive and canonical release manifest, renders the migration/rollout outputs, and writes a receipt with `status: INPUTS_VALIDATED_DEPLOYMENT_DISABLED`, `success: false`, and `deploymentAttempted: false`. The exact contract path is `tests/pipeline-contract.ps1`, which runs `deployment-lock-race-contract.ps1`, `app-rollout-contract.ps1`, `source-package-contract.ps1`, `offline-release-handoff-contract.ps1`, `workflow-context-contract.ps1`, `cloud-window-tests.ps1`, and `release-guards-contract.ps1`; the workflow then runs `./mvnw -B verify`.
 
@@ -28,7 +30,7 @@ CI run [35307790732](https://github.com/rafaelxvr/Tech-challenge-15SOAT/actions/
 
 | Repository | Reviewed revision | Local CI/contract evidence |
 | --- | --- | --- |
-| APP | `9725629b6666b60169447265f1f55e0cf85983d9` | Java 17 Maven wrapper/toolchain files, the exact offline release contract suite, `mvnw.cmd verify`, and `.github/workflows/ci-cd.yml`; CI run `35307790732` passed for the PR validation |
+| APP | `91e2d80f748a849f766aa8f76ad0550229b447d4` | Java 17 Maven wrapper/toolchain files, the merged PR #21 staging-executor input-binding contracts, the exact offline release contract suite, the pinned submission suite, and `.github/workflows/ci-cd.yml`; no APP staging build or deployment was run |
 | FUN | `c2b2cdcf1d4101c268dbdc273549eae84fa0870d` | Maven/runtime tests, `tests/pipeline-contract.ps1`, and `.github/workflows/ci.yml`; merged push run `35315358633` reached the closed cloud-window deployment guard |
 | K8S | `7991a322b7bb7f1ee70e11404f817e11e318d9b2` | Terraform/PowerShell contract suite, pinned Terraform/Helm setup, provider initialization and `.github/workflows/ci-cd.yml`; merged push run `35313930756` reached the closed cloud-window deployment guard |
 | DB | `33b7da9172c45d766d36e7561d59ee289053b02b` | PostgreSQL/root Terraform tests, `tests/pipeline-contract.ps1`, and `.github/workflows/ci-cd.yml` |
