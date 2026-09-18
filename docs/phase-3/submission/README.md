@@ -1,8 +1,10 @@
 # Phase 3 offline submission preparation
 
-Current status: **NOT_READY**. The [manifest template](submission-manifest.json) now records the four canonical repository URLs and reviewed source references: APP `7584afa`, K8S `22d60af`, FUN `dbceabcf`, DB `33b7da9`. Architecture/evidence links are pinned to those commits. These are source references, not successful release/deployment claims or verified external-access evidence. Reviewer access remains false, access evidence/video URL remain `NOT_PROVIDED`, and measured duration remains `null`. The [14-minute script](video-script.md) is a recording plan, not a recording. The [eight R4 records](../evidence/manifest.json) remain separate deployment acceptance evidence; a PDF never changes them.
+Current status: **NOT_READY**. The [manifest template](submission-manifest.json) now records the four canonical repository URLs and reviewed source references: APP `85a7227`, K8S `22d60af`, FUN `dbceabcf`, DB `33b7da9`. Architecture/evidence links are pinned to those commits. These are source references, not successful release/deployment claims or verified external-access evidence. Reviewer access remains false, access evidence/video URL remain `NOT_PROVIDED`, and measured duration remains `null`. The [14-minute script](video-script.md) is a recording plan, not a recording. The [eight R4 records](../evidence/manifest.json) remain separate deployment acceptance evidence; a PDF never changes them.
 
 The optional schema-v1 `reviewedRevision` fields require all four immutable revisions and bind APP to `releaseRevision`; `pendingEvidence` explicitly lists R4/cloud activation, authenticated reviewer access, recording and final submission gaps. Template validation permits reviewed references while refusing access/video/readiness assertions. No AWS operation, live URL/access verification, recording or publication was performed for this refresh.
+
+The [local acceptance checkpoint](../evidence/local-acceptance-2026-09-18.md) records ten suites with zero failures and `PASS_LOCAL_WITH_SKIPS`, with dynamic Helm checks explicitly skipped. APP PR #36 merged as `85a7227`; the receipt remains attributed to its tested head `9a4ba48`. This does not resolve the expired AWS SSO, APP staging publication/promotion or runtime gaps, and does not change submission readiness.
 
 ## Local runtime and checks
 
