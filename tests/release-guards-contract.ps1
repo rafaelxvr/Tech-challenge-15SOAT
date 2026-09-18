@@ -7,7 +7,17 @@ $owner = 'app'
 $temp = Join-Path ([IO.Path]::GetTempPath()) ('oficina-release-guards-' + [guid]::NewGuid())
 New-Item -ItemType Directory -Path $temp | Out-Null
 function aws { throw 'AWS is forbidden in this offline contract.' }
+function terraform { throw 'Terraform is forbidden in this offline contract.' }
+function kubectl { throw 'Kubernetes is forbidden in this offline contract.' }
 function Reject([scriptblock]$Action) { try { & $Action | Out-Null } catch { return }; throw 'Expected release input rejection.' }
+function RejectWithMessage([scriptblock]$Action, [string]$ExpectedMessage) {
+    try { & $Action | Out-Null }
+    catch {
+        if ($_.Exception.Message.StartsWith($ExpectedMessage, [StringComparison]::Ordinal)) { return }
+        throw "Expected '$ExpectedMessage', received '$($_.Exception.Message)'."
+    }
+    throw "Expected rejection: $ExpectedMessage"
+}
 function Save($object, $path) { $object | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $path -NoNewline }
 function Sha($path) { (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() }
 try {
@@ -28,9 +38,29 @@ try {
         $launch.DeployerImageDigest = $manifest.deployerImageDigest
         if ((& "$repo/scripts/start-deploy.ps1" @launch -DryRun) -cne 'INPUTS_VALIDATED_DEPLOYMENT_DISABLED') { throw 'Dry run must remain explicitly disabled.' }
         Reject { & "$repo/scripts/start-deploy.ps1" @launch }
-        $deploy=@{Environment=$environment; ReleaseManifest=$manifestPath; ExpectedSourceSha256=(Sha $bundle); ExpectedManifestSha256=(Sha $manifestPath); SourceCommit=('a'*40); ExpectedDeployerImageDigest=('sha256:' + ('b'*64)); TerraformVariablesFile="/tmp/oficina/${owner}_$environment.tfvars.json"; TerraformBackendBucket='oficina-state-fixture'; TerraformBackendKey="$owner/$environment.tfstate"; TerraformBackendLockKey="$owner/$environment.tfstate.tflock"; TerraformBackendRegion='us-east-1'}
+        # Staging matches the reviewed live inline CodeBuild contract. Production
+        # retains its existing namespace; this change does not activate either.
+        $executorNamespace = if ($environment -ceq 'staging') { 'application' } else { 'app' }
+        $deploy=@{Environment=$environment; ReleaseManifest=$manifestPath; ExpectedSourceSha256=(Sha $bundle); ExpectedManifestSha256=(Sha $manifestPath); SourceCommit=('a'*40); ExpectedDeployerImageDigest=('sha256:' + ('b'*64)); TerraformVariablesFile="/tmp/oficina/${executorNamespace}_$environment.tfvars.json"; TerraformBackendBucket='oficina-state-fixture'; TerraformBackendKey="$executorNamespace/$environment.tfstate"; TerraformBackendLockKey="$executorNamespace/$environment.tfstate.tflock"; TerraformBackendRegion='us-east-1'}
         if ((& "$repo/scripts/deploy.ps1" @deploy -DryRun) -cne 'INPUTS_VALIDATED_DEPLOYMENT_DISABLED') { throw 'Executor dry-run must not report deployment success.' }
-        Reject { & "$repo/scripts/deploy.ps1" @deploy -ApplyReviewedPlan }
+        RejectWithMessage { & "$repo/scripts/deploy.ps1" @deploy } 'APP_DEPLOYMENT_DISABLED:'
+        RejectWithMessage { & "$repo/scripts/deploy.ps1" @deploy -ApplyReviewedPlan } 'APP_DEPLOYMENT_DISABLED:'
+        RejectWithMessage { & "$repo/scripts/deploy.ps1" @deploy -ApplyReviewedPlan -DryRun } 'APP_DEPLOYMENT_DISABLED:'
+        $otherEnvironment = if ($environment -ceq 'staging') { 'production' } else { 'staging' }
+        $otherNamespace = if ($environment -ceq 'staging') { 'app' } else { 'application' }
+        foreach ($entry in @(
+            @('TerraformBackendKey', "$otherNamespace/$environment.tfstate"),
+            @('TerraformBackendKey', "$executorNamespace/$otherEnvironment.tfstate"),
+            @('TerraformBackendLockKey', "$executorNamespace/$otherEnvironment.tfstate.tflock"),
+            @('TerraformBackendLockKey', "$executorNamespace/$environment.tfstate"),
+            @('TerraformVariablesFile', "/tmp/oficina/${otherNamespace}_$environment.tfvars.json"),
+            @('TerraformVariablesFile', "/tmp/oficina/${executorNamespace}_$otherEnvironment.tfvars.json"),
+            @('TerraformVariablesFile', "/tmp/oficina/../${executorNamespace}_$environment.tfvars.json"),
+            @('TerraformBackendRegion', 'us-west-2')
+        )) {
+            $bad=$deploy.Clone(); $bad[$entry[0]]=$entry[1]
+            RejectWithMessage { & "$repo/scripts/deploy.ps1" @bad -DryRun } 'Unreviewed application state, lock, region or trusted tfvars path.'
+        }
         foreach ($entry in @(@('EventName','pull_request'),@('BranchRef','refs/heads/master'),@('ExpectedSha256',('d'*64)),@('ProjectName','wrong-project'),@('SourcePrefix','releases/other/staging'))) {
             $bad=$launch.Clone(); $bad[$entry[0]]=$entry[1]; Reject { & "$repo/scripts/start-deploy.ps1" @bad -DryRun }
         }

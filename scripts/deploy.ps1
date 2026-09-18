@@ -16,7 +16,11 @@ param(
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-if ($TerraformBackendRegion -cne 'us-east-1' -or $TerraformBackendKey -cne "app/$Environment.tfstate" -or $TerraformBackendLockKey -cne "$TerraformBackendKey.tflock" -or $TerraformVariablesFile -cne "/tmp/oficina/app_$Environment.tfvars.json") { throw 'Unreviewed application state, lock, region or trusted tfvars path.' }
+# The live staging inline buildspec owns these exact executor paths. Artifact
+# uploads still use releases/app/staging; that is a separate source contract.
+# Preserve the existing production contract until its executor is reviewed.
+$executorNamespace = if ($Environment -ceq 'staging') { 'application' } else { 'app' }
+if ($TerraformBackendRegion -cne 'us-east-1' -or $TerraformBackendKey -cne "$executorNamespace/$Environment.tfstate" -or $TerraformBackendLockKey -cne "$TerraformBackendKey.tflock" -or $TerraformVariablesFile -cne "/tmp/oficina/${executorNamespace}_$Environment.tfvars.json") { throw 'Unreviewed application state, lock, region or trusted tfvars path.' }
 if ((Get-FileHash -LiteralPath $ReleaseManifest -Algorithm SHA256).Hash.ToLowerInvariant() -cne $ExpectedManifestSha256) { throw 'Manifest digest mismatch.' }
 $manifest = Get-Content -LiteralPath $ReleaseManifest -Raw | ConvertFrom-Json
 if ($manifest.schemaVersion -ne 1 -or $manifest.environment -cne $Environment -or $manifest.sourceCommit -cne $SourceCommit -or $manifest.artifactSha256 -cne $ExpectedSourceSha256 -or $manifest.deployerImageDigest -cne $ExpectedDeployerImageDigest) { throw 'Manifest does not bind the reviewed executor/source/environment.' }
