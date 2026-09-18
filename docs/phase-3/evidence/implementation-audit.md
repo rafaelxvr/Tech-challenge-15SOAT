@@ -1,6 +1,6 @@
 # Phase 3 implementation evidence audit
 
-**Audit date:** 2026-09-17  
+**Audit date:** 2026-09-18
 **Scope:** local source, tests, repository contracts and CI definitions in the four delivery repositories.
 
 This audit records locally evidenced implementation work. It does not claim that AWS resources, protected environments, external publishing or end-to-end cloud acceptance exist.
@@ -49,15 +49,25 @@ The canonical local evidence index is [the requirements matrix](requirements.md)
 
 Representative local checks include `Phase3ContractTest`, `ClienteIdentityTest`, `ConcorrenciaAgregadosTest`, `TokenTrustTest`, `CustomerOrderSecurityTest`, `OutboxTransactionTest`, `OutboxPublisherTest`, `RelatorioPeriodoTest`, `CpfAuthenticationTest`, `DynamoDesafioStoreTest`, `TokenAndRoutePolicyTest`, `NotificarStatusTest`, K8S `pipeline-contract.ps1`, `executor-bootstrap-harness.ps1`, `newrelic-chart-tests.ps1`, and DB `pipeline-contract.ps1` plus PostgreSQL Terraform tests.
 
+## Staging receipts now available
+
+The central matrix remains fail-closed until every required repository/environment record is complete, but these reviewed staging receipts are now durable:
+
+- [K8S platform acceptance](https://github.com/rafaelxvr/Tech-challenge-15SOAT-k8s-infra/blob/5ecf7234bc4fc741e6cf7272f53622099cc74bf5/docs/evidence/staging-platform-acceptance-2026-09-17.md) — platform Terraform executor `SUCCEEDED`; application/runtime behavior remains outside this receipt.
+- [DB platform acceptance](https://github.com/rafaelxvr/Tech-challenge-15SOAT-db-infra/blob/33b7da9172c45d766d36e7561d59ee289053b02b/docs/evidence/staging-database-platform-acceptance-2026-09-17.md) — private encrypted PostgreSQL `SUCCEEDED`; SQL grants, migrations and APP integration remain outside this receipt.
+- [FUN staging runtime receipt](https://github.com/rafaelxvr/Tech-challenge-15SOAT-functions/blob/329c4e95ee6ac63a40b6abd2234c4522992987ff/docs/evidence/staging-runtime-handoff-contract.md) — workflow `35304367076`, verification and private CodeBuild deployment succeeded with immutable source/artifact/manifest hashes; production was skipped.
+
+These records do not change `docs/phase-3/evidence/manifest.json`, whose eight-record verification still correctly refuses an incomplete acceptance matrix.
+
 ## Explicitly not run
 
 ### R4 — cloud acceptance
 
 All eight repository/environment records remain `NOT_RUN` in the [APP evidence manifest](manifest.json): APP staging/production, K8S staging/production, FUN staging/production and DB staging/production. The repository-specific status files remain explicit:
 
-- [FUN R4 status](../../../../oficina-functions/docs/evidence/r4-local-status.json)
-- [K8S R4 status](../../../../oficina-k8s-infra/docs/evidence/r4-local-status.json)
-- [DB R4 status](../../../../oficina-db-infra/docs/evidence/r4-local-status.json)
+- [FUN R4 status](https://github.com/rafaelxvr/Tech-challenge-15SOAT-functions/blob/329c4e95ee6ac63a40b6abd2234c4522992987ff/docs/evidence/r4-local-status.json)
+- [K8S R4 status](https://github.com/rafaelxvr/Tech-challenge-15SOAT-k8s-infra/blob/5ecf7234bc4fc741e6cf7272f53622099cc74bf5/docs/evidence/r4-local-status.json)
+- [DB R4 status](https://github.com/rafaelxvr/Tech-challenge-15SOAT-db-infra/blob/33b7da9172c45d766d36e7561d59ee289053b02b/docs/evidence/r4-local-status.json)
 
 ### Read-only deployment-input inventory — 2026-09-18
 
