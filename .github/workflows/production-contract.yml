@@ -1,0 +1,62 @@
+name: APP production promotion contract
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: app-production-contract-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  production-contract:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.APP_PRODUCTION_DEPLOYMENT_ENABLED == 'true'
+    environment:
+      name: production
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout reviewed source
+        uses: actions/checkout@v4
+
+      - name: Require reviewed input artifact identity
+        shell: pwsh
+        env:
+          APP_PRODUCTION_INPUTS_RUN_ID: ${{ vars.APP_PRODUCTION_INPUTS_RUN_ID }}
+          APP_PRODUCTION_INPUTS_ARTIFACT_ID: ${{ vars.APP_PRODUCTION_INPUTS_ARTIFACT_ID }}
+        run: |
+          foreach ($value in @($env:APP_PRODUCTION_INPUTS_RUN_ID, $env:APP_PRODUCTION_INPUTS_ARTIFACT_ID)) {
+            if ($value -cnotmatch '\A[1-9][0-9]*\z') { throw 'Reviewed production input artifact identity is required.' }
+          }
+
+      - name: Download reviewed public input artifact
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ vars.APP_PRODUCTION_INPUTS_RUN_ID }}
+          artifact-ids: ${{ vars.APP_PRODUCTION_INPUTS_ARTIFACT_ID }}
+          merge-multiple: true
+          path: ${{ runner.temp }}/app-production-review
+
+      - name: Validate production promotion without cloud credentials
+        shell: pwsh
+        env:
+          APP_PRODUCTION_DEPLOYMENT_ENABLED: ${{ vars.APP_PRODUCTION_DEPLOYMENT_ENABLED }}
+          APP_PRODUCTION_ROLE_ARN: ${{ vars.APP_PRODUCTION_ROLE_ARN }}
+          APP_PRODUCTION_INPUTS_SHA256: ${{ vars.APP_PRODUCTION_INPUTS_SHA256 }}
+        run: |
+          & ./scripts/check-production-promotion.ps1 `
+            -Enabled $env:APP_PRODUCTION_DEPLOYMENT_ENABLED `
+            -RoleArn $env:APP_PRODUCTION_ROLE_ARN `
+            -InputsFile (Join-Path $env:RUNNER_TEMP 'app-production-review/production-inputs.json') `
+            -ExpectedInputsSha256 $env:APP_PRODUCTION_INPUTS_SHA256 `
+            -SourceCommit $env:GITHUB_SHA `
+            -EventName $env:GITHUB_EVENT_NAME `
+            -BranchRef $env:GITHUB_REF
+          # Contract validation is not deployment. The production runtime
+          # adapter remains disabled pending a separately reviewed change.
