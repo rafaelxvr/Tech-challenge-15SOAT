@@ -14,6 +14,7 @@ function Reject([scriptblock]$Action) { try { & $Action | Out-Null } catch { ret
 & "$PSScriptRoot/cloud-window-tests.ps1"
 & "$PSScriptRoot/release-guards-contract.ps1"
 & "$PSScriptRoot/staging-deploy-workflow-contract.ps1"
+& "$PSScriptRoot/staging-activation-contract.ps1"
 # Isolate the mock AWS/sleep commands from this script's no-cloud guard.
 & pwsh -NoLogo -NoProfile -NonInteractive -File "$PSScriptRoot/start-deploy-contract.ps1"
 if ($LASTEXITCODE -ne 0) { throw 'Offline APP launcher contract failed.' }
