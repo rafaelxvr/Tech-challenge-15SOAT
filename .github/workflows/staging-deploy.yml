@@ -17,6 +17,11 @@ env:
   APP_ARTIFACT_BUCKET: oficina-phase3-artifacts-16225b7358
   APP_SOURCE_PREFIX: releases/app/staging
   APP_PROJECT_NAME: oficina-phase3-oficina-app-staging-deploy
+  # These values are rendered into the platform-owned executor. Keep them
+  # explicit here so the staging workflow and APP deploy contract cannot drift.
+  APP_TERRAFORM_BACKEND_KEY: app/staging.tfstate
+  APP_TERRAFORM_BACKEND_LOCK_KEY: app/staging.tfstate.tflock
+  APP_TERRAFORM_EXECUTOR_TFVARS_PATH: /tmp/oficina/app_staging.tfvars.json
 
 jobs:
   staging-deploy:

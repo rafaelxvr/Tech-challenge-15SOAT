@@ -16,11 +16,12 @@ param(
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-# The live staging inline buildspec owns these exact executor paths. Artifact
-# uploads still use releases/app/staging; that is a separate source contract.
-# Preserve the existing production contract until its executor is reviewed.
-$executorNamespace = if ($Environment -ceq 'staging') { 'application' } else { 'app' }
-if ($TerraformBackendRegion -cne 'us-east-1' -or $TerraformBackendKey -cne "$executorNamespace/$Environment.tfstate" -or $TerraformBackendLockKey -cne "$TerraformBackendKey.tflock" -or $TerraformVariablesFile -cne "/tmp/oficina/${executorNamespace}_$Environment.tfvars.json") { throw 'Unreviewed application state, lock, region or trusted tfvars path.' }
+# The platform executor owns these exact paths for the APP repository. Artifact
+# uploads use releases/app/<environment>; source and Terraform state identities
+# are separate contracts. Keep the existing production namespace unchanged.
+$expectedBackendKey = "app/$Environment.tfstate"
+$expectedTerraformVariablesFile = "/tmp/oficina/app_${Environment}.tfvars.json"
+if ($TerraformBackendRegion -cne 'us-east-1' -or $TerraformBackendKey -cne $expectedBackendKey -or $TerraformBackendLockKey -cne "$expectedBackendKey.tflock" -or $TerraformVariablesFile -cne $expectedTerraformVariablesFile) { throw 'Unreviewed application state, lock, region or trusted tfvars path.' }
 if ((Get-FileHash -LiteralPath $ReleaseManifest -Algorithm SHA256).Hash.ToLowerInvariant() -cne $ExpectedManifestSha256) { throw 'Manifest digest mismatch.' }
 $manifest = Get-Content -LiteralPath $ReleaseManifest -Raw | ConvertFrom-Json
 if ($manifest.schemaVersion -ne 1 -or $manifest.environment -cne $Environment -or $manifest.sourceCommit -cne $SourceCommit -or $manifest.artifactSha256 -cne $ExpectedSourceSha256 -or $manifest.deployerImageDigest -cne $ExpectedDeployerImageDigest) { throw 'Manifest does not bind the reviewed executor/source/environment.' }
