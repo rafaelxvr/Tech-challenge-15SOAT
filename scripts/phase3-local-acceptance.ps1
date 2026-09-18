@@ -57,7 +57,7 @@ $plan=@(
     @{repo='K8S';suite='tests/staging-app-workload-tests.ps1'},@{repo='K8S';suite='tests/runtime-public-configmap-tests.ps1'}
 )
 $receipt=[ordered]@{schemaVersion=1;status='RUNNING';startedAtUtc=[datetimeoffset]::UtcNow.ToString('o');finishedAtUtc=$null;sourceScope='isolated LF snapshots of committed HEAD';repositories=$sources;workspace=$workspace;suites=@();skippedCloudChecks=@('AWS identity/API access and deployment','Kubernetes cluster access/apply and private runtime health','Terraform real plan/apply and remote state','RDS migrations, grants and live cross-repository integration','Production/staging promotion receipts and R4 cloud acceptance')}
-$receipt['skippedLocalChecks']=if($helmAvailable){@()}else{@('New Relic dynamic Helm schema/render accounting: Helm unavailable; existing suite runs static assertions only.')}
+$receipt['skippedLocalChecks']=@(if(-not $helmAvailable){'New Relic dynamic Helm schema/render accounting: Helm unavailable; existing suite runs static assertions only.'})
 function Save-Receipt {[IO.File]::WriteAllText($receiptPath,($receipt|ConvertTo-Json -Depth 15),[Text.UTF8Encoding]::new($false))}
 Save-Receipt
 try {

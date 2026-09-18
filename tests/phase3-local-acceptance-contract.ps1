@@ -22,6 +22,22 @@ foreach($required in @('tests/pipeline-contract.ps1','app-focused-java','tests/v
     if(-not $source.Contains($required)){throw "Harness contract missing: $required"};$count++
 }
 if($source -match '\b(?:git\s+.*(?:fetch|push|reset)|aws\s+(?:sts|s3api)|kubectl\s+apply|terraform\s+apply)'){throw 'Harness contains a prohibited direct operation.'}
+# Execute the harness's actual receipt assignments for empty/singleton skip
+# lists. Conditional pipeline output otherwise unwraps arrays under StrictMode.
+$ast=[Management.Automation.Language.Parser]::ParseInput($source,[ref]$null,[ref]$null)
+$skipAssignment=$ast.Find({param($node) $node -is [Management.Automation.Language.AssignmentStatementAst] -and $node.Left.Extent.Text -ceq '$receipt[''skippedLocalChecks'']'},$true)
+$statusAssignment=$ast.Find({param($node) $node -is [Management.Automation.Language.AssignmentStatementAst] -and $node.Left.Extent.Text -ceq '$receipt.status' -and $node.Right.Extent.Text.StartsWith('if(@(')},$true)
+if($null -eq $skipAssignment -or $null -eq $statusAssignment){throw 'Receipt aggregation statements missing.'}
+foreach($helmAvailable in @($true,$false)){
+    foreach($failed in @($false,$true)){
+        $receipt=@{suites=@(@{status=$(if($failed){'FAIL'}else{'PASS'})});status='RUNNING'}
+        & ([scriptblock]::Create($skipAssignment.Extent.Text))
+        & ([scriptblock]::Create($statusAssignment.Extent.Text))
+        $expected=if($failed){'FAIL'}elseif($helmAvailable){'PASS_LOCAL_ONLY'}else{'PASS_LOCAL_WITH_SKIPS'}
+        if($receipt.skippedLocalChecks -isnot [array] -or $receipt.status -cne $expected){throw 'Receipt skip-array/status contract failed.'}
+        $count++
+    }
+}
 # Exercise the actual native process boundary. In-process guard calls cannot
 # detect pwsh -File splitting the colon in a Windows -chdir argument.
 $entry=Join-Path $repo 'scripts/phase3-local-native-entry.ps1'
