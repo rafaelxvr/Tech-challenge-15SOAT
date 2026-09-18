@@ -17,6 +17,9 @@ param(
     [string]$CloudWindowEvidenceFile,
     [string]$StateBucket,
     [string]$SourceKey,
+    [string]$ProductionEnabled='', [string]$ProductionRuntimeEnabled='', [string]$ProtectedEnvironment='',
+    [string]$ProductionInputsFile='', [string]$ExpectedProductionInputsSha256='', [string]$ProductionRoleArn='',
+    [string]$EventName=$env:GITHUB_EVENT_NAME, [string]$BranchRef=$env:GITHUB_REF,
     [switch]$ApplyReviewedPlan,
     [switch]$DryRun
 )
@@ -50,13 +53,32 @@ if ($manifest.schemaVersion -ne 1 -or
 # The launcher and the platform-owned CodeBuild bootstrap provide the reviewed
 # cloud-window evidence before this script is reached. Keep the dry-run path
 # side-effect free and use the existing reviewed apply switch as the explicit
-# staging activation. Production has no apply path by design.
+# staging activation. Production additionally requires its reviewed promotion
+# inputs, main/protected-environment context and a separate runtime gate.
+if ($Environment -ceq 'production') {
+    . (Join-Path $PSScriptRoot 'production-executor-inputs.ps1')
+    $review=Read-ProductionExecutorInputs -Enabled $ProductionEnabled -RuntimeEnabled $ProductionRuntimeEnabled -ProtectedEnvironment $ProtectedEnvironment `
+        -InputsFile $ProductionInputsFile -ExpectedInputsSha256 $ExpectedProductionInputsSha256 -RoleArn $ProductionRoleArn `
+        -SourceCommit $SourceCommit -EventName $EventName -BranchRef $BranchRef
+    if ($ExpectedManifestSha256 -cne $review.ReleaseFile.Sha256 -or $ExpectedSourceSha256 -cne $review.Source.Sha256 -or
+        $TerraformBackendBucket -cne $review.Inputs.stateBucket -or $StateBucket -cne $review.Inputs.stateBucket -or
+        $SourceKey -cne 'releases/app/production/bundle.zip' -or
+        [string]::IsNullOrWhiteSpace($SourceArchiveFile) -or -not (Test-Path -LiteralPath $SourceArchiveFile -PathType Leaf) -or
+        (Get-FileHash -LiteralPath $SourceArchiveFile -Algorithm SHA256).Hash.ToLowerInvariant() -cne $review.Source.Sha256 -or
+        -not (Test-Path -LiteralPath $TerraformVariablesFile -PathType Leaf) -or
+        (Get-FileHash -LiteralPath $TerraformVariablesFile -Algorithm SHA256).Hash.ToLowerInvariant() -cne $review.TerraformVariables.Sha256) {
+        throw 'APP_PRODUCTION_EXECUTOR_BINDING_MISMATCH'
+    }
+    & (Join-Path $PSScriptRoot 'deploy-production.ps1') -Enabled $ProductionEnabled -RuntimeEnabled $ProductionRuntimeEnabled `
+        -ProtectedEnvironment $ProtectedEnvironment -InputsFile $ProductionInputsFile -ExpectedInputsSha256 $ExpectedProductionInputsSha256 `
+        -RoleArn $ProductionRoleArn -SourceCommit $SourceCommit -EventName $EventName -BranchRef $BranchRef `
+        -OutputDirectory (Join-Path (Split-Path -Parent ([IO.Path]::GetFullPath($ReleaseManifest))) 'app-rollout') `
+        -ExecuteReviewedPlan:($ApplyReviewedPlan -and -not $DryRun)
+    return
+}
 if ($DryRun) {
     Write-Output 'INPUTS_VALIDATED_DEPLOYMENT_DISABLED'
     return
-}
-if ($Environment -cne 'staging') {
-    throw 'APP_PRODUCTION_DEPLOYMENT_DISABLED: only the reviewed staging FirstWriter adapter is executable.'
 }
 if (-not $ApplyReviewedPlan) {
     throw 'APP_DEPLOYMENT_DISABLED: staging execution requires the explicit -ApplyReviewedPlan activation.'

@@ -11,13 +11,29 @@ param(
     [string]$StateBucket,
     [string]$SourceArchiveFile,
     [string]$SourceKey,
-    [string]$ExpectedDeployerImageDigest
+    [string]$ExpectedDeployerImageDigest,
+    [string]$ProductionEnabled='', [string]$ProductionRuntimeEnabled='', [string]$ProtectedEnvironment='',
+    [string]$ProductionInputsFile='', [string]$ExpectedProductionInputsSha256='', [string]$ProductionRoleArn='',
+    [string]$EventName=$env:GITHUB_EVENT_NAME, [string]$BranchRef=$env:GITHUB_REF
 )
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'app-release-contract.ps1')
 $contract = Read-AppRelease $ReleaseFile $ExpectedReleaseSha256 $PlatformInputsFile
 $release = $contract.Release
+$productionReview=$null
+if ($ExecuteReviewedPlan -and $release.environment -ceq 'production') {
+    . (Join-Path $PSScriptRoot 'production-executor-inputs.ps1')
+    $productionReview=Read-ProductionExecutorInputs -Enabled $ProductionEnabled -RuntimeEnabled $ProductionRuntimeEnabled -ProtectedEnvironment $ProtectedEnvironment `
+        -InputsFile $ProductionInputsFile -ExpectedInputsSha256 $ExpectedProductionInputsSha256 -RoleArn $ProductionRoleArn `
+        -SourceCommit $release.sourceCommit -EventName $EventName -BranchRef $BranchRef
+    if ($ProductionRuntimeEnabled -cne 'true') { throw 'APP_PRODUCTION_RUNTIME_DISABLED' }
+    if ($ExpectedReleaseSha256 -cne $productionReview.ReleaseFile.Sha256 -or
+        (Get-AppFileHash $PlatformInputsFile) -cne $productionReview.Platform.Sha256) { throw 'APP_PRODUCTION_RUNTIME_BINDING_MISMATCH' }
+    $StateBucket=$productionReview.Inputs.stateBucket
+    $CloudWindowEvidenceFile=$productionReview.Window.Path
+}
 $initializeStaging = -not [string]::IsNullOrWhiteSpace($StagingWorkloadFile)
+$guardedExecution=$initializeStaging -or $null -ne $productionReview
 if ($initializeStaging) {
     . (Join-Path $PSScriptRoot 'staging-workload-contract.ps1')
     $workload = Read-StagingWorkload $StagingWorkloadFile $release $contract.Platform
@@ -40,12 +56,15 @@ if (-not $ExecuteReviewedPlan) { Write-Output 'RENDERED_ONLY: no cluster operati
 @{schemaVersion=1; releaseSha256=$ExpectedReleaseSha256; status='IN_PROGRESS'} | ConvertTo-Json |
     Set-Content -LiteralPath (Join-Path $OutputDirectory 'rollout-receipt.json')
 
-# The optional staging adapter owns the lock through initialization, migration and rollout.
-# Existing-workload invocations without this adapter still require their caller's lock.
+# Staging initialization and reviewed production execution own the shared lock.
+# Other staging existing-workload invocations still require their caller's lock.
 # Every invocation pins its context/namespace; never trust the operator's current context.
 function Invoke-ReleaseKubectl([string[]]$Arguments) {
-    if ($initializeStaging -and $Arguments[0] -cin @('create','delete','patch','apply')) {
-        & (Join-Path $PSScriptRoot 'check-cloud-window.ps1') -EvidenceFile $CloudWindowEvidenceFile -Environment staging | Out-Null
+    if ($guardedExecution -and $Arguments[0] -cin @('create','delete','patch','apply')) {
+        if ($null -ne $productionReview -and (Get-AppFileHash $CloudWindowEvidenceFile) -cne $productionReview.Window.Sha256) {
+            throw 'APP_PRODUCTION_WINDOW_CHANGED'
+        }
+        & (Join-Path $PSScriptRoot 'check-cloud-window.ps1') -EvidenceFile $CloudWindowEvidenceFile -Environment $release.environment | Out-Null
     }
     $global:LASTEXITCODE = 0
     $result = & kubectl --context $release.kubeContext --namespace "oficina-$($release.environment)" @Arguments 2>&1
@@ -96,8 +115,8 @@ function Read-BootstrapJobReceipt([string]$JobName) {
 $lockAcquired = $false
 $owner = [guid]::NewGuid().ToString()
 try {
-if ($initializeStaging) {
-    & (Join-Path $PSScriptRoot 'check-cloud-window.ps1') -EvidenceFile $CloudWindowEvidenceFile -Environment staging | Out-Null
+if ($guardedExecution) {
+    & (Join-Path $PSScriptRoot 'check-cloud-window.ps1') -EvidenceFile $CloudWindowEvidenceFile -Environment $release.environment | Out-Null
     & (Join-Path $PSScriptRoot 'deployment-lock.ps1') -Action Acquire -StateBucket $StateBucket -OwnerToken $owner | Out-Null
     $lockAcquired = $true
 }

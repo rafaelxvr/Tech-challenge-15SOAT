@@ -6,7 +6,8 @@ param(
     [string]$ExpectedInputsSha256 = '',
     [string]$SourceCommit = '',
     [string]$EventName = $env:GITHUB_EVENT_NAME,
-    [string]$BranchRef = $env:GITHUB_REF
+    [string]$BranchRef = $env:GITHUB_REF,
+    [switch]$PassThru
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -136,4 +137,8 @@ if ($image -cnotmatch ('\A' + $account + '\.dkr\.ecr\.us-east-1\.amazonaws\.com/
     (String-Field $platform 'Environment') -cne 'production' -or
     (String-Field $platform 'Image') -cne $image) { throw 'APP_PRODUCTION_BINDING_MISMATCH' }
 & (Join-Path $PSScriptRoot 'check-cloud-window.ps1') -EvidenceFile $window.Path -Environment production | Out-Null
+if ($PassThru) {
+    return [pscustomobject]@{Inputs=$inputs; Release=$release; Source=$source; ReleaseFile=$releaseFile;
+        Platform=$platformFile; TerraformVariables=$tfvars; Window=$window; StagingPromotion=$promotionFile; StagingRelease=$stagingRelease}
+}
 Write-Output 'PRODUCTION_CONTRACT_VALIDATED_DEPLOYMENT_DISABLED'
