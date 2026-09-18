@@ -35,10 +35,10 @@ $settings=Join-Path $workspace 'maven-settings.xml'
 $pwsh=Join-Path $PSHOME $(if($IsWindows){'pwsh.exe'}else{'pwsh'})
 $guard=Join-Path $PSScriptRoot 'phase3-local-command-guard.ps1'
 $runner=Join-Path $PSScriptRoot 'phase3-local-suite-runner.ps1'
-$terraform=(Get-Command terraform -CommandType Application -ErrorAction Stop).Source
-$kubectl=(Get-Command kubectl -CommandType Application -ErrorAction Stop).Source
+$terraform=(Get-Command terraform -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
+$kubectl=(Get-Command kubectl -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
 $helmAvailable=$null -ne (Get-Command helm -CommandType Application -ErrorAction SilentlyContinue)
-$java=(Get-Command java -CommandType Application -ErrorAction Stop).Source
+$java=(Get-Command java -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
 if((& $java -version 2>&1|Out-String) -notmatch 'version "17\.'){throw 'Java 17 must be the java executable on PATH.'}
 $javaHome=Split-Path -Parent (Split-Path -Parent $java)
 foreach($tool in @('aws','kubectl','terraform')){
