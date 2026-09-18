@@ -8,6 +8,7 @@ $repo=Split-Path -Parent $PSScriptRoot
 function aws { throw 'Offline tests forbid AWS.' }
 function Reject([scriptblock]$Action) { try { & $Action | Out-Null } catch { return }; throw 'Expected invalid output rejection.' }
 & "$PSScriptRoot/source-package-contract.ps1"
+& "$PSScriptRoot/offline-release-handoff-contract.ps1"
 & "$PSScriptRoot/workflow-context-contract.ps1"
 & "$PSScriptRoot/cloud-window-tests.ps1"
 & "$PSScriptRoot/release-guards-contract.ps1"
