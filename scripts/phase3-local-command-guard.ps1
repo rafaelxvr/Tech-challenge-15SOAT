@@ -27,7 +27,10 @@ if($operation -cin @('console','output')){
         $expression=[Console]::In.ReadToEnd()
         $expected='jsonencode([for doc in split("\n---\n", file("platform.yaml")) : yamldecode(doc) if trimspace(doc) != ""])'
         if($expression.Trim() -cne $expected){throw 'LOCAL_ACCEPTANCE_COMMAND_REJECTED: console expression'}
-        $expression | & $env:PHASE3_REAL_TERRAFORM @Arguments
+        # ReadToEnd includes the native pipe's trailing newline. PowerShell adds
+        # its own newline when piping a string; a second blank console command
+        # makes Terraform return no result for this otherwise valid expression.
+        $expression.Trim() | & $env:PHASE3_REAL_TERRAFORM @Arguments
     } else {
         if(($remaining -join ' ') -cne 'output -json'){throw 'LOCAL_ACCEPTANCE_COMMAND_REJECTED: output arguments'}
         $state=Get-Content (Join-Path $root 'terraform.tfstate') -Raw|ConvertFrom-Json

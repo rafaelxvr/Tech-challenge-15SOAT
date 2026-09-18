@@ -33,7 +33,7 @@ $empty=Join-Path $workspace 'empty-config'
 $settings=Join-Path $workspace 'maven-settings.xml'
 [IO.File]::WriteAllText($settings,'<settings xmlns="http://maven.apache.org/SETTINGS/1.2.0"/>')
 $pwsh=Join-Path $PSHOME $(if($IsWindows){'pwsh.exe'}else{'pwsh'})
-$guard=Join-Path $PSScriptRoot 'phase3-local-command-guard.ps1'
+$guard=Join-Path $PSScriptRoot 'phase3-local-native-entry.ps1'
 $runner=Join-Path $PSScriptRoot 'phase3-local-suite-runner.ps1'
 $terraform=(Get-Command terraform -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
 $kubectl=(Get-Command kubectl -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
@@ -43,9 +43,9 @@ if((& $java -version 2>&1|Out-String) -notmatch 'version "17\.'){throw 'Java 17 
 $javaHome=Split-Path -Parent (Split-Path -Parent $java)
 foreach($tool in @('aws','kubectl','terraform')){
     if($IsWindows){
-        [IO.File]::WriteAllText((Join-Path $shim "$tool.cmd"),"@echo off`r`n`"$pwsh`" -NoProfile -NonInteractive -File `"$guard`" -Tool $tool %*`r`nexit /b %errorlevel%`r`n")
+        [IO.File]::WriteAllText((Join-Path $shim "$tool.cmd"),"@echo off`r`n`"$pwsh`" -NoProfile -NonInteractive -File `"$guard`" $tool %*`r`nexit /b %errorlevel%`r`n")
     } else {
-        $script="#!/bin/sh`nexec '$pwsh' -NoProfile -NonInteractive -File '$guard' -Tool $tool `"`$@`"`n"
+        $script="#!/bin/sh`nexec '$pwsh' -NoProfile -NonInteractive -File '$guard' $tool `"`$@`"`n"
         $file=Join-Path $shim $tool;[IO.File]::WriteAllText($file,$script);& chmod +x $file
     }
 }
