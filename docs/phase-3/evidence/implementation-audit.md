@@ -44,9 +44,9 @@ These records do not change `docs/phase-3/evidence/manifest.json`, whose eight-r
 
 The [APP evidence manifest](manifest.json) remains `NOT_RUN` because APP staging runtime, all production runs, and the required failure/recovery matrix are still incomplete. The repository-specific status files remain explicit:
 
-- [FUN R4 status](../../../../oficina-functions/docs/evidence/r4-local-status.json)
-- [K8S R4 status](../../../../oficina-k8s-infra/docs/evidence/r4-local-status.json)
-- [DB R4 status](../../../../oficina-db-infra/docs/evidence/r4-local-status.json)
+- [FUN R4 status](https://github.com/rafaelxvr/Tech-challenge-15SOAT-functions/blob/329c4e95ee6ac63a40b6abd2234c4522992987ff/docs/evidence/r4-local-status.json)
+- [K8S R4 status](https://github.com/rafaelxvr/Tech-challenge-15SOAT-k8s-infra/blob/5ecf7234bc4fc741e6cf7272f53622099cc74bf5/docs/evidence/r4-local-status.json)
+- [DB R4 status](https://github.com/rafaelxvr/Tech-challenge-15SOAT-db-infra/blob/33b7da9172c45d766d36e7561d59ee289053b02b/docs/evidence/r4-local-status.json)
 
 The K8S staging control-plane observation records only the base API/platform handoff. It is not evidence of application, functions, database, production, protected-route, telemetry, failure-recovery or eight-run acceptance. Live AWS deployment, measured capacity/costs, SES/SNS/New Relic enrollment, branch protections and cleanup authorization remain outstanding.
 
