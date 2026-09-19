@@ -3,6 +3,8 @@
 **Audit date:** 2026-09-19
 **Scope:** local source/contracts and separately attributed staging execution evidence in the four delivery repositories.
 
+Local follow-up: the [staging public ConfigMap contract](../staging-public-configmap-contract.md) transports the K8S-rendered public configuration as a seventh immutable input, verifies its version/hash and pinned CA, and creates or validates it before the guarded migration/rollout. Its mocked tests are implementation evidence only. Historical six-input receipts below remain unchanged; all R4 NOT_RUN/NOT_CAPTURED and submission NOT_READY statuses remain unchanged. No AWS calls or build starts were performed for this source change.
+
 This audit separates implementation evidence from cloud acceptance. The latest APP staging attempt failed; it does not establish runtime readiness or full R4 acceptance. This documentation refresh made no AWS calls.
 
 ## APP staging execution checkpoint — 2026-09-19

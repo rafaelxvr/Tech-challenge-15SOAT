@@ -54,6 +54,7 @@ param(
 
     [string]$PlatformInputsFile,
     [string]$StagingWorkloadFile,
+    [string]$RuntimePublicConfigMapFile,
 
     [string]$PromotionEvidenceOutputFile,
 
@@ -107,8 +108,9 @@ if ($Environment -ceq 'production' -and ($manifest.promotedFromStaging -ne $true
 & (Join-Path $PSScriptRoot 'check-cloud-window.ps1') -EvidenceFile $CloudWindowEvidenceFile -Environment $Environment | Out-Null
 if ($Environment -ceq 'staging') {
     . (Join-Path $PSScriptRoot 'staging-executor-inputs.ps1')
-    Assert-StagingExecutorInputs $manifest $PlatformInputsFile $StagingWorkloadFile $CloudWindowEvidenceFile
+    Assert-StagingExecutorInputs $manifest $PlatformInputsFile $StagingWorkloadFile $CloudWindowEvidenceFile $RuntimePublicConfigMapFile
 }
+if($Environment -cne 'staging' -and -not[string]::IsNullOrWhiteSpace($RuntimePublicConfigMapFile)){Fail 'staging public ConfigMap input is forbidden for production.'}
 if ($DryRun) {
     Write-Output 'INPUTS_VALIDATED_DEPLOYMENT_DISABLED'
     return
@@ -141,10 +143,12 @@ if ($null -eq $tfvarsUpload -or $null -eq $tfvarsUpload.PSObject.Properties['Ver
 # Keep this list closed. In particular, no secret, arbitrary command or
 # operator-supplied override is forwarded to the platform-owned project.
 $runtimeOverrides=@()
+$publicConfigVersion=$null
 foreach($entry in @(
     @{Name='PLATFORM_INPUTS';File=$PlatformInputsFile;Leaf='platform.json'},
     @{Name='STAGING_WORKLOAD';File=$StagingWorkloadFile;Leaf='workload.json'},
-    @{Name='CLOUD_WINDOW';File=$CloudWindowEvidenceFile;Leaf='cloud-window.json'}
+    @{Name='CLOUD_WINDOW';File=$CloudWindowEvidenceFile;Leaf='cloud-window.json'},
+    @{Name='RUNTIME_PUBLIC_CONFIGMAP';File=$RuntimePublicConfigMapFile;Leaf='runtime-public.json'}
 )) {
     $key="$SourcePrefix/inputs/$SourceCommit/$($entry.Leaf)"
     $response=& aws s3api put-object --bucket $Bucket --key $key --body $entry.File --output json 2>$null
@@ -154,7 +158,9 @@ foreach($entry in @(
         $upload.VersionId -isnot [string] -or [string]::IsNullOrWhiteSpace($upload.VersionId) -or $upload.VersionId -ceq 'null') {Fail 'runtime input upload returned no immutable S3 VersionId.'}
     $runtimeOverrides += "name=$($entry.Name)_OBJECT_KEY,value=$key,type=PLAINTEXT"
     $runtimeOverrides += "name=$($entry.Name)_VERSION_ID,value=$($upload.VersionId),type=PLAINTEXT"
+    if($entry.Name -ceq 'RUNTIME_PUBLIC_CONFIGMAP'){$publicConfigVersion=$upload.VersionId}
 }
+$runtimeOverrides += "name=RUNTIME_PUBLIC_CONFIGMAP_SHA256,value=$($manifest.runtimePublicConfigMapSha256),type=PLAINTEXT"
 $overrides = @(
     "name=DEPLOY_ENVIRONMENT,value=$Environment,type=PLAINTEXT",
     "name=SOURCE_BUCKET,value=$Bucket,type=PLAINTEXT",
@@ -204,6 +210,9 @@ do {
                     terraformVariablesVersionId = [string]$tfvarsUpload.VersionId
                     terraformVariablesSha256 = $ExpectedTerraformVariablesSha256
                     deployerImageDigest = $DeployerImageDigest
+                    runtimePublicConfigMapKey = "$SourcePrefix/inputs/$SourceCommit/runtime-public.json"
+                    runtimePublicConfigMapVersionId = $publicConfigVersion
+                    runtimePublicConfigMapSha256 = $manifest.runtimePublicConfigMapSha256
                     codeBuildProjectName = $ProjectName
                     codeBuildBuildId = $buildId
                     buildStatus = 'SUCCEEDED'
@@ -233,6 +242,9 @@ do {
                         terraformVariablesVersionId = [string]$tfvarsUpload.VersionId
                         terraformVariablesSha256 = $ExpectedTerraformVariablesSha256
                         deployerImageDigest = $DeployerImageDigest
+                        runtimePublicConfigMapKey = "$SourcePrefix/inputs/$SourceCommit/runtime-public.json"
+                        runtimePublicConfigMapVersionId = $publicConfigVersion
+                        runtimePublicConfigMapSha256 = $manifest.runtimePublicConfigMapSha256
                     } | ConvertTo-Json | Set-Content -LiteralPath $PromotionEvidenceOutputFile -NoNewline
                 }
             }

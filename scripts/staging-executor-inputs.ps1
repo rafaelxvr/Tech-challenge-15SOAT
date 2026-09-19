@@ -1,6 +1,6 @@
 Set-StrictMode -Version Latest
 
-function Assert-StagingExecutorInputs([object]$Release, [string]$PlatformInputsFile, [string]$StagingWorkloadFile, [string]$CloudWindowEvidenceFile) {
+function Assert-StagingExecutorBaseInputs([object]$Release, [string]$PlatformInputsFile, [string]$StagingWorkloadFile, [string]$CloudWindowEvidenceFile) {
     if ($Release -isnot [pscustomobject] -or $Release.environment -isnot [string] -or
         $Release.environment -cne 'staging' -or $Release.mode -isnot [string] -or $Release.mode -cne 'FirstWriter') {
         throw 'APP_STAGING_INPUTS_INVALID: only the reviewed staging FirstWriter adapter is executable.'
@@ -22,4 +22,9 @@ function Assert-StagingExecutorInputs([object]$Release, [string]$PlatformInputsF
         catch { throw "APP_STAGING_INPUTS_INVALID: $($binding.Field) must bind a JSON object." }
         if ($document -isnot [pscustomobject]) { throw "APP_STAGING_INPUTS_INVALID: $($binding.Field) must bind a JSON object." }
     }
+}
+function Assert-StagingExecutorInputs([object]$Release, [string]$PlatformInputsFile, [string]$StagingWorkloadFile, [string]$CloudWindowEvidenceFile, [string]$RuntimePublicConfigMapFile) {
+    Assert-StagingExecutorBaseInputs $Release $PlatformInputsFile $StagingWorkloadFile $CloudWindowEvidenceFile
+    . (Join-Path $PSScriptRoot 'runtime-public-configmap-contract.ps1')
+    $null=Read-StagingPublicConfigMap $RuntimePublicConfigMapFile $Release
 }

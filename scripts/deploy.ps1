@@ -15,6 +15,10 @@ param(
     [string]$PlatformInputsFile,
     [string]$StagingWorkloadFile,
     [string]$CloudWindowEvidenceFile,
+    [string]$RuntimePublicConfigMapObjectKey=$env:RUNTIME_PUBLIC_CONFIGMAP_OBJECT_KEY,
+    [string]$RuntimePublicConfigMapVersionId=$env:RUNTIME_PUBLIC_CONFIGMAP_VERSION_ID,
+    [string]$ExpectedRuntimePublicConfigMapSha256=$env:RUNTIME_PUBLIC_CONFIGMAP_SHA256,
+    [string]$ArtifactBucket=$env:SOURCE_BUCKET,
     [string]$StateBucket,
     [string]$SourceKey,
     [string]$ProductionEnabled='', [string]$ProductionRuntimeEnabled='', [string]$ProtectedEnvironment='',
@@ -56,6 +60,7 @@ if ($manifest.schemaVersion -ne 1 -or
 # staging activation. Production additionally requires its reviewed promotion
 # inputs, main/protected-environment context and a separate runtime gate.
 if ($Environment -ceq 'production') {
+    if(@($RuntimePublicConfigMapObjectKey,$RuntimePublicConfigMapVersionId,$ExpectedRuntimePublicConfigMapSha256|Where-Object {-not[string]::IsNullOrWhiteSpace($_)}).Count){throw 'APP_PUBLIC_CONFIG_INVALID: staging transport forbidden for production.'}
     . (Join-Path $PSScriptRoot 'production-executor-inputs.ps1')
     $review=Read-ProductionExecutorInputs -Enabled $ProductionEnabled -RuntimeEnabled $ProductionRuntimeEnabled -ProtectedEnvironment $ProtectedEnvironment `
         -InputsFile $ProductionInputsFile -ExpectedInputsSha256 $ExpectedProductionInputsSha256 -RoleArn $ProductionRoleArn `
@@ -87,7 +92,7 @@ if (-not $ApplyReviewedPlan) {
 $entrypoint = Join-Path $PSScriptRoot 'deploy-app.ps1'
 if (-not (Test-Path -LiteralPath $entrypoint -PathType Leaf)) { throw 'APP_ROLLOUT_ENTRYPOINT_MISSING: scripts/deploy-app.ps1 is required.' }
 . (Join-Path $PSScriptRoot 'staging-executor-inputs.ps1')
-Assert-StagingExecutorInputs $manifest $PlatformInputsFile $StagingWorkloadFile $CloudWindowEvidenceFile
+Assert-StagingExecutorBaseInputs $manifest $PlatformInputsFile $StagingWorkloadFile $CloudWindowEvidenceFile
 if ($StateBucket -cne $TerraformBackendBucket -or $SourceKey -cne 'releases/app/staging/bundle.zip' -or
     [string]::IsNullOrWhiteSpace($SourceArchiveFile) -or -not (Test-Path -LiteralPath $SourceArchiveFile -PathType Leaf) -or
     (Get-FileHash -LiteralPath $SourceArchiveFile -Algorithm SHA256).Hash.ToLowerInvariant() -cne $ExpectedSourceSha256) {
@@ -99,9 +104,14 @@ if ($tfvarsSha -cnotmatch '\A[a-f0-9]{64}\z' -or -not (Test-Path -LiteralPath $T
     throw 'APP_STAGING_INPUTS_INVALID: reviewed executor configuration digest mismatch.'
 }
 & (Join-Path $PSScriptRoot 'check-cloud-window.ps1') -EvidenceFile $CloudWindowEvidenceFile -Environment staging | Out-Null
+. (Join-Path $PSScriptRoot 'runtime-public-configmap-contract.ps1')
+$publicConfigPath=Join-Path (Split-Path -Parent ([IO.Path]::GetFullPath($ReleaseManifest))) 'runtime-public-staging.json'
+$null=Receive-StagingPublicConfigMap $manifest $ArtifactBucket $RuntimePublicConfigMapObjectKey $RuntimePublicConfigMapVersionId $ExpectedRuntimePublicConfigMapSha256 $publicConfigPath
+Assert-StagingExecutorInputs $manifest $PlatformInputsFile $StagingWorkloadFile $CloudWindowEvidenceFile $publicConfigPath
 $inputs=@{
     ReleaseFile=$ReleaseManifest; ExpectedReleaseSha256=$ExpectedManifestSha256
     PlatformInputsFile=$PlatformInputsFile; StagingWorkloadFile=$StagingWorkloadFile
+    RuntimePublicConfigMapFile=$publicConfigPath
     CloudWindowEvidenceFile=$CloudWindowEvidenceFile; StateBucket=$StateBucket
     SourceArchiveFile=$SourceArchiveFile; SourceKey=$SourceKey; ExpectedDeployerImageDigest=$ExpectedDeployerImageDigest
     OutputDirectory=(Join-Path (Split-Path -Parent ([IO.Path]::GetFullPath($ReleaseManifest))) 'app-rollout')

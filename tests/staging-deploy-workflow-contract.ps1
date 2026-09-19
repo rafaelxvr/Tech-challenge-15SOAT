@@ -34,6 +34,8 @@ Require 'APP_PROJECT_NAME: oficina-phase3-oficina-app-staging-deploy' 'reviewed 
 Require 'APP_TERRAFORM_BACKEND_KEY: app/staging.tfstate' 'canonical APP staging Terraform state key.'
 Require 'APP_TERRAFORM_BACKEND_LOCK_KEY: app/staging.tfstate.tflock' 'canonical APP staging Terraform lock key.'
 Require 'APP_TERRAFORM_EXECUTOR_TFVARS_PATH: /tmp/oficina/app_staging.tfvars.json' 'canonical APP staging executor tfvars path.'
+Require 'APP_RUNTIME_PUBLIC_CONFIGMAP_PATH: ${{ vars.APP_RUNTIME_PUBLIC_CONFIGMAP_PATH }}' 'reviewed public ConfigMap path.'
+Require '-RuntimePublicConfigMapFile $env:APP_RUNTIME_PUBLIC_CONFIGMAP_PATH' 'public ConfigMap carried through packaging/preflight/launch.'
 Require 'APP_RELEASE_INPUT_PATH' 'reviewed release input variable.'
 Require 'APP_PLATFORM_INPUTS_PATH' 'reviewed platform input variable.'
 Require 'APP_STAGING_WORKLOAD_PATH: ${{ vars.APP_STAGING_WORKLOAD_PATH }}' 'reviewed staging workload input variable.'

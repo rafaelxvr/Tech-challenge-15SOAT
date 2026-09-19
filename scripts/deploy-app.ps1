@@ -7,6 +7,7 @@ param(
     [switch]$ExecuteReviewedPlan,
     [ValidateRange(1, 600)][int]$DrainTimeoutSeconds = 120,
     [string]$StagingWorkloadFile,
+    [string]$RuntimePublicConfigMapFile,
     [string]$CloudWindowEvidenceFile,
     [string]$StateBucket,
     [string]$SourceArchiveFile,
@@ -20,6 +21,7 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'app-release-contract.ps1')
 $contract = Read-AppRelease $ReleaseFile $ExpectedReleaseSha256 $PlatformInputsFile
 $release = $contract.Release
+if($release.environment -cne 'staging' -and -not[string]::IsNullOrWhiteSpace($RuntimePublicConfigMapFile)){throw 'APP_PUBLIC_CONFIG_INVALID: staging artifact forbidden for production.'}
 $productionReview=$null
 if ($ExecuteReviewedPlan -and $release.environment -ceq 'production') {
     . (Join-Path $PSScriptRoot 'production-executor-inputs.ps1')
@@ -37,6 +39,8 @@ $guardedExecution=$initializeStaging -or $null -ne $productionReview
 if ($initializeStaging) {
     . (Join-Path $PSScriptRoot 'staging-workload-contract.ps1')
     $workload = Read-StagingWorkload $StagingWorkloadFile $release $contract.Platform
+    . (Join-Path $PSScriptRoot 'runtime-public-configmap-contract.ps1')
+    $publicConfig=Read-StagingPublicConfigMap $RuntimePublicConfigMapFile $release
     if ($StateBucket -cnotmatch '\A[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]\z' -or
         $SourceKey -cne 'releases/app/staging/bundle.zip' -or
         $release.artifactSha256 -isnot [string] -or $release.artifactSha256 -cnotmatch '\A[a-f0-9]{64}\z' -or
@@ -86,6 +90,7 @@ function Read-ClusterObject([string]$Kind, [string]$Name) {
         hpa = @{Kind='HorizontalPodAutoscaler'; ApiVersion='autoscaling/v2'}
         serviceaccount = @{Kind='ServiceAccount'; ApiVersion='v1'}
         job = @{Kind='Job'; ApiVersion='batch/v1'}
+        configmap = @{Kind='ConfigMap'; ApiVersion='v1'}
     }[$Kind]
     try {
         if ($object -isnot [pscustomobject] -or
@@ -94,7 +99,7 @@ function Read-ClusterObject([string]$Kind, [string]$Name) {
             $object.metadata -isnot [pscustomobject] -or
             $object.metadata.name -isnot [string] -or $object.metadata.name -cne $Name -or
             $object.metadata.namespace -isnot [string] -or $object.metadata.namespace -cne "oficina-$($release.environment)" -or
-            ($Kind -cne 'serviceaccount' -and $object.spec -isnot [pscustomobject])) { throw 'Invalid object.' }
+            ($Kind -cnotin @('serviceaccount','configmap') -and $object.spec -isnot [pscustomobject])) { throw 'Invalid object.' }
     } catch { throw 'APP cluster response does not match the requested Kubernetes object.' }
     return $object
 }
@@ -127,6 +132,13 @@ $fresh = $false
 if ($initializeStaging) {
     $missing = @(@($deployment, $hpa, $serviceAccount) | Where-Object { $null -eq $_ }).Count
     if ($missing -gt 0 -and $missing -ne 3) { throw 'Partial APP workload found; review recovery before creating or replacing resources.' }
+    # Stable public configuration is installed under the shared lock before any
+    # bootstrap writer. Existing content must match; never overwrite drift.
+    $existingPublic=Read-ClusterObject 'configmap' 'oficina-runtime-public-staging'
+    if($null -ne $existingPublic){
+        Assert-StagingPublicConfigMapObject $existingPublic $release
+        foreach($key in $publicConfig.data.PSObject.Properties.Name){if($existingPublic.data.$key -cne $publicConfig.data.$key){throw 'APP_PUBLIC_CONFIG_DRIFT: review existing public configuration.'}}
+    }
     if ($missing -eq 3) {
         if ($release.previousImage -cne $release.image) { throw 'Fresh staging must explicitly use the target digest as previousImage; no previous workload exists.' }
         # Detect orphaned writers before creating any resource.
@@ -155,6 +167,13 @@ if ($release.mode -cne 'FirstWriter' -and
     ($deployment.spec.template.metadata.annotations.'oficina.io/schema-version' -cne 'V8' -or
      $deployment.spec.template.metadata.annotations.'oficina.io/security-contract' -cne 'phase3-v2')) { throw 'Compatible rollout/rollback requires the current V8 security contract.' }
 
+if($initializeStaging -and $null -eq $existingPublic){
+    $null=Read-StagingPublicConfigMap $RuntimePublicConfigMapFile $release
+    Invoke-ReleaseKubectl @('create','-f',$RuntimePublicConfigMapFile)|Out-Null
+    $existingPublic=Read-ClusterObject 'configmap' 'oficina-runtime-public-staging'
+    Assert-StagingPublicConfigMapObject $existingPublic $release
+    foreach($key in $publicConfig.data.PSObject.Properties.Name){if($existingPublic.data.$key -cne $publicConfig.data.$key){throw 'APP_PUBLIC_CONFIG_READBACK_MISMATCH'}}
+}
 $startedAt = [DateTimeOffset]::UtcNow
 $migration = 'NOT_RUN_ROLLBACK'
 $bootstrapReceiptSha256 = 'NOT_RUN_ROLLBACK'
@@ -191,6 +210,7 @@ if ($release.mode -ceq 'FirstWriter') { Invoke-ReleaseKubectl @('apply', '-f', (
 $targetImage = if ($release.mode -ceq 'Rollback') { $release.rollback.image } else { $release.image }
 @{schemaVersion=1; environment=$release.environment; sourceCommit=$release.sourceCommit; releaseSha256=$ExpectedReleaseSha256;
     image=$targetImage; databaseSchemaVersion='V8'; contractVersion='phase3-v2'; migration=$migration; bootstrapReceiptSha256=$bootstrapReceiptSha256;
+    runtimePublicConfigMapSha256=$(if($initializeStaging){$release.runtimePublicConfigMapSha256}else{$null});
     startedAt=$startedAt.ToString('o'); completedAt=[DateTimeOffset]::UtcNow.ToString('o'); status='ROLLOUT_COMPLETE'
 } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $OutputDirectory 'rollout-receipt.json')
 Write-Output 'ROLLOUT_COMPLETE: local receipt written; no promotion or publication implied.'

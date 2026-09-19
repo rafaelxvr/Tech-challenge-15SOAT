@@ -2,6 +2,7 @@
 param()
 Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
+& (Join-Path $PSScriptRoot 'runtime-public-configmap-contract.ps1')
 & (Join-Path $PSScriptRoot 'deployment-lock-race-contract.ps1')
 & (Join-Path $PSScriptRoot 'app-rollout-contract.ps1')
 & (Join-Path $PSScriptRoot 'staging-rollout-contract.ps1')

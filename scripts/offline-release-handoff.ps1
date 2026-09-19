@@ -3,6 +3,7 @@ param(
     [Parameter(Mandatory)][ValidatePattern('\A[a-f0-9]{40}\z')][string]$SourceCommit,
     [Parameter(Mandatory)][string]$ReleaseInputFile,
     [Parameter(Mandatory)][string]$PlatformInputsFile,
+    [string]$RuntimePublicConfigMapFile,
     [Parameter(Mandatory)][string]$OutputDirectory
 )
 
@@ -56,6 +57,11 @@ if (Test-Path -LiteralPath $output) {
 
 $releaseInput = Read-JsonFile $ReleaseInputFile 'Release input'
 $platform = Read-JsonFile $PlatformInputsFile 'Platform input'
+if($releaseInput.environment -ceq 'staging' -and $releaseInput.mode -ceq 'FirstWriter'){
+    . (Join-Path $PSScriptRoot 'runtime-public-configmap-contract.ps1')
+    $null=Read-StagingPublicConfigMap $RuntimePublicConfigMapFile $releaseInput
+    Copy-Item -LiteralPath $RuntimePublicConfigMapFile -Destination (Join-Path $output 'runtime-public.json')
+}elseif(-not[string]::IsNullOrWhiteSpace($RuntimePublicConfigMapFile)){throw 'APP_PUBLIC_CONFIG_INVALID: staging FirstWriter artifact only.'}
 $sourceCommitProperty = $releaseInput.PSObject.Properties['sourceCommit']
 if ($null -ne $sourceCommitProperty -and [string]$sourceCommitProperty.Value -cne $SourceCommit) { throw 'Release input sourceCommit does not match the reviewed source.' }
 if ($null -ne $releaseInput.PSObject.Properties['artifactSha256']) { throw 'Release input must not predeclare artifactSha256.' }

@@ -3,6 +3,7 @@ param()
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
+. "$PSScriptRoot/runtime-public-fixture.ps1"
 $temp = Join-Path ([IO.Path]::GetTempPath()) ('oficina-offline-handoff-' + [guid]::NewGuid())
 New-Item -ItemType Directory -Path $temp | Out-Null
 function Hash([string]$Path) { (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant() }
@@ -23,12 +24,13 @@ try {
         kubeContext='arn:aws:eks:us-east-1:123456789012:cluster/oficina'; migrationSecretName='oficina-migration-staging'; migrationServiceAccount='oficina-migration-staging'; migrationSqlSha256=(Get-AppMigrationDigest)
         runtimeArtifactDigest=('sha256:' + ('d'*64)); deployerImageDigest=('sha256:' + ('e'*64)); terraformVariablesSha256=(Hash $tfvarsPath)
     }
+    Add-RuntimePublicFixture $release "$temp/public.json"
     $releaseInputPath = Join-Path $temp 'release-input.json'; Save-Json $release $releaseInputPath
     $outOne = Join-Path $temp 'one'; $outTwo = Join-Path $temp 'two'
-    $resultOne = & "$repo/scripts/offline-release-handoff.ps1" -SourceCommit $sourceCommit -ReleaseInputFile $releaseInputPath -PlatformInputsFile $platformPath -OutputDirectory $outOne
-    $resultTwo = & "$repo/scripts/offline-release-handoff.ps1" -SourceCommit $sourceCommit -ReleaseInputFile $releaseInputPath -PlatformInputsFile $platformPath -OutputDirectory $outTwo
+    $resultOne = & "$repo/scripts/offline-release-handoff.ps1" -SourceCommit $sourceCommit -ReleaseInputFile $releaseInputPath -PlatformInputsFile $platformPath -RuntimePublicConfigMapFile "$temp/public.json" -OutputDirectory $outOne
+    $resultTwo = & "$repo/scripts/offline-release-handoff.ps1" -SourceCommit $sourceCommit -ReleaseInputFile $releaseInputPath -PlatformInputsFile $platformPath -RuntimePublicConfigMapFile "$temp/public.json" -OutputDirectory $outTwo
     Assert (($resultOne | Select-Object -Last 1) -ceq 'INPUTS_VALIDATED_DEPLOYMENT_DISABLED') 'Handoff must emit the disabled status.'
-    foreach ($name in @('source.zip','release-manifest.json','rendered/migration-job.json','rendered/rollout-patch.json','release-receipt.json')) { Assert ((Hash (Join-Path $outOne $name)) -ceq (Hash (Join-Path $outTwo $name))) "Output is not deterministic: $name" }
+    foreach ($name in @('source.zip','runtime-public.json','release-manifest.json','rendered/migration-job.json','rendered/rollout-patch.json','release-receipt.json')) { Assert ((Hash (Join-Path $outOne $name)) -ceq (Hash (Join-Path $outTwo $name))) "Output is not deterministic: $name" }
     $manifest = Get-Content -LiteralPath (Join-Path $outOne 'release-manifest.json') -Raw | ConvertFrom-Json
     $receipt = Get-Content -LiteralPath (Join-Path $outOne 'release-receipt.json') -Raw | ConvertFrom-Json
     Assert ($manifest.sourceCommit -ceq $sourceCommit -and $manifest.artifactSha256 -ceq (Hash (Join-Path $outOne 'source.zip'))) 'Manifest does not bind source archive.'
@@ -36,7 +38,7 @@ try {
     Assert ($manifest.terraformVariablesSha256 -ceq (Hash $tfvarsPath)) 'Packaging changed or dropped the reviewed Terraform variables digest.'
     Assert ($receipt.releaseManifestSha256 -ceq (Hash (Join-Path $outOne 'release-manifest.json'))) 'Handoff receipt must bind the manifest including executor and Terraform variables digests.'
     Assert ($receipt.status -ceq 'INPUTS_VALIDATED_DEPLOYMENT_DISABLED' -and $receipt.success -eq $false -and $receipt.deploymentAttempted -eq $false) 'Receipt must be an explicit non-success disabled result.'
-    Reject { & "$repo/scripts/offline-release-handoff.ps1" -SourceCommit $sourceCommit -ReleaseInputFile $releaseInputPath -PlatformInputsFile $platformPath -OutputDirectory $outOne }
+    Reject { & "$repo/scripts/offline-release-handoff.ps1" -SourceCommit $sourceCommit -ReleaseInputFile $releaseInputPath -PlatformInputsFile $platformPath -RuntimePublicConfigMapFile "$temp/public.json" -OutputDirectory $outOne }
     Write-Output 'PASS: deterministic offline APP handoff packages, verifies, renders and records disabled deployment.'
 } finally {
     $resolved = [IO.Path]::GetFullPath($temp)
