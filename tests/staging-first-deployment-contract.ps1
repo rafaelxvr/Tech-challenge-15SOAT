@@ -4,6 +4,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
 . "$repo/scripts/app-release-contract.ps1"
+. "$PSScriptRoot/runtime-public-fixture.ps1"
 $temp = Join-Path ([IO.Path]::GetTempPath()) ('oficina-first-deployment-' + [guid]::NewGuid())
 New-Item -ItemType Directory -Path $temp | Out-Null
 $global:firstDeploymentChecks = 0
@@ -17,6 +18,7 @@ function Save([object]$Value, [string]$Name) { $Value | ConvertTo-Json -Depth 50
 function aws {
     $f=$global:firstDeploymentFixture; $a=@($args); $f.Calls.Add('aws '+($a -join ' ')); $global:LASTEXITCODE=0
     switch ($a[1]) {
+        'get-object' { Copy-Item -LiteralPath "$temp/public.json" -Destination $a[-3]; return '{"VersionId":"public-version-001"}' }
         'put-object' {
             if($f.Failure -ceq 'lock') { $global:LASTEXITCODE=1; return }
             $payload=Get-Content -LiteralPath $a[[array]::IndexOf($a,'--body')+1] -Raw | ConvertFrom-Json
@@ -53,11 +55,13 @@ function kubectl {
     }
     if ($verb -ceq 'create') {
         $item=Get-Content -LiteralPath $a[-1] -Raw | ConvertFrom-Json
+        if($item.kind -ceq 'ConfigMap' -and $item.metadata.name -ceq 'oficina-runtime-public-staging' -and $f.Failure -ceq 'public-create-race'){$global:LASTEXITCODE=1;return 'AlreadyExists'}
         if ($item.kind -ceq 'Deployment') {
             Assert ($item.spec.replicas -eq 0 -and $item.spec.strategy.type -ceq 'Recreate') 'Fresh Deployment must start with zero writers.'
             Assert ($item.spec.template.spec.containers[0].resources.requests.memory -ceq '768Mi') 'Platform resource requests must survive bootstrap.'
             $f.Objects.deployment=$item
         }
+        if ($item.kind -ceq 'ConfigMap' -and $item.metadata.name -ceq 'oficina-runtime-public-staging') { $f.Objects.configmap=$item;if($f.Failure -ceq 'public-readback'){$f.Objects.configmap.data.'staff-key-id'='unreviewed'} }
         if ($item.kind -ceq 'ServiceAccount') { $f.Objects.serviceaccount=$item }
     }
     if ($verb -ceq 'patch' -and $a[-1].EndsWith('drain-patch.json')) { $f.Objects.deployment.spec.replicas=0 }
@@ -78,6 +82,7 @@ function Fixture([switch]$Existing) {
     $review=@{schemaVersion=1;environment='staging';sourceCommit=('b'*40);databaseHost='private.example.test';caSha256=('f'*64);master=@{arn='arn:aws:secretsmanager:us-east-1:123456789012:secret:rds!db-example';versionId=('1'*32)};roles=@{migration=@{arn='arn:aws:secretsmanager:us-east-1:123456789012:secret:oficina/staging/migration-AbCdEf';versionId=('2'*32)};app=@{arn='arn:aws:secretsmanager:us-east-1:123456789012:secret:oficina/staging/app-AbCdEf';versionId=('3'*32)};auth=@{arn='arn:aws:secretsmanager:us-east-1:123456789012:secret:oficina/staging/auth-AbCdEf';versionId=('4'*32)};notification=@{arn='arn:aws:secretsmanager:us-east-1:123456789012:secret:oficina/staging/notification-AbCdEf';versionId=('5'*32)}}}
     $bootstrapReceipt=@{schemaVersion=2;environment='staging';sourceCommit=('b'*40);outputs=@{schemaVersion='V8';authViewVersion='V5';recipientViewVersion='V7';migrationSecretArn=$review.roles.migration.arn;migrationSecretVersionId=$review.roles.migration.versionId;appSecretArn=$review.roles.app.arn;appSecretVersionId=$review.roles.app.versionId;authLookupSecretArn=$review.roles.auth.arn;authLookupSecretVersionId=$review.roles.auth.versionId;notificationLookupSecretArn=$review.roles.notification.arn;notificationLookupSecretVersionId=$review.roles.notification.versionId}}
     $release=@{schemaVersion=1;environment='staging';mode='FirstWriter';sourceCommit=('b'*40);contractVersion='phase3-v2';databaseSchemaVersion='V8';platformInputsSha256=(Get-AppFileHash "$temp/platform.json");image=$platform.Image;previousImage=$platform.Image;migrationImage=($prefix+'flyway@sha256:'+('d'*64));bootstrapImage=($prefix+'bootstrap@sha256:'+('e'*64));bootstrapReview=$review;bootstrapReceipt=$bootstrapReceipt;kubeContext='arn:aws:eks:us-east-1:123456789012:cluster/oficina';migrationSecretName='oficina-migration-staging';migrationServiceAccount='oficina-migration-staging';migrationSqlSha256=(Get-AppMigrationDigest);stagingWorkloadSha256=(Get-AppFileHash "$temp/workload.json");artifactSha256=(Get-AppFileHash "$temp/source.zip");deployerImageDigest=('sha256:'+('e'*64))}
+    Add-RuntimePublicFixture $release "$temp/public.json"
     $window=@{windowStartUtc=[DateTimeOffset]::UtcNow.AddHours(-1).ToString('o');windowEndUtc=[DateTimeOffset]::UtcNow.AddHours(1).ToString('o');recordedAtUtc=[DateTimeOffset]::UtcNow.ToString('o');accountEvidenceReference='review/fixture';projectAllowanceUsd=100;reserveUsd=10;currentEstimatedSpendUsd=1}; Save $window window
     $global:firstDeploymentFixture=@{Calls=[Collections.Generic.List[string]]::new();Failure='';Locked=$false;Owner='';Objects=@{};Responses=@{};Release=$release;Bundle=$bundle;Window=$window;SourceKey='releases/app/staging/bundle.zip'}
     if ($Existing) { $global:firstDeploymentFixture.Objects=@{deployment=$deployment;serviceaccount=$account;hpa=$hpa} }
@@ -94,12 +99,13 @@ function Run([switch]$Execute) {
             TerraformVariablesFile='/tmp/oficina/app_staging.tfvars.json'; TerraformBackendBucket='fixture-state-bucket'
             TerraformBackendKey='app/staging.tfstate'; TerraformBackendLockKey='app/staging.tfstate.tflock'; TerraformBackendRegion='us-east-1'
             PlatformInputsFile="$temp/platform.json"; StagingWorkloadFile="$temp/workload.json"; CloudWindowEvidenceFile="$temp/window.json"
+            RuntimePublicConfigMapObjectKey=("releases/app/staging/inputs/"+$f.Release.sourceCommit+"/runtime-public.json"); RuntimePublicConfigMapVersionId='public-version-001'; ExpectedRuntimePublicConfigMapSha256=$f.Release.runtimePublicConfigMapSha256; ArtifactBucket='fixture-artifact-bucket'
             SourceArchiveFile="$temp/source.zip"; StateBucket='fixture-state-bucket'; SourceKey=$f.SourceKey
         }
         & "$repo/scripts/deploy.ps1" @script:executorArgs -ApplyReviewedPlan:$Execute -DryRun:(-not $Execute) | Out-Null
         return
     }
-    & "$repo/scripts/deploy-app.ps1" -ReleaseFile "$temp/release.json" -ExpectedReleaseSha256 (Get-AppFileHash "$temp/release.json") -PlatformInputsFile "$temp/platform.json" -OutputDirectory "$temp/rendered" -StagingWorkloadFile "$temp/workload.json" -CloudWindowEvidenceFile "$temp/window.json" -StateBucket 'fixture-state-bucket' -SourceArchiveFile "$temp/source.zip" -SourceKey $f.SourceKey -ExpectedDeployerImageDigest ('sha256:'+('e'*64)) -ExecuteReviewedPlan:$Execute | Out-Null
+    & "$repo/scripts/deploy-app.ps1" -ReleaseFile "$temp/release.json" -ExpectedReleaseSha256 (Get-AppFileHash "$temp/release.json") -PlatformInputsFile "$temp/platform.json" -OutputDirectory "$temp/rendered" -StagingWorkloadFile "$temp/workload.json" -RuntimePublicConfigMapFile "$temp/public.json" -CloudWindowEvidenceFile "$temp/window.json" -StateBucket 'fixture-state-bucket' -SourceArchiveFile "$temp/source.zip" -SourceKey $f.SourceKey -ExpectedDeployerImageDigest ('sha256:'+('e'*64)) -ExecuteReviewedPlan:$Execute | Out-Null
 }
 try {
     if($ExecutorEntrypoint) {
@@ -116,6 +122,12 @@ try {
         Assert ($calls -match '(?s)put-object.*bootstrap-serviceaccount.json.*bootstrap-deployment.json.*migration-job.json.*rollout status.*delete-object') 'Real deploy.ps1 must reach the real locked migration and rollout sequence.'
         $receipt=Get-Content "$temp/app-rollout/rollout-receipt.json" -Raw | ConvertFrom-Json
         Assert ($receipt.status -ceq 'ROLLOUT_COMPLETE') 'Entrypoint must produce a real rollout completion receipt.'
+        Assert ($receipt.runtimePublicConfigMapSha256 -ceq $global:firstDeploymentFixture.Release.runtimePublicConfigMapSha256) 'Rollout receipt must bind the public ConfigMap bytes.'
+        foreach($field in @('RuntimePublicConfigMapObjectKey','RuntimePublicConfigMapVersionId','ExpectedRuntimePublicConfigMapSha256')){
+            $bad=$script:executorArgs.Clone();$bad[$field]='';$global:firstDeploymentFixture.Calls.Clear()
+            Reject { & "$repo/scripts/deploy.ps1" @bad -ApplyReviewedPlan }
+            Assert ($global:firstDeploymentFixture.Calls.Count -eq 0) 'Missing public transport must fail before download/lock/cluster calls.'
+        }
         foreach($field in @('PlatformInputsFile','StagingWorkloadFile','CloudWindowEvidenceFile','SourceArchiveFile')) {
             $bad=$script:executorArgs.Clone(); $bad[$field]="$temp/missing.json"
             $global:firstDeploymentFixture.Calls.Clear()
@@ -147,6 +159,20 @@ try {
     Assert ($calls -match '(?s)put-object.*bootstrap-serviceaccount.json.*bootstrap-deployment.json.*bootstrap-review.json.*migration-job.json.*wait job/.*rollout-patch.json.*rollout status.*apply .*hpa.json.*head-object.*delete-object') 'Fresh cluster must keep lock through zero-writer creation, review ConfigMap, migration, rollout and HPA.'
     Assert (-not $calls.Contains('delete hpa')) 'Absent HPA must not be deleted.'
     Assert (-not $global:firstDeploymentFixture.Locked) 'Success must release its own lock.'
+    Assert ($calls.IndexOf('create -f '+"$temp/public.json") -lt $calls.IndexOf('migration-job.json')) 'Public ConfigMap must be created before the bootstrap Job.'
+    Fixture -Existing
+    $global:firstDeploymentFixture.Objects.configmap=Get-Content -Raw "$temp/public.json"|ConvertFrom-Json -AsHashtable
+    Run -Execute
+    Assert (-not (($global:firstDeploymentFixture.Calls -join "`n").Contains('create -f '+"$temp/public.json"))) 'Matching existing public configuration must not be overwritten.'
+    foreach($value in @('null','{}','[]')){
+        Fixture; $global:firstDeploymentFixture.Responses.configmap=$value; Reject {Run -Execute}
+        Assert (-not (($global:firstDeploymentFixture.Calls -join "`n") -match 'create -f|migration-job.json')) 'Malformed ConfigMap must stop before writes.'
+    }
+    Fixture -Existing
+    $global:firstDeploymentFixture.Objects.configmap=Get-Content -Raw "$temp/public.json"|ConvertFrom-Json -AsHashtable
+    $global:firstDeploymentFixture.Objects.configmap.data['history-zone']='America/Sao_Paulo'
+    Reject {Run -Execute}
+    Assert (-not (($global:firstDeploymentFixture.Calls -join "`n") -match 'create -f|migration-job.json|delete hpa')) 'Public data drift must stop before writer or migration mutations.'
     Fixture -Existing; Run -Execute
     $calls=$global:firstDeploymentFixture.Calls -join "`n"
     Assert ($calls.Contains('delete hpa') -and -not $calls.Contains('bootstrap-deployment.json')) 'Existing workload must use the validated drain path without bootstrap writes.'
@@ -175,13 +201,13 @@ try {
             Assert (-not $global:firstDeploymentFixture.Locked) 'Rejected identity must release its lock.'
         }
     }
-    foreach ($failure in @('read','create','migration','rollout','orphan','window-expires','lock')) {
+    foreach ($failure in @('read','create','migration','rollout','orphan','window-expires','lock','public-create-race','public-readback')) {
         Fixture; $global:firstDeploymentFixture.Failure=$failure; Reject { Run -Execute }
         $calls=$global:firstDeploymentFixture.Calls -join "`n"
         Assert (-not $calls.Contains('apply -f')) 'Failure cannot restore HPA.'
         Assert (-not $global:firstDeploymentFixture.Locked) 'Failure must release its own lock.'
         Assert ((Get-Content "$temp/rendered/rollout-receipt.json" -Raw | ConvertFrom-Json).status -cne 'ROLLOUT_COMPLETE') 'Failed run cannot retain success.'
-        if($failure -cin @('read','create','orphan','lock')) { Assert (-not $calls.Contains('migration-job.json')) 'Preflight failure cannot migrate.' }
+        if($failure -cin @('read','create','orphan','lock','public-create-race','public-readback')) { Assert (-not $calls.Contains('migration-job.json')) 'Preflight failure cannot migrate.' }
         if($failure -cin @('migration','window-expires')) { Assert (-not $calls.Contains('rollout-patch.json')) 'Migration/window failure cannot enable writers.' }
     }
     foreach ($missing in @('deployment','serviceaccount','hpa')) {

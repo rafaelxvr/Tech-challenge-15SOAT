@@ -4,12 +4,14 @@ param()
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
+. "$PSScriptRoot/runtime-public-fixture.ps1"
 $temp = Join-Path ([IO.Path]::GetTempPath()) ('oficina-app-launcher-' + [guid]::NewGuid())
 New-Item -ItemType Directory -Path $temp | Out-Null
 $launcherScripts = Join-Path $temp 'launcher/scripts'
 New-Item -ItemType Directory -Path $launcherScripts -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $repo 'scripts/start-deploy.ps1') -Destination (Join-Path $launcherScripts 'start-deploy.ps1')
 Copy-Item -LiteralPath (Join-Path $repo 'scripts/staging-executor-inputs.ps1') -Destination (Join-Path $launcherScripts 'staging-executor-inputs.ps1')
+Copy-Item -LiteralPath "$repo/scripts/runtime-public-configmap-contract.ps1" -Destination "$launcherScripts/runtime-public-configmap-contract.ps1"
 $contextMarker = Join-Path $temp 'context-check.txt'
 $windowMarker = Join-Path $temp 'window-check.txt'
 @"
@@ -75,6 +77,7 @@ try {
     $platformPath=Join-Path $temp 'platform.json'; Save-Json @{Environment='staging'} $platformPath
     $workloadPath=Join-Path $temp 'workload.json'; Save-Json @{kind='List'} $workloadPath
     $manifest.mode='FirstWriter'; $manifest.platformInputsSha256=Sha $platformPath; $manifest.stagingWorkloadSha256=Sha $workloadPath; $manifest.cloudWindowEvidenceSha256=Sha $windowPath
+    Add-RuntimePublicFixture $manifest "$temp/public.json"
     Save-Json $manifest $manifestPath; $manifestSha=Sha $manifestPath
     $receiptPath = Join-Path $temp 'promotion-receipt.json'
     $launch = @{
@@ -82,7 +85,7 @@ try {
         TerraformVariablesFile = $tfvarsPath; ExpectedTerraformVariablesSha256 = $tfvarsSha; DeployerImageDigest = $deployerDigest
         Bucket = 'oficina-phase3-artifacts-16225b7358'; SourcePrefix = 'releases/app/staging'; ProjectName = 'oficina-phase3-oficina-app-staging-deploy'; SourceCommit = $commit
         CloudWindowEvidenceFile = $windowPath; PromotionEvidenceOutputFile = $receiptPath; EventName = 'push'; BranchRef = 'refs/heads/develop'; TimeoutSeconds = 60
-        PlatformInputsFile=$platformPath; StagingWorkloadFile=$workloadPath
+        PlatformInputsFile=$platformPath; StagingWorkloadFile=$workloadPath; RuntimePublicConfigMapFile="$temp/public.json"
     }
 
     $dryRun = & (Join-Path $launcherScripts 'start-deploy.ps1') @launch -DryRun
@@ -112,9 +115,13 @@ try {
     $buildCalls = @($global:AwsCalls | Where-Object { $_ -match '^codebuild start-build' })
     if ($buildCalls.Count -ne 1 -or ([string]$buildCalls[0]) -notmatch '--source-version source-version-001') { throw "CodeBuild was not pinned to the source VersionId. Calls: $($global:AwsCalls -join ' | ')" }
     $buildCall = [string]$buildCalls[0]
+    if(-not$buildCall.Contains("name=RUNTIME_PUBLIC_CONFIGMAP_SHA256,value=$($manifest.runtimePublicConfigMapSha256),type=PLAINTEXT") -or
+       $receipt.runtimePublicConfigMapKey -cne "releases/app/staging/inputs/$commit/runtime-public.json" -or
+       $receipt.runtimePublicConfigMapVersionId -cne 'runtime-version-001' -or
+       $receipt.runtimePublicConfigMapSha256 -cne $manifest.runtimePublicConfigMapSha256){throw 'Public ConfigMap digest/version receipt binding was lost.'}
     $allowed = @('DEPLOY_ENVIRONMENT', 'SOURCE_BUCKET', 'SOURCE_KEY', 'SOURCE_VERSION_ID', 'EXPECTED_SHA256', 'RELEASE_MANIFEST_KEY', 'RELEASE_MANIFEST_VERSION_ID', 'EXPECTED_MANIFEST_SHA256', 'SOURCE_COMMIT', 'DEPLOYER_IMAGE_DIGEST', 'TFVARS_OBJECT_KEY', 'TFVARS_VERSION_ID', 'EXPECTED_TFVARS_SHA256')
-    $allowed += @('PLATFORM_INPUTS_OBJECT_KEY','PLATFORM_INPUTS_VERSION_ID','STAGING_WORKLOAD_OBJECT_KEY','STAGING_WORKLOAD_VERSION_ID','CLOUD_WINDOW_OBJECT_KEY','CLOUD_WINDOW_VERSION_ID')
-    foreach($binding in @(@{Name='PLATFORM_INPUTS';Leaf='platform.json'},@{Name='STAGING_WORKLOAD';Leaf='workload.json'},@{Name='CLOUD_WINDOW';Leaf='cloud-window.json'})) {
+    $allowed += @('PLATFORM_INPUTS_OBJECT_KEY','PLATFORM_INPUTS_VERSION_ID','STAGING_WORKLOAD_OBJECT_KEY','STAGING_WORKLOAD_VERSION_ID','CLOUD_WINDOW_OBJECT_KEY','CLOUD_WINDOW_VERSION_ID','RUNTIME_PUBLIC_CONFIGMAP_OBJECT_KEY','RUNTIME_PUBLIC_CONFIGMAP_VERSION_ID','RUNTIME_PUBLIC_CONFIGMAP_SHA256')
+    foreach($binding in @(@{Name='PLATFORM_INPUTS';Leaf='platform.json'},@{Name='STAGING_WORKLOAD';Leaf='workload.json'},@{Name='CLOUD_WINDOW';Leaf='cloud-window.json'},@{Name='RUNTIME_PUBLIC_CONFIGMAP';Leaf='runtime-public.json'})) {
         if(-not $buildCall.Contains("name=$($binding.Name)_OBJECT_KEY,value=releases/app/staging/inputs/$commit/$($binding.Leaf),type=PLAINTEXT") -or
             -not $buildCall.Contains("name=$($binding.Name)_VERSION_ID,value=runtime-version-001,type=PLAINTEXT")){throw 'Public runtime handoff must use exact object keys and immutable versions.'}
     }
@@ -139,13 +146,13 @@ try {
     Reject { & (Join-Path $launcherScripts 'start-deploy.ps1') @liveMismatchPrefix -DryRun }
 
     $global:AwsCalls.Clear()
-    foreach($field in @('PlatformInputsFile','StagingWorkloadFile','CloudWindowEvidenceFile')) {
+    foreach($field in @('PlatformInputsFile','StagingWorkloadFile','CloudWindowEvidenceFile','RuntimePublicConfigMapFile')) {
         $bad=$launch.Clone(); $bad[$field]="$temp/missing.json"
         Reject { & (Join-Path $launcherScripts 'start-deploy.ps1') @bad -DryRun }
         $bad[$field]=$tfvarsPath
         Reject { & (Join-Path $launcherScripts 'start-deploy.ps1') @bad -DryRun }
     }
-    foreach($field in @('platformInputsSha256','stagingWorkloadSha256','cloudWindowEvidenceSha256')) {
+    foreach($field in @('platformInputsSha256','stagingWorkloadSha256','cloudWindowEvidenceSha256','runtimePublicConfigMapSha256')) {
         foreach($value in @($null,@(),@('a'*64),('0'*64))) {
             $badManifest=$manifest.Clone(); $badManifest[$field]=$value; Save-Json $badManifest $manifestPath
             $bad=$launch.Clone(); $bad.ExpectedManifestSha256=Sha $manifestPath

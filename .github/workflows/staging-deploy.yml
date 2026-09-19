@@ -44,6 +44,7 @@ jobs:
           APP_CLOUD_DEPLOYMENT_ROLE_ARN: ${{ vars.APP_CLOUD_DEPLOYMENT_ROLE_ARN }}
           APP_RELEASE_INPUT_PATH: ${{ vars.APP_RELEASE_INPUT_PATH }}
           APP_PLATFORM_INPUTS_PATH: ${{ vars.APP_PLATFORM_INPUTS_PATH }}
+          APP_RUNTIME_PUBLIC_CONFIGMAP_PATH: ${{ vars.APP_RUNTIME_PUBLIC_CONFIGMAP_PATH }}
           APP_STAGING_WORKLOAD_PATH: ${{ vars.APP_STAGING_WORKLOAD_PATH }}
           APP_CLOUD_WINDOW_EVIDENCE_PATH: ${{ vars.APP_CLOUD_WINDOW_EVIDENCE_PATH }}
           APP_TERRAFORM_VARIABLES_PATH: ${{ vars.APP_TERRAFORM_VARIABLES_PATH }}
@@ -54,6 +55,7 @@ jobs:
             APP_CLOUD_DEPLOYMENT_ROLE_ARN = $env:APP_CLOUD_DEPLOYMENT_ROLE_ARN
             APP_RELEASE_INPUT_PATH = $env:APP_RELEASE_INPUT_PATH
             APP_PLATFORM_INPUTS_PATH = $env:APP_PLATFORM_INPUTS_PATH
+            APP_RUNTIME_PUBLIC_CONFIGMAP_PATH = $env:APP_RUNTIME_PUBLIC_CONFIGMAP_PATH
             APP_STAGING_WORKLOAD_PATH = $env:APP_STAGING_WORKLOAD_PATH
             APP_CLOUD_WINDOW_EVIDENCE_PATH = $env:APP_CLOUD_WINDOW_EVIDENCE_PATH
             APP_TERRAFORM_VARIABLES_PATH = $env:APP_TERRAFORM_VARIABLES_PATH
@@ -68,7 +70,7 @@ jobs:
           if ($env:APP_CLOUD_DEPLOYMENT_ROLE_ARN -cnotmatch '^arn:aws:iam::[0-9]{12}:role/[A-Za-z0-9+=,.@_/-]+$') {
             throw 'APP_CLOUD_DEPLOYMENT_ROLE_ARN must be a reviewed same-account IAM role ARN.'
           }
-          foreach ($path in @($env:APP_RELEASE_INPUT_PATH, $env:APP_PLATFORM_INPUTS_PATH, $env:APP_STAGING_WORKLOAD_PATH, $env:APP_CLOUD_WINDOW_EVIDENCE_PATH, $env:APP_TERRAFORM_VARIABLES_PATH)) {
+          foreach ($path in @($env:APP_RELEASE_INPUT_PATH, $env:APP_RUNTIME_PUBLIC_CONFIGMAP_PATH, $env:APP_PLATFORM_INPUTS_PATH, $env:APP_STAGING_WORKLOAD_PATH, $env:APP_CLOUD_WINDOW_EVIDENCE_PATH, $env:APP_TERRAFORM_VARIABLES_PATH)) {
             if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
               throw "Reviewed staging input file does not exist: $path."
             }
@@ -80,12 +82,14 @@ jobs:
         env:
           APP_RELEASE_INPUT_PATH: ${{ vars.APP_RELEASE_INPUT_PATH }}
           APP_PLATFORM_INPUTS_PATH: ${{ vars.APP_PLATFORM_INPUTS_PATH }}
+          APP_RUNTIME_PUBLIC_CONFIGMAP_PATH: ${{ vars.APP_RUNTIME_PUBLIC_CONFIGMAP_PATH }}
         run: |
           $handoff = Join-Path $env:RUNNER_TEMP "oficina-app-staging-$env:GITHUB_SHA"
           & ./scripts/offline-release-handoff.ps1 `
             -SourceCommit $env:GITHUB_SHA `
             -ReleaseInputFile $env:APP_RELEASE_INPUT_PATH `
             -PlatformInputsFile $env:APP_PLATFORM_INPUTS_PATH `
+            -RuntimePublicConfigMapFile $env:APP_RUNTIME_PUBLIC_CONFIGMAP_PATH `
             -OutputDirectory $handoff
           if ($LASTEXITCODE -ne 0) { throw 'Reviewed APP source/release packaging failed.' }
           $sourceZip = Join-Path $handoff 'source.zip'
@@ -104,6 +108,7 @@ jobs:
         shell: pwsh
         env:
           APP_PLATFORM_INPUTS_PATH: ${{ vars.APP_PLATFORM_INPUTS_PATH }}
+          APP_RUNTIME_PUBLIC_CONFIGMAP_PATH: ${{ vars.APP_RUNTIME_PUBLIC_CONFIGMAP_PATH }}
           APP_STAGING_WORKLOAD_PATH: ${{ vars.APP_STAGING_WORKLOAD_PATH }}
           APP_CLOUD_WINDOW_EVIDENCE_PATH: ${{ vars.APP_CLOUD_WINDOW_EVIDENCE_PATH }}
           APP_TERRAFORM_VARIABLES_PATH: ${{ vars.APP_TERRAFORM_VARIABLES_PATH }}
@@ -124,6 +129,7 @@ jobs:
             -ProjectName $env:APP_PROJECT_NAME `
             -SourceCommit $env:GITHUB_SHA `
             -PlatformInputsFile $env:APP_PLATFORM_INPUTS_PATH `
+            -RuntimePublicConfigMapFile $env:APP_RUNTIME_PUBLIC_CONFIGMAP_PATH `
             -StagingWorkloadFile $env:APP_STAGING_WORKLOAD_PATH `
             -CloudWindowEvidenceFile $env:APP_CLOUD_WINDOW_EVIDENCE_PATH `
             -EventName $env:GITHUB_EVENT_NAME `
@@ -141,6 +147,7 @@ jobs:
         shell: pwsh
         env:
           APP_PLATFORM_INPUTS_PATH: ${{ vars.APP_PLATFORM_INPUTS_PATH }}
+          APP_RUNTIME_PUBLIC_CONFIGMAP_PATH: ${{ vars.APP_RUNTIME_PUBLIC_CONFIGMAP_PATH }}
           APP_STAGING_WORKLOAD_PATH: ${{ vars.APP_STAGING_WORKLOAD_PATH }}
           APP_CLOUD_WINDOW_EVIDENCE_PATH: ${{ vars.APP_CLOUD_WINDOW_EVIDENCE_PATH }}
           APP_TERRAFORM_VARIABLES_PATH: ${{ vars.APP_TERRAFORM_VARIABLES_PATH }}
@@ -162,6 +169,7 @@ jobs:
             -ProjectName $env:APP_PROJECT_NAME `
             -SourceCommit $env:GITHUB_SHA `
             -PlatformInputsFile $env:APP_PLATFORM_INPUTS_PATH `
+            -RuntimePublicConfigMapFile $env:APP_RUNTIME_PUBLIC_CONFIGMAP_PATH `
             -StagingWorkloadFile $env:APP_STAGING_WORKLOAD_PATH `
             -CloudWindowEvidenceFile $env:APP_CLOUD_WINDOW_EVIDENCE_PATH `
             -PromotionEvidenceOutputFile $promotion `

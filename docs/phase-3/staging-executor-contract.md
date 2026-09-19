@@ -11,7 +11,7 @@ introducing a second Terraform resource owner.
 ## Exact public input transport
 
 The launcher accepts `PlatformInputsFile`, `StagingWorkloadFile` and
-`CloudWindowEvidenceFile`. All are required for staging, including preflight.
+`CloudWindowEvidenceFile`, plus `RuntimePublicConfigMapFile`. All are required for staging, including preflight.
 The workflow supplies `APP_PLATFORM_INPUTS_PATH`, `APP_STAGING_WORKLOAD_PATH` and
 `APP_CLOUD_WINDOW_EVIDENCE_PATH` from reviewed configuration. Release input JSON
 must already contain these lowercase SHA-256 values; packaging preserves them:
@@ -21,11 +21,12 @@ must already contain these lowercase SHA-256 values; packaging preserves them:
 | Public platform JSON | `platformInputsSha256` | `platform.json` |
 | K8S-rendered workload JSON List | `stagingWorkloadSha256` | `workload.json` |
 | Approved cloud-window JSON | `cloudWindowEvidenceSha256` | `cloud-window.json` |
+| K8S-rendered public ConfigMap JSON | `runtimePublicConfigMapSha256` | `runtime-public.json` |
 
 No JSON reserialization occurs during upload. These files contain only public
 configuration, reviewed metadata and Secret/IRSA references; credential values
-remain in Secrets Manager/CSI. The manifest digest binds all three hashes, the
-source archive hash, the executor image digest and `terraformVariablesSha256`.
+remain in Secrets Manager/CSI. The manifest digest binds all four hashes, the
+public ConfigMap digest, source archive hash, the executor image digest and `terraformVariablesSha256`.
 The launcher rejects missing/mismatched files before AWS. It uploads each exact
 file and requires a scalar, nonempty, non-null S3 VersionId before starting a build.
 
@@ -35,6 +36,8 @@ The closed CodeBuild override list adds exactly:
 PLATFORM_INPUTS_OBJECT_KEY   PLATFORM_INPUTS_VERSION_ID
 STAGING_WORKLOAD_OBJECT_KEY STAGING_WORKLOAD_VERSION_ID
 CLOUD_WINDOW_OBJECT_KEY     CLOUD_WINDOW_VERSION_ID
+RUNTIME_PUBLIC_CONFIGMAP_OBJECT_KEY RUNTIME_PUBLIC_CONFIGMAP_VERSION_ID
+RUNTIME_PUBLIC_CONFIGMAP_SHA256
 ```
 
 The K8S-owned `infra/modules/deployment-executor/main.tf` bootstrap must fetch
@@ -70,8 +73,7 @@ expose raw external command output. The receipt is written under `app-rollout`
 beside the executor's release manifest. Production and other release modes
 remain closed through this entry point.
 
-Platform prerequisites (namespace/RBAC, CSI, public runtime ConfigMap and its
-pinned RDS CA, migration identity, networking and reviewed IRSA) remain K8S-owned
+The [public ConfigMap artifact](staging-public-configmap-contract.md) is now created or validated by APP before migration, using the K8S renderer and pinned RDS CA. Other platform prerequisites (namespace/RBAC, CSI, migration identity, networking and reviewed IRSA) remain K8S-owned
 reviewed activation inputs. This change neither creates those resources nor
 claims live readiness. The coordinated K8S bridge must be reviewed and installed
 before activation; an older executor omits these paths and fails before rollout.
