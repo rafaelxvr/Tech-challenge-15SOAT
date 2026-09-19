@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "submissionMode": "template",
-  "releaseRevision": "85a7227c94cf322cd1bdab3f2f0cb43099370a81",
+  "releaseRevision": "e270a3e07da132c93a632b80544d287ea76175c6",
   "reviewerUsername": "soat-architecture",
   "repositories": [
     {
@@ -9,21 +9,21 @@
       "url": "https://github.com/rafaelxvr/Tech-challenge-15SOAT",
       "reviewerAccessVerified": false,
       "accessEvidence": "NOT_PROVIDED",
-      "reviewedRevision": "85a7227c94cf322cd1bdab3f2f0cb43099370a81"
+      "reviewedRevision": "e270a3e07da132c93a632b80544d287ea76175c6"
     },
     {
       "name": "K8S",
       "url": "https://github.com/rafaelxvr/Tech-challenge-15SOAT-k8s-infra",
       "reviewerAccessVerified": false,
       "accessEvidence": "NOT_PROVIDED",
-      "reviewedRevision": "f51d67ebc81235ed18239de8eed17d27a22a2f88"
+      "reviewedRevision": "f0238321e472204ac5628bee904b3ecec88ee6f9"
     },
     {
       "name": "FUN",
       "url": "https://github.com/rafaelxvr/Tech-challenge-15SOAT-functions",
       "reviewerAccessVerified": false,
       "accessEvidence": "NOT_PROVIDED",
-      "reviewedRevision": "dbceabcf3dd9d11597af98825c3ca54159cbbf4f"
+      "reviewedRevision": "66e586ea43de1b98dc1347e49df75412b1f9faa2"
     },
     {
       "name": "DB",
@@ -36,8 +36,8 @@
   "videoUrl": "NOT_PROVIDED",
   "videoDurationSeconds": null,
   "documentationUrls": [
-    "https://github.com/rafaelxvr/Tech-challenge-15SOAT/blob/85a7227c94cf322cd1bdab3f2f0cb43099370a81/docs/phase-3/architecture/components.md",
-    "https://github.com/rafaelxvr/Tech-challenge-15SOAT/blob/85a7227c94cf322cd1bdab3f2f0cb43099370a81/docs/phase-3/evidence/implementation-audit.md",
+    "https://github.com/rafaelxvr/Tech-challenge-15SOAT/blob/e270a3e07da132c93a632b80544d287ea76175c6/docs/phase-3/architecture/components.md",
+    "https://github.com/rafaelxvr/Tech-challenge-15SOAT/blob/e270a3e07da132c93a632b80544d287ea76175c6/docs/phase-3/evidence/implementation-audit.md",
     "https://github.com/rafaelxvr/Tech-challenge-15SOAT-k8s-infra/blob/22d60af8964f08844517c6768cf38323c27ee3d7/docs/evidence/staging-platform-acceptance-2026-09-17.md",
     "https://github.com/rafaelxvr/Tech-challenge-15SOAT-k8s-infra/blob/f51d67ebc81235ed18239de8eed17d27a22a2f88/docs/evidence/monitoring-static-contract.md",
     "https://github.com/rafaelxvr/Tech-challenge-15SOAT-functions/blob/dbceabcf3dd9d11597af98825c3ca54159cbbf4f/docs/evidence/staging-runtime-handoff-contract.md",
