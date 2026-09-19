@@ -22,6 +22,10 @@ function Assert-StagingExecutorBaseInputs([object]$Release, [string]$PlatformInp
         catch { throw "APP_STAGING_INPUTS_INVALID: $($binding.Field) must bind a JSON object." }
         if ($document -isnot [pscustomobject]) { throw "APP_STAGING_INPUTS_INVALID: $($binding.Field) must bind a JSON object." }
     }
+    . (Join-Path $PSScriptRoot 'bootstrap-release-contract.ps1')
+    . (Join-Path $PSScriptRoot 'migration-identity-contract.ps1')
+    $platform=Get-Content -LiteralPath $PlatformInputsFile -Raw|ConvertFrom-Json
+    $null=Read-StagingMigrationIdentity $platform $Release
 }
 function Assert-StagingExecutorInputs([object]$Release, [string]$PlatformInputsFile, [string]$StagingWorkloadFile, [string]$CloudWindowEvidenceFile, [string]$RuntimePublicConfigMapFile) {
     Assert-StagingExecutorBaseInputs $Release $PlatformInputsFile $StagingWorkloadFile $CloudWindowEvidenceFile

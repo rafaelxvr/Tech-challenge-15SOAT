@@ -4,6 +4,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
 . "$PSScriptRoot/runtime-public-fixture.ps1"
+. "$PSScriptRoot/migration-identity-fixture.ps1"
 $temp = Join-Path ([IO.Path]::GetTempPath()) ('oficina-offline-handoff-' + [guid]::NewGuid())
 New-Item -ItemType Directory -Path $temp | Out-Null
 function Hash([string]$Path) { (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant() }
@@ -25,6 +26,7 @@ try {
         runtimeArtifactDigest=('sha256:' + ('d'*64)); deployerImageDigest=('sha256:' + ('e'*64)); terraformVariablesSha256=(Hash $tfvarsPath)
     }
     Add-RuntimePublicFixture $release "$temp/public.json"
+    Add-MigrationIdentityFixture $release $platformPath
     $releaseInputPath = Join-Path $temp 'release-input.json'; Save-Json $release $releaseInputPath
     $outOne = Join-Path $temp 'one'; $outTwo = Join-Path $temp 'two'
     $resultOne = & "$repo/scripts/offline-release-handoff.ps1" -SourceCommit $sourceCommit -ReleaseInputFile $releaseInputPath -PlatformInputsFile $platformPath -RuntimePublicConfigMapFile "$temp/public.json" -OutputDirectory $outOne
@@ -32,6 +34,8 @@ try {
     Assert (($resultOne | Select-Object -Last 1) -ceq 'INPUTS_VALIDATED_DEPLOYMENT_DISABLED') 'Handoff must emit the disabled status.'
     foreach ($name in @('source.zip','runtime-public.json','release-manifest.json','rendered/migration-job.json','rendered/rollout-patch.json','release-receipt.json')) { Assert ((Hash (Join-Path $outOne $name)) -ceq (Hash (Join-Path $outTwo $name))) "Output is not deterministic: $name" }
     $manifest = Get-Content -LiteralPath (Join-Path $outOne 'release-manifest.json') -Raw | ConvertFrom-Json
+    . "$repo/scripts/migration-identity-contract.ps1"
+    $null=Read-StagingMigrationIdentity (Get-Content $platformPath -Raw|ConvertFrom-Json) $manifest
     $receipt = Get-Content -LiteralPath (Join-Path $outOne 'release-receipt.json') -Raw | ConvertFrom-Json
     Assert ($manifest.sourceCommit -ceq $sourceCommit -and $manifest.artifactSha256 -ceq (Hash (Join-Path $outOne 'source.zip'))) 'Manifest does not bind source archive.'
     Assert ($manifest.deployerImageDigest -ceq $release.deployerImageDigest) 'Packaging changed or dropped the reviewed deployer digest.'
