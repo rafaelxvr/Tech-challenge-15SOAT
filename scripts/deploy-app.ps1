@@ -41,6 +41,8 @@ if ($initializeStaging) {
     $workload = Read-StagingWorkload $StagingWorkloadFile $release $contract.Platform
     . (Join-Path $PSScriptRoot 'runtime-public-configmap-contract.ps1')
     $publicConfig=Read-StagingPublicConfigMap $RuntimePublicConfigMapFile $release
+    . (Join-Path $PSScriptRoot 'migration-identity-contract.ps1')
+    $migrationIdentity=Read-StagingMigrationIdentity $contract.Platform $release
     if ($StateBucket -cnotmatch '\A[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]\z' -or
         $SourceKey -cne 'releases/app/staging/bundle.zip' -or
         $release.artifactSha256 -isnot [string] -or $release.artifactSha256 -cnotmatch '\A[a-f0-9]{64}\z' -or
@@ -128,6 +130,10 @@ if ($guardedExecution) {
 $deployment = Read-ClusterObject 'deployment' 'oficina-app'
 $hpa = Read-ClusterObject 'hpa' 'oficina-app'
 $serviceAccount = Read-ClusterObject 'serviceaccount' 'oficina-app'
+if($initializeStaging){
+    $migrationServiceAccount=Read-ClusterObject 'serviceaccount' $migrationIdentity.serviceAccountName
+    Assert-MigrationServiceAccount $migrationServiceAccount $migrationIdentity
+}
 $fresh = $false
 if ($initializeStaging) {
     $missing = @(@($deployment, $hpa, $serviceAccount) | Where-Object { $null -eq $_ }).Count
@@ -190,6 +196,7 @@ if ($release.mode -ceq 'FirstWriter') {
     } while ($true)
 }
 if ($release.mode -cne 'Rollback') {
+    if($initializeStaging){Assert-MigrationServiceAccount (Read-ClusterObject 'serviceaccount' $migrationIdentity.serviceAccountName) $migrationIdentity}
     # create fails on an existing Job: a stale completed Job cannot satisfy this release.
     Invoke-ReleaseKubectl @('create', '-f', (Join-Path $OutputDirectory 'bootstrap-review.json')) | Out-Null
     Invoke-ReleaseKubectl @('create', '-f', (Join-Path $OutputDirectory 'migration-job.json')) | Out-Null
@@ -211,6 +218,8 @@ $targetImage = if ($release.mode -ceq 'Rollback') { $release.rollback.image } el
 @{schemaVersion=1; environment=$release.environment; sourceCommit=$release.sourceCommit; releaseSha256=$ExpectedReleaseSha256;
     image=$targetImage; databaseSchemaVersion='V8'; contractVersion='phase3-v2'; migration=$migration; bootstrapReceiptSha256=$bootstrapReceiptSha256;
     runtimePublicConfigMapSha256=$(if($initializeStaging){$release.runtimePublicConfigMapSha256}else{$null});
+    migrationIdentitySha256=$(if($initializeStaging){$contract.Platform.MigrationIdentitySha256}else{$null});
+    migrationNetworkPolicySha256=$(if($initializeStaging){$contract.Platform.MigrationNetworkPolicySha256}else{$null});
     startedAt=$startedAt.ToString('o'); completedAt=[DateTimeOffset]::UtcNow.ToString('o'); status='ROLLOUT_COMPLETE'
 } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $OutputDirectory 'rollout-receipt.json')
 Write-Output 'ROLLOUT_COMPLETE: local receipt written; no promotion or publication implied.'

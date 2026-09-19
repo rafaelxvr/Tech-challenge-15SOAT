@@ -4,6 +4,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
 . "$PSScriptRoot/runtime-public-fixture.ps1"
+. "$PSScriptRoot/migration-identity-fixture.ps1"
 $owner = 'app'
 $temp = Join-Path ([IO.Path]::GetTempPath()) ('oficina-release-guards-' + [guid]::NewGuid())
 New-Item -ItemType Directory -Path $temp | Out-Null
@@ -35,7 +36,7 @@ try {
         $manifest = @{ schemaVersion=1; environment=$environment; sourceCommit=('a'*40); artifactSha256=(Sha $bundle); deployerImageDigest=('sha256:' + ('b'*64)); contractVersion='phase3-v2'; migrationVersion='V8'; runtimeArtifactDigest=('sha256:' + ('c'*64)); promotedFromStaging=($environment -eq 'production'); stagingArtifactSha256=(Sha $bundle) }
         $manifest.mode='FirstWriter'; $manifest.platformInputsSha256=Sha $platformPath; $manifest.stagingWorkloadSha256=Sha $workloadPath; $manifest.cloudWindowEvidenceSha256=Sha $window
         $manifest.terraformVariablesSha256 = Sha $tfvarsPath
-        if($environment -eq 'staging'){Add-RuntimePublicFixture $manifest "$temp/public.json"}
+        if($environment -eq 'staging'){Add-RuntimePublicFixture $manifest "$temp/public.json";Add-MigrationIdentityFixture $manifest $platformPath}
         Save $manifest $manifestPath
         $launch = @{Environment=$environment; SourceZip=$bundle; ExpectedSha256=(Sha $bundle); ReleaseManifest=$manifestPath; ExpectedManifestSha256=(Sha $manifestPath); Bucket='oficina-artifacts-fixture'; SourceCommit=('a'*40); ProjectName="oficina-phase3-oficina-$owner-$environment-deploy"; SourcePrefix="releases/$owner/$environment"; CloudWindowEvidenceFile=$window; EventName='push'; BranchRef=$(if($environment -eq 'staging'){'refs/heads/develop'}else{'refs/heads/main'})}
         $launch.PlatformInputsFile=$platformPath; $launch.StagingWorkloadFile=$workloadPath

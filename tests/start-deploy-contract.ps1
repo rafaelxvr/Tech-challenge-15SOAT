@@ -5,12 +5,14 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
 . "$PSScriptRoot/runtime-public-fixture.ps1"
+. "$PSScriptRoot/migration-identity-fixture.ps1"
 $temp = Join-Path ([IO.Path]::GetTempPath()) ('oficina-app-launcher-' + [guid]::NewGuid())
 New-Item -ItemType Directory -Path $temp | Out-Null
 $launcherScripts = Join-Path $temp 'launcher/scripts'
 New-Item -ItemType Directory -Path $launcherScripts -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $repo 'scripts/start-deploy.ps1') -Destination (Join-Path $launcherScripts 'start-deploy.ps1')
 Copy-Item -LiteralPath (Join-Path $repo 'scripts/staging-executor-inputs.ps1') -Destination (Join-Path $launcherScripts 'staging-executor-inputs.ps1')
+foreach($helper in @('migration-identity-contract.ps1','bootstrap-release-contract.ps1')){Copy-Item -LiteralPath "$repo/scripts/$helper" -Destination "$launcherScripts/$helper"}
 Copy-Item -LiteralPath "$repo/scripts/runtime-public-configmap-contract.ps1" -Destination "$launcherScripts/runtime-public-configmap-contract.ps1"
 $contextMarker = Join-Path $temp 'context-check.txt'
 $windowMarker = Join-Path $temp 'window-check.txt'
@@ -78,6 +80,7 @@ try {
     $workloadPath=Join-Path $temp 'workload.json'; Save-Json @{kind='List'} $workloadPath
     $manifest.mode='FirstWriter'; $manifest.platformInputsSha256=Sha $platformPath; $manifest.stagingWorkloadSha256=Sha $workloadPath; $manifest.cloudWindowEvidenceSha256=Sha $windowPath
     Add-RuntimePublicFixture $manifest "$temp/public.json"
+    Add-MigrationIdentityFixture $manifest $platformPath
     Save-Json $manifest $manifestPath; $manifestSha=Sha $manifestPath
     $receiptPath = Join-Path $temp 'promotion-receipt.json'
     $launch = @{

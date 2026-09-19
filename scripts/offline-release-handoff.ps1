@@ -60,6 +60,9 @@ $platform = Read-JsonFile $PlatformInputsFile 'Platform input'
 if($releaseInput.environment -ceq 'staging' -and $releaseInput.mode -ceq 'FirstWriter'){
     . (Join-Path $PSScriptRoot 'runtime-public-configmap-contract.ps1')
     $null=Read-StagingPublicConfigMap $RuntimePublicConfigMapFile $releaseInput
+    . (Join-Path $PSScriptRoot 'bootstrap-release-contract.ps1')
+    . (Join-Path $PSScriptRoot 'migration-identity-contract.ps1')
+    $null=Read-StagingMigrationIdentity $platform $releaseInput
     Copy-Item -LiteralPath $RuntimePublicConfigMapFile -Destination (Join-Path $output 'runtime-public.json')
 }elseif(-not[string]::IsNullOrWhiteSpace($RuntimePublicConfigMapFile)){throw 'APP_PUBLIC_CONFIG_INVALID: staging FirstWriter artifact only.'}
 $sourceCommitProperty = $releaseInput.PSObject.Properties['sourceCommit']
@@ -76,12 +79,17 @@ if ($artifactSha256 -notmatch '\A[a-f0-9]{64}\z' -or (Get-Sha256 $sourceZip) -cn
 
 $manifest = [ordered]@{}
 foreach ($property in @($releaseInput.PSObject.Properties | Sort-Object Name)) { $manifest[$property.Name] = Convert-ToCanonicalObject $property.Value }
+# Preserve the exact review serialization bound by the migration identity.
+if($releaseInput.environment -ceq 'staging' -and $releaseInput.mode -ceq 'FirstWriter'){$manifest['bootstrapReview']=$releaseInput.bootstrapReview}
 $manifest['artifactSha256'] = $artifactSha256
 $manifest['sourceCommit'] = $SourceCommit
 if (-not $manifest.Contains('schemaVersion') -or -not $manifest.Contains('environment')) { throw 'Release input must include schemaVersion and environment.' }
-Write-CanonicalJson (Convert-ToCanonicalObject $manifest) $releaseManifest
+$canonicalManifest=Convert-ToCanonicalObject $manifest
+if($releaseInput.environment -ceq 'staging' -and $releaseInput.mode -ceq 'FirstWriter'){$canonicalManifest['bootstrapReview']=$releaseInput.bootstrapReview}
+Write-CanonicalJson $canonicalManifest $releaseManifest
 $manifestSha256 = Get-Sha256 $releaseManifest
 $manifestReadback = Read-JsonFile $releaseManifest 'Generated release manifest'
+if($releaseInput.environment -ceq 'staging' -and $releaseInput.mode -ceq 'FirstWriter'){$null=Read-StagingMigrationIdentity $platform $manifestReadback}
 if ($manifestReadback.sourceCommit -cne $SourceCommit -or $manifestReadback.artifactSha256 -cne $artifactSha256) { throw 'Generated release manifest does not bind the packaged source.' }
 if ((Get-Sha256 $releaseManifest) -cne $manifestSha256) { throw 'Release manifest digest changed during verification.' }
 

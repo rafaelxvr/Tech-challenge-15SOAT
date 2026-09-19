@@ -5,6 +5,7 @@ $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
 . "$repo/scripts/app-release-contract.ps1"
 . "$PSScriptRoot/runtime-public-fixture.ps1"
+. "$PSScriptRoot/migration-identity-fixture.ps1"
 $temp = Join-Path ([IO.Path]::GetTempPath()) ('oficina-first-deployment-' + [guid]::NewGuid())
 New-Item -ItemType Directory -Path $temp | Out-Null
 $global:firstDeploymentChecks = 0
@@ -42,6 +43,9 @@ function kubectl {
         $f.Release.bootstrapReceipt | ConvertTo-Json -Depth 10 -Compress | ForEach-Object { return "BOOTSTRAP_RECEIPT_JSON_BEGIN`n$_`nBOOTSTRAP_RECEIPT_JSON_END" }
     }
     if ($verb -ceq 'get') {
+        if ($kind -ceq 'serviceaccount' -and $a[6] -ceq 'oficina-migration-staging') {
+            $f.MigrationReads++; if($f.Failure -ceq 'migration-identity-drift' -and $f.MigrationReads -gt 1){$f.MigrationAccount.metadata.annotations.'eks.amazonaws.com/role-arn'='changed-role'}
+            return ($f.MigrationAccount | ConvertTo-Json -Depth 15) }
         if ($f.Responses.ContainsKey($kind)) { return $f.Responses[$kind] }
         if ($kind -ceq 'pods') {
             $podList=@{items=@()}
@@ -83,8 +87,9 @@ function Fixture([switch]$Existing) {
     $bootstrapReceipt=@{schemaVersion=2;environment='staging';sourceCommit=('b'*40);outputs=@{schemaVersion='V8';authViewVersion='V5';recipientViewVersion='V7';migrationSecretArn=$review.roles.migration.arn;migrationSecretVersionId=$review.roles.migration.versionId;appSecretArn=$review.roles.app.arn;appSecretVersionId=$review.roles.app.versionId;authLookupSecretArn=$review.roles.auth.arn;authLookupSecretVersionId=$review.roles.auth.versionId;notificationLookupSecretArn=$review.roles.notification.arn;notificationLookupSecretVersionId=$review.roles.notification.versionId}}
     $release=@{schemaVersion=1;environment='staging';mode='FirstWriter';sourceCommit=('b'*40);contractVersion='phase3-v2';databaseSchemaVersion='V8';platformInputsSha256=(Get-AppFileHash "$temp/platform.json");image=$platform.Image;previousImage=$platform.Image;migrationImage=($prefix+'flyway@sha256:'+('d'*64));bootstrapImage=($prefix+'bootstrap@sha256:'+('e'*64));bootstrapReview=$review;bootstrapReceipt=$bootstrapReceipt;kubeContext='arn:aws:eks:us-east-1:123456789012:cluster/oficina';migrationSecretName='oficina-migration-staging';migrationServiceAccount='oficina-migration-staging';migrationSqlSha256=(Get-AppMigrationDigest);stagingWorkloadSha256=(Get-AppFileHash "$temp/workload.json");artifactSha256=(Get-AppFileHash "$temp/source.zip");deployerImageDigest=('sha256:'+('e'*64))}
     Add-RuntimePublicFixture $release "$temp/public.json"
+    Add-MigrationIdentityFixture $release "$temp/platform.json"
     $window=@{windowStartUtc=[DateTimeOffset]::UtcNow.AddHours(-1).ToString('o');windowEndUtc=[DateTimeOffset]::UtcNow.AddHours(1).ToString('o');recordedAtUtc=[DateTimeOffset]::UtcNow.ToString('o');accountEvidenceReference='review/fixture';projectAllowanceUsd=100;reserveUsd=10;currentEstimatedSpendUsd=1}; Save $window window
-    $global:firstDeploymentFixture=@{Calls=[Collections.Generic.List[string]]::new();Failure='';Locked=$false;Owner='';Objects=@{};Responses=@{};Release=$release;Bundle=$bundle;Window=$window;SourceKey='releases/app/staging/bundle.zip'}
+    $global:firstDeploymentFixture=@{Calls=[Collections.Generic.List[string]]::new();MigrationReads=0;MigrationAccount=(New-MigrationServiceAccountFixture);Failure='';Locked=$false;Owner='';Objects=@{};Responses=@{};Release=$release;Bundle=$bundle;Window=$window;SourceKey='releases/app/staging/bundle.zip'}
     if ($Existing) { $global:firstDeploymentFixture.Objects=@{deployment=$deployment;serviceaccount=$account;hpa=$hpa} }
 }
 function Run([switch]$Execute) {
@@ -201,6 +206,21 @@ try {
             Assert (-not $global:firstDeploymentFixture.Locked) 'Rejected identity must release its lock.'
         }
     }
+    foreach($mutation in @(
+        {$global:firstDeploymentFixture.MigrationAccount=$null},
+        {$global:firstDeploymentFixture.MigrationAccount.metadata.annotations.'eks.amazonaws.com/role-arn'='runtime-role'},
+        {$global:firstDeploymentFixture.MigrationAccount.automountServiceAccountToken=$true}
+    )){
+        Fixture; & $mutation; Reject {Run -Execute}
+        Assert (-not (($global:firstDeploymentFixture.Calls -join "`n") -match 'create -f|migration-job.json|patch deployment|delete hpa')) 'Missing or wrong migration identity must stop before cluster writes.'
+        Assert (-not $global:firstDeploymentFixture.Locked) 'Migration identity failure must release its lock.'
+    }
+    Fixture;$global:firstDeploymentFixture.Failure='migration-identity-drift';Reject {Run -Execute}
+    Assert (-not (($global:firstDeploymentFixture.Calls -join "
+").Contains('migration-job.json'))) 'SA drift on the second read must prevent migration.'
+    Fixture;Run
+    $job=Get-Content "$temp/rendered/migration-job.json" -Raw|ConvertFrom-Json
+    Assert ($job.spec.template.spec.serviceAccountName -ceq 'oficina-migration-staging' -and $job.spec.template.metadata.labels.'app.kubernetes.io/name' -ceq 'oficina-migration') 'Job must select the exact identity and migration egress policy.'
     foreach ($failure in @('read','create','migration','rollout','orphan','window-expires','lock','public-create-race','public-readback')) {
         Fixture; $global:firstDeploymentFixture.Failure=$failure; Reject { Run -Execute }
         $calls=$global:firstDeploymentFixture.Calls -join "`n"
