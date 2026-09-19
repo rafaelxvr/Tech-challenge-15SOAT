@@ -1,3 +1,5 @@
+. "$PSScriptRoot/../scripts/staging-prerequisites-contract.ps1"
+. "$PSScriptRoot/staging-prerequisites-fixture.ps1"
 # Synthetic, credential-free fixture shared by the launcher and runtime tests.
 function Add-MigrationIdentityFixture([System.Collections.IDictionary]$Release,[string]$PlatformPath) {
     if(-not $Release.Contains('migrationServiceAccount')){$Release.migrationServiceAccount='oficina-migration-staging'}
@@ -20,7 +22,8 @@ function Add-MigrationIdentityFixture([System.Collections.IDictionary]$Release,[
     $platform.MigrationNetworkPolicySha256='d'*64
     $platform|ConvertTo-Json -Depth 30|Set-Content -LiteralPath $PlatformPath -NoNewline
     $Release.platformInputsSha256=(Get-FileHash -LiteralPath $PlatformPath).Hash.ToLowerInvariant()
+    Add-StagingPrerequisitesFixture $Release $PlatformPath
 }
 function New-MigrationServiceAccountFixture {
-    @{apiVersion='v1';kind='ServiceAccount';metadata=@{name='oficina-migration-staging';namespace='oficina-staging';annotations=@{'eks.amazonaws.com/role-arn'='arn:aws:iam::123456789012:role/oficina-phase3-staging-migration'}};automountServiceAccountToken=$false}
+    @{apiVersion='v1';kind='ServiceAccount';metadata=@{uid='12345678-1111-2222-3333-123456789abc';resourceVersion='100';name='oficina-migration-staging';namespace='oficina-staging';annotations=@{'eks.amazonaws.com/role-arn'='arn:aws:iam::123456789012:role/oficina-phase3-staging-migration'}};automountServiceAccountToken=$false}
 }

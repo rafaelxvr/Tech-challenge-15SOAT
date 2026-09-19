@@ -47,6 +47,7 @@ function kubectl {
             $f.MigrationReads++; if($f.Failure -ceq 'migration-identity-drift' -and $f.MigrationReads -gt 1){$f.MigrationAccount.metadata.annotations.'eks.amazonaws.com/role-arn'='changed-role'}
             return ($f.MigrationAccount | ConvertTo-Json -Depth 15) }
         if ($f.Responses.ContainsKey($kind)) { return $f.Responses[$kind] }
+        if($kind -cin @('service','secretproviderclass')){return ($f.Prerequisites[$kind]|ConvertTo-Json -Depth 70)}
         if ($kind -ceq 'pods') {
             $podList=@{items=@()}
             if($f.Failure -ceq 'orphan') { $podList.items=@(@{metadata=@{name='orphan'}}) }
@@ -91,6 +92,11 @@ function Fixture([switch]$Existing) {
     $window=@{windowStartUtc=[DateTimeOffset]::UtcNow.AddHours(-1).ToString('o');windowEndUtc=[DateTimeOffset]::UtcNow.AddHours(1).ToString('o');recordedAtUtc=[DateTimeOffset]::UtcNow.ToString('o');accountEvidenceReference='review/fixture';projectAllowanceUsd=100;reserveUsd=10;currentEstimatedSpendUsd=1}; Save $window window
     $global:firstDeploymentFixture=@{Calls=[Collections.Generic.List[string]]::new();MigrationReads=0;MigrationAccount=(New-MigrationServiceAccountFixture);Failure='';Locked=$false;Owner='';Objects=@{};Responses=@{};Release=$release;Bundle=$bundle;Window=$window;SourceKey='releases/app/staging/bundle.zip'}
     if ($Existing) { $global:firstDeploymentFixture.Objects=@{deployment=$deployment;serviceaccount=$account;hpa=$hpa} }
+    $p=Get-Content "$temp/platform.json" -Raw|ConvertFrom-Json
+    $r=$p.PlatformPrerequisitesReceiptJson|ConvertFrom-Json
+    $global:firstDeploymentFixture.Prerequisites=@{}
+    foreach($object in $r.objects){$global:firstDeploymentFixture.Prerequisites[$object.kind.ToLowerInvariant()]=$object}
+    $global:firstDeploymentFixture.Objects.configmap=$global:firstDeploymentFixture.Prerequisites.configmap
 }
 function Run([switch]$Execute) {
     $f=$global:firstDeploymentFixture; Save $f.Release release
@@ -164,9 +170,9 @@ try {
     Assert ($calls -match '(?s)put-object.*bootstrap-serviceaccount.json.*bootstrap-deployment.json.*bootstrap-review.json.*migration-job.json.*wait job/.*rollout-patch.json.*rollout status.*apply .*hpa.json.*head-object.*delete-object') 'Fresh cluster must keep lock through zero-writer creation, review ConfigMap, migration, rollout and HPA.'
     Assert (-not $calls.Contains('delete hpa')) 'Absent HPA must not be deleted.'
     Assert (-not $global:firstDeploymentFixture.Locked) 'Success must release its own lock.'
-    Assert ($calls.IndexOf('create -f '+"$temp/public.json") -lt $calls.IndexOf('migration-job.json')) 'Public ConfigMap must be created before the bootstrap Job.'
+    Assert (-not $calls.Contains('create -f '+"$temp/public.json")) 'APP must only read the platform-owned ConfigMap.'
     Fixture -Existing
-    $global:firstDeploymentFixture.Objects.configmap=Get-Content -Raw "$temp/public.json"|ConvertFrom-Json -AsHashtable
+    $global:firstDeploymentFixture.Objects.configmap=$global:firstDeploymentFixture.Prerequisites.configmap
     Run -Execute
     Assert (-not (($global:firstDeploymentFixture.Calls -join "`n").Contains('create -f '+"$temp/public.json"))) 'Matching existing public configuration must not be overwritten.'
     foreach($value in @('null','{}','[]')){
@@ -174,13 +180,22 @@ try {
         Assert (-not (($global:firstDeploymentFixture.Calls -join "`n") -match 'create -f|migration-job.json')) 'Malformed ConfigMap must stop before writes.'
     }
     Fixture -Existing
-    $global:firstDeploymentFixture.Objects.configmap=Get-Content -Raw "$temp/public.json"|ConvertFrom-Json -AsHashtable
-    $global:firstDeploymentFixture.Objects.configmap.data['history-zone']='America/Sao_Paulo'
+    $global:firstDeploymentFixture.Objects.configmap=$global:firstDeploymentFixture.Prerequisites.configmap
+    $global:firstDeploymentFixture.Objects.configmap.data.'history-zone'='America/Sao_Paulo'
     Reject {Run -Execute}
     Assert (-not (($global:firstDeploymentFixture.Calls -join "`n") -match 'create -f|migration-job.json|delete hpa')) 'Public data drift must stop before writer or migration mutations.'
     Fixture -Existing; Run -Execute
     $calls=$global:firstDeploymentFixture.Calls -join "`n"
     Assert ($calls.Contains('delete hpa') -and -not $calls.Contains('bootstrap-deployment.json')) 'Existing workload must use the validated drain path without bootstrap writes.'
+    Fixture;$global:firstDeploymentFixture.Prerequisites.service.metadata.uid='replacement';Reject {Run -Execute}
+    Assert (-not (($global:firstDeploymentFixture.Calls -join "
+") -match 'create -f|migration-job.json')) 'Replaced platform object UID must require fresh review.'
+    foreach($kind in @('service','secretproviderclass')){
+        Fixture;$global:firstDeploymentFixture.Responses[$kind]='null';Reject {Run -Execute}
+        Assert (-not (($global:firstDeploymentFixture.Calls -join "`n") -match 'create -f|patch deployment|migration-job.json')) 'Missing/malformed platform prerequisites must prevent APP writes.'
+    }
+    Fixture;Run -Execute
+    Assert (-not (($global:firstDeploymentFixture.Calls -join "`n") -match 'get (networkpolicy|targetgroupbinding)|create.*(ConfigMap|NetworkPolicy|TargetGroupBinding|SecretProviderClass)')) 'APP must preserve platform ownership and RBAC boundaries.'
     foreach ($kind in @('deployment','hpa','serviceaccount')) {
         foreach ($response in @('null','{}','[]','[{}]','true','"text"','0','{')) {
             Fixture; $global:firstDeploymentFixture.Responses[$kind]=$response
@@ -221,13 +236,13 @@ try {
     Fixture;Run
     $job=Get-Content "$temp/rendered/migration-job.json" -Raw|ConvertFrom-Json
     Assert ($job.spec.template.spec.serviceAccountName -ceq 'oficina-migration-staging' -and $job.spec.template.metadata.labels.'app.kubernetes.io/name' -ceq 'oficina-migration') 'Job must select the exact identity and migration egress policy.'
-    foreach ($failure in @('read','create','migration','rollout','orphan','window-expires','lock','public-create-race','public-readback')) {
+    foreach ($failure in @('read','create','migration','rollout','orphan','window-expires','lock')) {
         Fixture; $global:firstDeploymentFixture.Failure=$failure; Reject { Run -Execute }
         $calls=$global:firstDeploymentFixture.Calls -join "`n"
         Assert (-not $calls.Contains('apply -f')) 'Failure cannot restore HPA.'
         Assert (-not $global:firstDeploymentFixture.Locked) 'Failure must release its own lock.'
         Assert ((Get-Content "$temp/rendered/rollout-receipt.json" -Raw | ConvertFrom-Json).status -cne 'ROLLOUT_COMPLETE') 'Failed run cannot retain success.'
-        if($failure -cin @('read','create','orphan','lock','public-create-race','public-readback')) { Assert (-not $calls.Contains('migration-job.json')) 'Preflight failure cannot migrate.' }
+        if($failure -cin @('read','create','orphan','lock')) { Assert (-not $calls.Contains('migration-job.json')) 'Preflight failure cannot migrate.' }
         if($failure -cin @('migration','window-expires')) { Assert (-not $calls.Contains('rollout-patch.json')) 'Migration/window failure cannot enable writers.' }
     }
     foreach ($missing in @('deployment','serviceaccount','hpa')) {

@@ -43,6 +43,8 @@ if ($initializeStaging) {
     $publicConfig=Read-StagingPublicConfigMap $RuntimePublicConfigMapFile $release
     . (Join-Path $PSScriptRoot 'migration-identity-contract.ps1')
     $migrationIdentity=Read-StagingMigrationIdentity $contract.Platform $release
+    . "$PSScriptRoot/app-prerequisites-contract.ps1"
+    $prerequisites=Read-AppPrerequisites $contract.Platform $release
     if ($StateBucket -cnotmatch '\A[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]\z' -or
         $SourceKey -cne 'releases/app/staging/bundle.zip' -or
         $release.artifactSha256 -isnot [string] -or $release.artifactSha256 -cnotmatch '\A[a-f0-9]{64}\z' -or
@@ -93,6 +95,8 @@ function Read-ClusterObject([string]$Kind, [string]$Name) {
         serviceaccount = @{Kind='ServiceAccount'; ApiVersion='v1'}
         job = @{Kind='Job'; ApiVersion='batch/v1'}
         configmap = @{Kind='ConfigMap'; ApiVersion='v1'}
+        service = @{Kind='Service'; ApiVersion='v1'}
+        secretproviderclass = @{Kind='SecretProviderClass'; ApiVersion='secrets-store.csi.x-k8s.io/v1'}
     }[$Kind]
     try {
         if ($object -isnot [pscustomobject] -or
@@ -133,6 +137,14 @@ $serviceAccount = Read-ClusterObject 'serviceaccount' 'oficina-app'
 if($initializeStaging){
     $migrationServiceAccount=Read-ClusterObject 'serviceaccount' $migrationIdentity.serviceAccountName
     Assert-MigrationServiceAccount $migrationServiceAccount $migrationIdentity
+    # TGB/NetworkPolicy reads belong to the platform executor. Their exact
+    # reviewed readback is bound above; APP reads only existing authorized kinds.
+    foreach($expected in $prerequisites.objects|Where-Object {$_.kind -cin @('Service','SecretProviderClass','ServiceAccount','ConfigMap')}){
+        $actual=Read-ClusterObject $expected.kind.ToLowerInvariant() $expected.metadata.name
+        Assert-PrerequisiteReadback $actual $expected
+        $reviewed=@($prerequisites.reviewedReadback|Where-Object {$_.kind -ceq $expected.kind -and $_.metadata.name -ceq $expected.metadata.name})[0]
+        if($actual.metadata.uid -cne $reviewed.metadata.uid -or $actual.metadata.resourceVersion -cne $reviewed.metadata.resourceVersion){throw 'APP_PREREQUISITES_UID_VERSION_DRIFT'}
+    }
 }
 $fresh = $false
 if ($initializeStaging) {
@@ -173,13 +185,6 @@ if ($release.mode -cne 'FirstWriter' -and
     ($deployment.spec.template.metadata.annotations.'oficina.io/schema-version' -cne 'V8' -or
      $deployment.spec.template.metadata.annotations.'oficina.io/security-contract' -cne 'phase3-v2')) { throw 'Compatible rollout/rollback requires the current V8 security contract.' }
 
-if($initializeStaging -and $null -eq $existingPublic){
-    $null=Read-StagingPublicConfigMap $RuntimePublicConfigMapFile $release
-    Invoke-ReleaseKubectl @('create','-f',$RuntimePublicConfigMapFile)|Out-Null
-    $existingPublic=Read-ClusterObject 'configmap' 'oficina-runtime-public-staging'
-    Assert-StagingPublicConfigMapObject $existingPublic $release
-    foreach($key in $publicConfig.data.PSObject.Properties.Name){if($existingPublic.data.$key -cne $publicConfig.data.$key){throw 'APP_PUBLIC_CONFIG_READBACK_MISMATCH'}}
-}
 $startedAt = [DateTimeOffset]::UtcNow
 $migration = 'NOT_RUN_ROLLBACK'
 $bootstrapReceiptSha256 = 'NOT_RUN_ROLLBACK'
@@ -218,6 +223,8 @@ $targetImage = if ($release.mode -ceq 'Rollback') { $release.rollback.image } el
 @{schemaVersion=1; environment=$release.environment; sourceCommit=$release.sourceCommit; releaseSha256=$ExpectedReleaseSha256;
     image=$targetImage; databaseSchemaVersion='V8'; contractVersion='phase3-v2'; migration=$migration; bootstrapReceiptSha256=$bootstrapReceiptSha256;
     runtimePublicConfigMapSha256=$(if($initializeStaging){$release.runtimePublicConfigMapSha256}else{$null});
+    stagingPrerequisitesSha256=$(if($initializeStaging){$contract.Platform.StagingPrerequisitesSha256}else{$null});
+    platformPrerequisitesReceiptSha256=$(if($initializeStaging){$contract.Platform.PlatformPrerequisitesReceiptSha256}else{$null});
     migrationIdentitySha256=$(if($initializeStaging){$contract.Platform.MigrationIdentitySha256}else{$null});
     migrationNetworkPolicySha256=$(if($initializeStaging){$contract.Platform.MigrationNetworkPolicySha256}else{$null});
     startedAt=$startedAt.ToString('o'); completedAt=[DateTimeOffset]::UtcNow.ToString('o'); status='ROLLOUT_COMPLETE'

@@ -104,3 +104,5 @@ The K8S staging control-plane observation records only the base API/platform han
 The video, final PDF, external repository/reviewer access, video hosting and portal submission remain `NOT_RUN`. Prepared scripts and metadata may be reviewed locally, but no publication or submission is implied by this file.
 
 Migration identity source contract: [reviewed input and readback requirements](../staging-migration-identity-contract.md). Offline checks cover the distinct ServiceAccount and immutable review bindings; live IRSA/network/bootstrap evidence is pending. Existing R4 NOT_RUN/NOT_CAPTURED and submission NOT_READY statuses are unchanged.
+
+[Platform prerequisite contract](../staging-prerequisites-contract.md): offline tests bind source-derived objects and exact Terraform target-group output to the reviewed private-foundation readback. This is source evidence only; cloud R4 NOT_RUN/NOT_CAPTURED and submission NOT_READY remain unchanged.
