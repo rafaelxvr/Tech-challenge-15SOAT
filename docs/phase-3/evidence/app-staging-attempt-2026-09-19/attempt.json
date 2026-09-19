@@ -1,0 +1,208 @@
+{
+  "schemaVersion": 1,
+  "status": "FAILED",
+  "environment": "staging",
+  "account": "638612472889",
+  "region": "us-east-1",
+  "appSourceCommit": "8e9cba5f9d4b2b2ba2cfdda63c2b7c491a7af271",
+  "k8sSourceCommit": "f0238321e472204ac5628bee904b3ecec88ee6f9",
+  "project": "oficina-phase3-oficina-app-staging-deploy",
+  "buildId": "oficina-phase3-oficina-app-staging-deploy:02a7fcb8-2194-4327-b067-029ac8ffebde",
+  "startTimeUtc": "2026-09-19T03:50:48.4840000+00:00",
+  "endTimeUtc": "2026-09-19T03:51:52.7800000+00:00",
+  "sourceVersionId": "UO.3JHBKJ0X5kAM2YlcdHeJBTAcG0z_Z",
+  "cloudWatchUrl": "https://console.aws.amazon.com/cloudwatch/home?region=us-east-1#logsV2:log-groups/log-group/$252Faws$252Fcodebuild$252Foficina-phase3-oficina-app-staging-deploy/log-events/deploy$252F02a7fcb8-2194-4327-b067-029ac8ffebde",
+  "cause": "EKS authenticator: identity is not mapped",
+  "runtimeReadiness": "NOT_ESTABLISHED",
+  "promotionReceipt": "NOT_CREATED",
+  "r4": "NOT_RUN",
+  "submission": "NOT_READY",
+  "image": "638612472889.dkr.ecr.us-east-1.amazonaws.com/oficina-phase3-app@sha256:e60a3f91756e77a5e2e0773a09aaf4c0f7e7ff0381b70671d0464b0c8694e39d",
+  "bootstrapImage": "638612472889.dkr.ecr.us-east-1.amazonaws.com/oficina-phase3-app@sha256:a1986b6a93cf1010f6a219a0b18d1d6d248e1525102ee9a0694bfd1f9d8b2458",
+  "applicationJarSha256": "57e0c44dc31447c639aad94ab8baeb72edd057df5cf48de9023dcc6f2f4a1092",
+  "deployerDigest": "sha256:e40c301b50bafa5cb78acf8da7e1f5a5d8615c4b0228c375dc536256a4949daf",
+  "sourceUpdatePayloadSha256": "f0cccdb877aabf3d129a8637bd084c0a3fcc77f9ee5596ec06c7fa33ec303ca1",
+  "iamUpdatePayloadSha256": "a3d5fb80aa38181e45404c399ec5aae46979f99b34f0f0f830c29f3fb7be3629",
+  "publishedInputs": [
+    {
+      "name": "source",
+      "bucket": "oficina-phase3-artifacts-16225b7358",
+      "key": "releases/app/staging/bundle.zip",
+      "versionId": "UO.3JHBKJ0X5kAM2YlcdHeJBTAcG0z_Z",
+      "sha256": "5fb3319b3603ee143f37001597c874a3e6ed1acd215e09a1170be742efa71bff",
+      "contentLength": 939864,
+      "etag": "\"d336c24516f6f442cdc0ce3ad079d5ca\""
+    },
+    {
+      "name": "manifest",
+      "bucket": "oficina-phase3-artifacts-16225b7358",
+      "key": "releases/app/staging/manifests/8e9cba5f9d4b2b2ba2cfdda63c2b7c491a7af271.json",
+      "versionId": "NLq7Y5Q_ZrNrJX3FAjiLOzpxMFK9Sbgl",
+      "sha256": "4c08e81b882c44e09c07d985e416d9a481dd6f0efa5522c7a9c5bf70a21190a9",
+      "contentLength": 2849,
+      "etag": "\"9952b31fe9aab9a947cf7fece5609b05\""
+    },
+    {
+      "name": "tfvars",
+      "bucket": "oficina-phase3-artifacts-16225b7358",
+      "key": "releases/app/staging/config/8e9cba5f9d4b2b2ba2cfdda63c2b7c491a7af271.tfvars.json",
+      "versionId": "BckolZp_zUq3EK0KlNuX7EjPHEzDtuHV",
+      "sha256": "bac520e56bffef0ecb7ce8fa4382e26bda77709cad0f334a546fdf3075f7a3c8",
+      "contentLength": 276,
+      "etag": "\"0a23be8dfcfdb99375e4b892d7fa519c\""
+    },
+    {
+      "name": "platform",
+      "bucket": "oficina-phase3-artifacts-16225b7358",
+      "key": "releases/app/staging/inputs/8e9cba5f9d4b2b2ba2cfdda63c2b7c491a7af271/platform.json",
+      "versionId": "00UxxglYU..fN49BuU8xFnu36UxapVcp",
+      "sha256": "44381c4fdad149a0549b9a93a53e773f8b66961ebbc5f9e0cb3d5682a93f0267",
+      "contentLength": 1052,
+      "etag": "\"2bf1e416502add7071b0af58a50657ca\""
+    },
+    {
+      "name": "workload",
+      "bucket": "oficina-phase3-artifacts-16225b7358",
+      "key": "releases/app/staging/inputs/8e9cba5f9d4b2b2ba2cfdda63c2b7c491a7af271/workload.json",
+      "versionId": "34tjPK6dVHRb3zTOPNwVEavhRGAdiks0",
+      "sha256": "05ecc7af7d4b043d505704b20575855fc65807e8e8a14f5323ca1ea15b0524e8",
+      "contentLength": 5522,
+      "etag": "\"e10870f176dc7c6fc1881463e54d1bf5\""
+    },
+    {
+      "name": "window",
+      "bucket": "oficina-phase3-artifacts-16225b7358",
+      "key": "releases/app/staging/inputs/8e9cba5f9d4b2b2ba2cfdda63c2b7c491a7af271/cloud-window.json",
+      "versionId": "zGsPWw7xRMFwr41IcsQEZoL73aGZ7esU",
+      "sha256": "84ba23b9aa4c1e392a11d2db429dcb5357985b5680506c62a8fdf98ab6fd6115",
+      "contentLength": 544,
+      "etag": "\"0b9c3d7ad4c4a12e4d4749efe0784b95\""
+    }
+  ],
+  "privateAccessInventory": {
+    "capturedAtUtc": "2026-09-19T04:22:44.0497566Z",
+    "account": "638612472889",
+    "region": "us-east-1",
+    "profile": "study-process",
+    "cluster": "oficina-phase3",
+    "clusterStatus": "ACTIVE",
+    "clusterVersion": "1.35",
+    "endpointAccess": {
+      "public": false,
+      "private": true
+    },
+    "ssm": {
+      "managedInstanceCount": 0,
+      "activeSessionCount": 0
+    },
+    "evidenceCommands": [
+      "aws ssm describe-instance-information --profile study-process --region us-east-1",
+      "aws ssm describe-sessions --state Active --profile study-process --region us-east-1",
+      "aws eks describe-cluster --name oficina-phase3 --profile study-process --region us-east-1"
+    ],
+    "interpretation": "No existing SSM, VPN, SSH, or proxy path was found for live private-endpoint RoleBinding verification. No access-entry apply or CodeBuild retry was performed."
+  },
+  "clusterAccess": {
+    "name": "oficina-phase3",
+    "status": "ACTIVE",
+    "endpoint": "https://61E57F73801418DE7665FD5CA679704D.gr7.us-east-1.eks.amazonaws.com",
+    "accessConfig": {
+      "authenticationMode": "API_AND_CONFIG_MAP"
+    },
+    "resourcesVpcConfig": {
+      "subnetIds": [
+        "subnet-0e49c88c97a118461",
+        "subnet-06c013de9577c7f0b"
+      ],
+      "securityGroupIds": [],
+      "clusterSecurityGroupId": "sg-0f4cca63afe9ca97e",
+      "vpcId": "vpc-0a0fcb21e90c5b812",
+      "endpointPublicAccess": false,
+      "endpointPrivateAccess": true,
+      "publicAccessCidrs": [],
+      "controlPlaneEgressMode": "AWS_MANAGED"
+    }
+  },
+  "operatorHeldReceipts": [
+    {
+      "path": "D:\\repository\\app-staging-activation-artifacts-8e9cba5/terminal-build.json",
+      "sha256": "7ba2c795b97dba9e76665db892dfdc7908059d5a4d5948874713bdf1dfb8196e"
+    },
+    {
+      "path": "D:\\repository\\app-staging-activation-artifacts-8e9cba5/published-input-receipts.json",
+      "sha256": "e9d1e6625e379a87477b032e3540f794c9798babb1f841f78ef31ae6b1731eff"
+    },
+    {
+      "path": "D:\\repository\\app-staging-activation-artifacts-8e9cba5/published-image-metadata.json",
+      "sha256": "fdee8391ee21d334389a2b940db4601d97fbefee2c2ad360fde3bf0f1ea702a8"
+    },
+    {
+      "path": "D:\\repository\\app-staging-activation-artifacts-8e9cba5/project-before-update.json",
+      "sha256": "d9a824f4d54b1f526adcea464c9e1ca508726374e3473a197f7452b8b95fb950"
+    },
+    {
+      "path": "D:\\repository\\app-staging-activation-artifacts-8e9cba5/project-after-update.json",
+      "sha256": "9b74d07c243db930b04b1d54ff18eb955ca91126957bfd00335944cfe9646cac"
+    },
+    {
+      "path": "D:\\repository\\app-staging-activation-artifacts-8e9cba5/update-project-response.json",
+      "sha256": "6bf57a93922de7614f09e56d97abc3d67879e8c14d0c844452494058460cc75e"
+    },
+    {
+      "path": "D:\\repository\\app-staging-activation-artifacts-8e9cba5/identity-before-update.json",
+      "sha256": "fbe32509f7dbb0f39073d34c61a4422c673669a048444506ca02b0ec5f55f8e8"
+    },
+    {
+      "path": "D:\\repository\\app-staging-activation-artifacts-8e9cba5/put-role-policy-receipt.json",
+      "sha256": "25e47f3fe579dea257eb667d86dfc84a668619c79b4773f2ce13d4d2ae66767d"
+    },
+    {
+      "path": "D:\\repository\\app-staging-activation-artifacts-8e9cba5/lock-policy-fresh-before.json",
+      "sha256": "6d4dd164f16da64783c3663a81769a78de25bf27dfb10a8b3e808927bcc24d56"
+    },
+    {
+      "path": "D:\\repository\\app-staging-activation-artifacts-8e9cba5/lock-policy-fresh-after.json",
+      "sha256": "904062f1a25124d1f96b85cb391d82be1a4c7fa1c3ae9481b907e2a306f21d62"
+    },
+    {
+      "path": "D:\\repository\\app-staging-activation-artifacts-8e9cba5/lock-policy-simulation-correct-condition.json",
+      "sha256": "06118163f5c5c5ab43af287fb7ccab0cf534399e5710f0f8b00e0165a6140b2c"
+    },
+    {
+      "path": "D:\\repository\\app-staging-activation-artifacts-8e9cba5/lock-policy-simulation-missing-condition.json",
+      "sha256": "ddce69d988f8d9497560081567f19b25becb5f30e2c4e1e4e2b94bcf19af9e7e"
+    },
+    {
+      "path": "D:\\repository\\app-staging-activation-artifacts-8e9cba5/lock-policy-simulation-wrong-condition.json",
+      "sha256": "bc3fb652283e47325f9ea5dbf5db4ac51663e45f4bc7a2f7aa25790d50079568"
+    },
+    {
+      "path": "D:\\repository\\app-staging-activation-artifacts-8e9cba5/eks-app-authenticator-redacted.json",
+      "sha256": "898c3f59e891080d9fc38dd76cc0c7d44d0db60ad2badc639fff1873c310301a"
+    },
+    {
+      "path": "D:\\repository\\app-staging-activation-artifacts-8e9cba5/eks-cluster-access-metadata.json",
+      "sha256": "8b6a5d9c8f39d04e32a9dabccbd41b761ff2764f30b9d4b7c6f58a80be820424"
+    },
+    {
+      "path": "D:\\repository\\app-staging-activation-artifacts-8e9cba5/eks-access-entries.json",
+      "sha256": "b1ef12e3820b19922924267527dadd4d32a1fffa61c81d7d8b9e40be7793381f"
+    },
+    {
+      "path": "D:\\repository\\app-staging-activation-artifacts-8e9cba5/rolebinding-local-read-attempt.json",
+      "sha256": "aeceb376dcab1a459e3dbbba2ac54c2d9cb57bea2218a8deba7426a7bef896a6"
+    },
+    {
+      "path": "D:\\repository\\app-staging-activation-artifacts-8e9cba5/private-access-inventory-2026-09-19.json",
+      "sha256": "d762287bd2513145362e77512f25c78b951a3472a034c6e560598fe4313c0694"
+    },
+    {
+      "path": "D:\\repository\\app-staging-activation-artifacts-8e9cba5/shared-lock-version-metadata.json",
+      "sha256": "e201a9aa52cca136ee1828566bdc929548bb9289f661c5d39b981a938abddef7"
+    },
+    {
+      "path": "D:\\repository\\app-staging-activation-artifacts-8e9cba5/kubectl-failure-diagnosis.md",
+      "sha256": "abf80a2b089064d9a14e39e20d97c0a0a682a2eca6101752b52826a3310237c6"
+    }
+  ]
+}

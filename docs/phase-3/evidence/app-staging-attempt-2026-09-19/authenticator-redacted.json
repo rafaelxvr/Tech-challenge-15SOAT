@@ -1,0 +1,52 @@
+[
+  {
+    "timestamp": 1789789906212,
+    "logStreamName": "authenticator-2a01485265d890018f196ea7a3f48259",
+    "message": "time=\"2026-09-19T03:51:46Z\" level=info msg=\"STS response\" accesskeyid=[REDACTED] accountid=638612472889 arn=\"arn:aws:sts::638612472889:assumed-role/oficina-phase3-oficina-app-staging-deploy-role/AWSCodeBuild-02a7fcb8-2194-4327-b067-029ac8ffebde\" client=\"127.0.0.1:53514\" method=POST path=/authenticate session=AWSCodeBuild-02a7fcb8-2194-4327-b067-029ac8ffebde stsendpoint=sts.us-east-1.amazonaws.com userid=AROAZJMCFAQ44FQJDPAVK"
+  },
+  {
+    "timestamp": 1789789907073,
+    "logStreamName": "authenticator-1a1134d971ca736e1cf0f10df2045a20",
+    "message": "time=\"2026-09-19T03:51:46Z\" level=info msg=\"STS response\" accesskeyid=[REDACTED] accountid=638612472889 arn=\"arn:aws:sts::638612472889:assumed-role/oficina-phase3-oficina-app-staging-deploy-role/AWSCodeBuild-02a7fcb8-2194-4327-b067-029ac8ffebde\" client=\"127.0.0.1:52034\" method=POST path=/authenticate session=AWSCodeBuild-02a7fcb8-2194-4327-b067-029ac8ffebde stsendpoint=sts.us-east-1.amazonaws.com userid=AROAZJMCFAQ44FQJDPAVK"
+  },
+  {
+    "timestamp": 1789789907967,
+    "logStreamName": "authenticator-2a01485265d890018f196ea7a3f48259",
+    "message": "time=\"2026-09-19T03:51:46Z\" level=warning msg=\"access denied\" arn=\"arn:aws:iam::638612472889:role/oficina-phase3-oficina-app-staging-deploy-role\" client=\"127.0.0.1:53514\" error=\"identity is not mapped\" method=POST path=/authenticate"
+  },
+  {
+    "timestamp": 1789789907967,
+    "logStreamName": "authenticator-2a01485265d890018f196ea7a3f48259",
+    "message": "time=\"2026-09-19T03:51:47Z\" level=info msg=\"STS response\" accesskeyid=[REDACTED] accountid=638612472889 arn=\"arn:aws:sts::638612472889:assumed-role/oficina-phase3-oficina-app-staging-deploy-role/AWSCodeBuild-02a7fcb8-2194-4327-b067-029ac8ffebde\" client=\"127.0.0.1:53514\" method=POST path=/authenticate session=AWSCodeBuild-02a7fcb8-2194-4327-b067-029ac8ffebde stsendpoint=sts.us-east-1.amazonaws.com userid=AROAZJMCFAQ44FQJDPAVK"
+  },
+  {
+    "timestamp": 1789789908831,
+    "logStreamName": "authenticator-1a1134d971ca736e1cf0f10df2045a20",
+    "message": "time=\"2026-09-19T03:51:46Z\" level=warning msg=\"access denied\" arn=\"arn:aws:iam::638612472889:role/oficina-phase3-oficina-app-staging-deploy-role\" client=\"127.0.0.1:52034\" error=\"identity is not mapped\" method=POST path=/authenticate"
+  },
+  {
+    "timestamp": 1789789908831,
+    "logStreamName": "authenticator-1a1134d971ca736e1cf0f10df2045a20",
+    "message": "time=\"2026-09-19T03:51:48Z\" level=info msg=\"STS response\" accesskeyid=[REDACTED] accountid=638612472889 arn=\"arn:aws:sts::638612472889:assumed-role/oficina-phase3-oficina-app-staging-deploy-role/AWSCodeBuild-02a7fcb8-2194-4327-b067-029ac8ffebde\" client=\"127.0.0.1:52034\" method=POST path=/authenticate session=AWSCodeBuild-02a7fcb8-2194-4327-b067-029ac8ffebde stsendpoint=sts.us-east-1.amazonaws.com userid=AROAZJMCFAQ44FQJDPAVK"
+  },
+  {
+    "timestamp": 1789789909470,
+    "logStreamName": "authenticator-2a01485265d890018f196ea7a3f48259",
+    "message": "time=\"2026-09-19T03:51:47Z\" level=warning msg=\"access denied\" arn=\"arn:aws:iam::638612472889:role/oficina-phase3-oficina-app-staging-deploy-role\" client=\"127.0.0.1:53514\" error=\"identity is not mapped\" method=POST path=/authenticate"
+  },
+  {
+    "timestamp": 1789789909470,
+    "logStreamName": "authenticator-2a01485265d890018f196ea7a3f48259",
+    "message": "time=\"2026-09-19T03:51:49Z\" level=info msg=\"STS response\" accesskeyid=[REDACTED] accountid=638612472889 arn=\"arn:aws:sts::638612472889:assumed-role/oficina-phase3-oficina-app-staging-deploy-role/AWSCodeBuild-02a7fcb8-2194-4327-b067-029ac8ffebde\" client=\"127.0.0.1:53514\" method=POST path=/authenticate session=AWSCodeBuild-02a7fcb8-2194-4327-b067-029ac8ffebde stsendpoint=sts.us-east-1.amazonaws.com userid=AROAZJMCFAQ44FQJDPAVK"
+  },
+  {
+    "timestamp": 1789789913171,
+    "logStreamName": "authenticator-1a1134d971ca736e1cf0f10df2045a20",
+    "message": "time=\"2026-09-19T03:51:48Z\" level=warning msg=\"access denied\" arn=\"arn:aws:iam::638612472889:role/oficina-phase3-oficina-app-staging-deploy-role\" client=\"127.0.0.1:52034\" error=\"identity is not mapped\" method=POST path=/authenticate"
+  },
+  {
+    "timestamp": 1789789913866,
+    "logStreamName": "authenticator-2a01485265d890018f196ea7a3f48259",
+    "message": "time=\"2026-09-19T03:51:49Z\" level=warning msg=\"access denied\" arn=\"arn:aws:iam::638612472889:role/oficina-phase3-oficina-app-staging-deploy-role\" client=\"127.0.0.1:53514\" error=\"identity is not mapped\" method=POST path=/authenticate"
+  }
+]
