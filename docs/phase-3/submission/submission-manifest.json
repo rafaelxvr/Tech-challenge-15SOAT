@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "submissionMode": "template",
-  "releaseRevision": "8e9cba5f9d4b2b2ba2cfdda63c2b7c491a7af271",
+  "releaseRevision": "8a40858e521edbb035afce653cfcc0142dee885a",
   "reviewerUsername": "soat-architecture",
   "repositories": [
     {
@@ -9,14 +9,14 @@
       "url": "https://github.com/rafaelxvr/Tech-challenge-15SOAT",
       "reviewerAccessVerified": false,
       "accessEvidence": "NOT_PROVIDED",
-      "reviewedRevision": "8e9cba5f9d4b2b2ba2cfdda63c2b7c491a7af271"
+      "reviewedRevision": "8a40858e521edbb035afce653cfcc0142dee885a"
     },
     {
       "name": "K8S",
       "url": "https://github.com/rafaelxvr/Tech-challenge-15SOAT-k8s-infra",
       "reviewerAccessVerified": false,
       "accessEvidence": "NOT_PROVIDED",
-      "reviewedRevision": "f0238321e472204ac5628bee904b3ecec88ee6f9"
+      "reviewedRevision": "2c863ed6eaa0b3cae9bd05c84b21da0828b24e7c"
     },
     {
       "name": "FUN",
@@ -36,8 +36,8 @@
   "videoUrl": "NOT_PROVIDED",
   "videoDurationSeconds": null,
   "documentationUrls": [
-    "https://github.com/rafaelxvr/Tech-challenge-15SOAT/blob/8e9cba5f9d4b2b2ba2cfdda63c2b7c491a7af271/docs/phase-3/architecture/components.md",
-    "https://github.com/rafaelxvr/Tech-challenge-15SOAT/blob/8e9cba5f9d4b2b2ba2cfdda63c2b7c491a7af271/docs/phase-3/evidence/implementation-audit.md",
+    "https://github.com/rafaelxvr/Tech-challenge-15SOAT/blob/8a40858e521edbb035afce653cfcc0142dee885a/docs/phase-3/architecture/components.md",
+    "https://github.com/rafaelxvr/Tech-challenge-15SOAT/blob/8a40858e521edbb035afce653cfcc0142dee885a/docs/phase-3/evidence/implementation-audit.md",
     "https://github.com/rafaelxvr/Tech-challenge-15SOAT-k8s-infra/blob/22d60af8964f08844517c6768cf38323c27ee3d7/docs/evidence/staging-platform-acceptance-2026-09-17.md",
     "https://github.com/rafaelxvr/Tech-challenge-15SOAT-k8s-infra/blob/f51d67ebc81235ed18239de8eed17d27a22a2f88/docs/evidence/monitoring-static-contract.md",
     "https://github.com/rafaelxvr/Tech-challenge-15SOAT-functions/blob/dbceabcf3dd9d11597af98825c3ca54159cbbf4f/docs/evidence/staging-runtime-handoff-contract.md",

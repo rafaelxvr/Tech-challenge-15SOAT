@@ -1,6 +1,6 @@
 # Phase 3 offline submission preparation
 
-Current status: **NOT_READY**. The [manifest template](submission-manifest.json) now records the four canonical repository URLs and reviewed source references: APP `8e9cba5f9d4b2b2ba2cfdda63c2b7c491a7af271`, K8S `f0238321e472204ac5628bee904b3ecec88ee6f9`, FUN `66e586ea43de1b98dc1347e49df75412b1f9faa2`, DB `33b7da9172c45d766d36e7561d59ee289053b02b`. Links pin current reviewed source or the original historical evidence revision. These are source references, not successful release/deployment claims or verified external-access evidence. Reviewer access remains false, access evidence/video URL remain `NOT_PROVIDED`, and measured duration remains `null`. The [14-minute script](video-script.md) is a recording plan, not a recording. The [eight R4 records](../evidence/manifest.json) remain separate deployment acceptance evidence; a PDF never changes them.
+Current status: **NOT_READY**. The [manifest template](submission-manifest.json) now records the four canonical repository URLs and reviewed source references: APP `8a40858e521edbb035afce653cfcc0142dee885a`, K8S `2c863ed6eaa0b3cae9bd05c84b21da0828b24e7c`, FUN `66e586ea43de1b98dc1347e49df75412b1f9faa2`, DB `33b7da9172c45d766d36e7561d59ee289053b02b`. Links pin current reviewed source or the original historical evidence revision. These are source references, not successful release/deployment claims or verified external-access evidence. Reviewer access remains false, access evidence/video URL remain `NOT_PROVIDED`, and measured duration remains `null`. The [14-minute script](video-script.md) is a recording plan, not a recording. The [eight R4 records](../evidence/manifest.json) remain separate deployment acceptance evidence; a PDF never changes them.
 
 The optional schema-v1 `reviewedRevision` fields require all four immutable revisions and bind APP to `releaseRevision`; `pendingEvidence` explicitly lists R4/cloud activation, authenticated reviewer access, recording and final submission gaps. Template validation permits reviewed references while refusing access/video/readiness assertions. No AWS operation, live URL/access verification, recording or publication was performed for this refresh.
 
@@ -13,6 +13,7 @@ Use the configured bundled Python runtime or a project-local virtual environment
 From the APP root, run:
 
 ```text
+python tests/documentation-provenance-contract.py --app-revision 8a40858e521edbb035afce653cfcc0142dee885a --k8s-revision 2c863ed6eaa0b3cae9bd05c84b21da0828b24e7c
 python tests/submission-contract.py
 python scripts/check-doc-links.py docs README.md
 python scripts/submission/build_pdf.py --manifest docs/phase-3/submission/submission-manifest.json --allow-template --output artifacts/phase-3-submission.template.pdf
