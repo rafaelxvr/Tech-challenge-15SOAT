@@ -35,6 +35,8 @@ The source bucket, CodeBuild role and bridge remain K8S-owned; this PR grants no
 
 ## Resource behavior
 
+Current ownership is defined by the [platform prerequisite contract](staging-prerequisites-contract.md): the private foundation executor creates this ConfigMap; APP requires its verified receipt and matching live readback before migration. The original creation behavior described below is historical and is superseded for new FirstWriter executions.
+
 Only `v1/ConfigMap` named `oficina-runtime-public-staging` in `oficina-staging` is accepted. Source labels must identify `oficina`/`oficina-k8s-infra`. Artifact top-level fields are limited to apiVersion, kind, metadata and data. Exactly nine data keys are allowed: customer public keys, staff issuer/audience/key ID, customer issuer/audience, notification queue URL, history zone and RDS CA. All values must be nonempty strings; binaryData, extra keys, private-key/credential markers, unresolved tokens, production issuers/queue and mismatched mounted CA bytes are rejected. The CA digest must equal the release's `bootstrapReview.caSha256`.
 
 Within the existing shared deployment lock, `deploy-app.ps1` reads the ConfigMap with strict kind/name/namespace checks. Existing content must match every reviewed data value; drift stops without overwrite. If absent, Kubernetes CREATE installs it before the bootstrap Job. A competing creator causes failure rather than replacement. The adapter rereads and validates identity, labels and exact data, then runs migration and rollout. Public configuration is never applied from an arbitrary object list. No ConfigMap contents or native command output are logged; receipts carry the digest.

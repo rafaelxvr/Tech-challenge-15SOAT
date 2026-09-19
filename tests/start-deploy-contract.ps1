@@ -12,7 +12,7 @@ $launcherScripts = Join-Path $temp 'launcher/scripts'
 New-Item -ItemType Directory -Path $launcherScripts -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $repo 'scripts/start-deploy.ps1') -Destination (Join-Path $launcherScripts 'start-deploy.ps1')
 Copy-Item -LiteralPath (Join-Path $repo 'scripts/staging-executor-inputs.ps1') -Destination (Join-Path $launcherScripts 'staging-executor-inputs.ps1')
-foreach($helper in @('migration-identity-contract.ps1','bootstrap-release-contract.ps1')){Copy-Item -LiteralPath "$repo/scripts/$helper" -Destination "$launcherScripts/$helper"}
+foreach($helper in @('migration-identity-contract.ps1','bootstrap-release-contract.ps1','app-prerequisites-contract.ps1','staging-prerequisites-contract.ps1')){Copy-Item -LiteralPath "$repo/scripts/$helper" -Destination "$launcherScripts/$helper"}
 Copy-Item -LiteralPath "$repo/scripts/runtime-public-configmap-contract.ps1" -Destination "$launcherScripts/runtime-public-configmap-contract.ps1"
 $contextMarker = Join-Path $temp 'context-check.txt'
 $windowMarker = Join-Path $temp 'window-check.txt'

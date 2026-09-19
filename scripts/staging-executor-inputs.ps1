@@ -26,6 +26,8 @@ function Assert-StagingExecutorBaseInputs([object]$Release, [string]$PlatformInp
     . (Join-Path $PSScriptRoot 'migration-identity-contract.ps1')
     $platform=Get-Content -LiteralPath $PlatformInputsFile -Raw|ConvertFrom-Json
     $null=Read-StagingMigrationIdentity $platform $Release
+    . "$PSScriptRoot/app-prerequisites-contract.ps1"
+    $null=Read-AppPrerequisites $platform $Release
 }
 function Assert-StagingExecutorInputs([object]$Release, [string]$PlatformInputsFile, [string]$StagingWorkloadFile, [string]$CloudWindowEvidenceFile, [string]$RuntimePublicConfigMapFile) {
     Assert-StagingExecutorBaseInputs $Release $PlatformInputsFile $StagingWorkloadFile $CloudWindowEvidenceFile

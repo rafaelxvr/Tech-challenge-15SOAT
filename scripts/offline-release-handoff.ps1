@@ -63,6 +63,8 @@ if($releaseInput.environment -ceq 'staging' -and $releaseInput.mode -ceq 'FirstW
     . (Join-Path $PSScriptRoot 'bootstrap-release-contract.ps1')
     . (Join-Path $PSScriptRoot 'migration-identity-contract.ps1')
     $null=Read-StagingMigrationIdentity $platform $releaseInput
+    . "$PSScriptRoot/app-prerequisites-contract.ps1"
+    $null=Read-AppPrerequisites $platform $releaseInput
     Copy-Item -LiteralPath $RuntimePublicConfigMapFile -Destination (Join-Path $output 'runtime-public.json')
 }elseif(-not[string]::IsNullOrWhiteSpace($RuntimePublicConfigMapFile)){throw 'APP_PUBLIC_CONFIG_INVALID: staging FirstWriter artifact only.'}
 $sourceCommitProperty = $releaseInput.PSObject.Properties['sourceCommit']
