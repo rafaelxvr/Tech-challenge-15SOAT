@@ -16,7 +16,7 @@
       "url": "https://github.com/rafaelxvr/Tech-challenge-15SOAT-k8s-infra",
       "reviewerAccessVerified": false,
       "accessEvidence": "NOT_PROVIDED",
-      "reviewedRevision": "22d60af8964f08844517c6768cf38323c27ee3d7"
+      "reviewedRevision": "f51d67ebc81235ed18239de8eed17d27a22a2f88"
     },
     {
       "name": "FUN",
@@ -39,6 +39,7 @@
     "https://github.com/rafaelxvr/Tech-challenge-15SOAT/blob/85a7227c94cf322cd1bdab3f2f0cb43099370a81/docs/phase-3/architecture/components.md",
     "https://github.com/rafaelxvr/Tech-challenge-15SOAT/blob/85a7227c94cf322cd1bdab3f2f0cb43099370a81/docs/phase-3/evidence/implementation-audit.md",
     "https://github.com/rafaelxvr/Tech-challenge-15SOAT-k8s-infra/blob/22d60af8964f08844517c6768cf38323c27ee3d7/docs/evidence/staging-platform-acceptance-2026-09-17.md",
+    "https://github.com/rafaelxvr/Tech-challenge-15SOAT-k8s-infra/blob/f51d67ebc81235ed18239de8eed17d27a22a2f88/docs/evidence/monitoring-static-contract.md",
     "https://github.com/rafaelxvr/Tech-challenge-15SOAT-functions/blob/dbceabcf3dd9d11597af98825c3ca54159cbbf4f/docs/evidence/staging-runtime-handoff-contract.md",
     "https://github.com/rafaelxvr/Tech-challenge-15SOAT-db-infra/blob/33b7da9172c45d766d36e7561d59ee289053b02b/docs/evidence/staging-database-platform-acceptance-2026-09-17.md"
   ],
