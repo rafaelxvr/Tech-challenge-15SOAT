@@ -11,7 +11,10 @@ function Add-StagingPrerequisitesFixture([System.Collections.IDictionary]$Releas
     $bundle=@{schemaVersion=1;environment='staging';appSourceCommit=$Release.sourceCommit;k8sSourceCommit=('c'*40);targetGroupArn=$arn;terraformOutputsJson=$outputs;terraformOutputsSha256=(Get-PrerequisiteHash $outputs);terraformOutputsBucket='fixture-artifact-bucket';terraformOutputsKey=('releases/k8s/staging/outputs/'+('c'*40)+'.json');terraformOutputsVersionId='fixture-output-version';migrationNetworkPolicySha256=$platform.MigrationNetworkPolicySha256;runtimePublicConfigMapSha256=$Release.runtimePublicConfigMapSha256;objects=$objects}
     $platform.StagingPrerequisitesJson=$bundle|ConvertTo-Json -Depth 70 -Compress
     $platform.StagingPrerequisitesSha256=Get-PrerequisiteHash $platform.StagingPrerequisitesJson
-    foreach($object in $objects){$object.metadata.uid='12345678-1111-2222-3333-123456789abc';$object.metadata.resourceVersion='100'}
+    foreach($object in $objects){
+        $object.metadata.uid='12345678-1111-2222-3333-123456789abc';$object.metadata.resourceVersion='100'
+        if($object.kind -ceq 'TargetGroupBinding'){$object.spec.ipAddressType='ipv4';$object.spec.vpcID='vpc-0123456789abcdef0'}
+    }
     $receipt=@{schemaVersion=1;environment='staging';appSourceCommit=$Release.sourceCommit;k8sSourceCommit=('c'*40);bundleSha256=$platform.StagingPrerequisitesSha256;status='EXISTING_VERIFIED';objects=$objects}
     $platform.PlatformPrerequisitesReceiptJson=$receipt|ConvertTo-Json -Depth 70 -Compress
     $platform.PlatformPrerequisitesReceiptSha256=Get-PrerequisiteHash $platform.PlatformPrerequisitesReceiptJson
