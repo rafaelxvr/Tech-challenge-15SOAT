@@ -7,13 +7,13 @@ Local follow-up: the [staging public ConfigMap contract](../staging-public-confi
 
 This audit separates implementation evidence from cloud acceptance. The latest APP staging attempt failed; it does not establish runtime readiness or full R4 acceptance. This documentation refresh made no AWS calls.
 
-## APP staging execution checkpoint â€” 2026-09-19
+## APP staging execution checkpoint — 2026-09-19
 
 APP `8e9cba5f9d4b2b2ba2cfdda63c2b7c491a7af271` build `oficina-phase3-oficina-app-staging-deploy:02a7fcb8-2194-4327-b067-029ac8ffebde` ended **FAILED** at 03:51:52Z. EKS authenticator records prove `identity is not mapped` for the correct APP executor role. Six immutable S3 input versions were read back with exact hashes; the reviewed APP-only buildspec and shared-lock IAM corrections were verified, and the shared lock was released. No promotion receipt or runtime-health success was produced.
 
 The [attempt checkpoint](app-staging-attempt-2026-09-19.md) contains image/JAR/input hashes, immutable VersionIds, redacted identity-denial evidence and links to the committed receipt inventory. EKS is private-only, with zero SSM managed instances and zero active sessions in the saved 04:22:44Z inventory. That attempt preceded the subsequently reviewed private inspection path, access-entry/RBAC correction and eight prerequisite creates. The [2026-09-20 current checkpoint](local-completion-2026-09-20.md) records the resolved prerequisites, later failed foundation readback, merged validator fix and active expired-SSO blocker. The earlier attempt and its source/image receipts remain historical. All eight R4 rows remain NOT_RUN/NOT_CAPTURED and submission remains NOT_READY.
 
-## Source verification and historical receipts â€” 2026-09-18 / 2026-09-19
+## Source verification and historical receipts — 2026-09-18 / 2026-09-19
 
 Current source references below are APP `333b9873ee455875df4cc230696e2681333b44d0`, K8S `764648eed20446a242166511202a94742b0816c7`, FUN `66e586ea43de1b98dc1347e49df75412b1f9faa2`, DB `33b7da9172c45d766d36e7561d59ee289053b02b`. These are reviewed source references, not new build or deployment receipts. The historical APP local LF activation package remains bound to `f8bf2c2ca1a6f80730619d52dbaa2ffb8d9cce8c`; earlier FUN/DB and K8S cloud receipts retain their original revisions and scope. See the [exact local activation checkpoint](app-staging-lf-activation-2026-09-18.md).
 
@@ -69,21 +69,21 @@ Representative local checks include `Phase3ContractTest`, `ClienteIdentityTest`,
 
 Merged K8S [PR #33](https://github.com/rafaelxvr/Tech-challenge-15SOAT-k8s-infra/pull/33) is `f51d67ebc81235ed18239de8eed17d27a22a2f88`; its tested PR head is `248f0ef9926ab8f95213c0c53cfb6dbd039462a2`. The [static contract](https://github.com/rafaelxvr/Tech-challenge-15SOAT-k8s-infra/blob/f51d67ebc81235ed18239de8eed17d27a22a2f88/docs/evidence/monitoring-static-contract.md) records three passing mocked Terraform runs plus static chart assertions. It covers finalization duration, integration errors, a proposed latency condition, correlation-field queries and environment-scoped synthetic failures alongside existing volume/status/resource/health/order-failure definitions. This is a separate source update, not a rerun of the historical ten-suite receipt.
 
-Dynamic Helm checks remain skipped locally. Populated dashboards, live NRQL evaluation, request-to-trace correlation, health/synthetic execution and alert delivery remain pending. No runtime-readiness claim, R4 `NOT_RUN` record or submission `NOT_READY` status changes.
+The subsequent Helm 4.3.0 check passed dynamic schema/render validation and collector resource accounting; its exact evidence hash is recorded in the [current checkpoint](local-completion-2026-09-20.md). Historical harness skips remain attributed to their original runs. Populated dashboards, live NRQL evaluation, request-to-trace correlation, health/synthetic execution and alert delivery remain pending. No runtime-readiness claim, R4 `NOT_RUN` record or submission `NOT_READY` status changes.
 
 ## Staging receipts now available
 
 The central matrix remains fail-closed until every required repository/environment record is complete, but these reviewed staging receipts are now durable:
 
-- [K8S platform acceptance](https://github.com/rafaelxvr/Tech-challenge-15SOAT-k8s-infra/blob/5ecf7234bc4fc741e6cf7272f53622099cc74bf5/docs/evidence/staging-platform-acceptance-2026-09-17.md) â€” platform Terraform executor `SUCCEEDED`; application/runtime behavior remains outside this receipt.
-- [DB platform acceptance](https://github.com/rafaelxvr/Tech-challenge-15SOAT-db-infra/blob/33b7da9172c45d766d36e7561d59ee289053b02b/docs/evidence/staging-database-platform-acceptance-2026-09-17.md) â€” private encrypted PostgreSQL `SUCCEEDED`; SQL grants, migrations and APP integration remain outside this receipt.
-- [FUN staging runtime receipt](https://github.com/rafaelxvr/Tech-challenge-15SOAT-functions/blob/329c4e95ee6ac63a40b6abd2234c4522992987ff/docs/evidence/staging-runtime-handoff-contract.md) â€” workflow `35304367076`, verification and private CodeBuild deployment succeeded with immutable source/artifact/manifest hashes; production was skipped.
+- [K8S platform acceptance](https://github.com/rafaelxvr/Tech-challenge-15SOAT-k8s-infra/blob/5ecf7234bc4fc741e6cf7272f53622099cc74bf5/docs/evidence/staging-platform-acceptance-2026-09-17.md) — platform Terraform executor `SUCCEEDED`; application/runtime behavior remains outside this receipt.
+- [DB platform acceptance](https://github.com/rafaelxvr/Tech-challenge-15SOAT-db-infra/blob/33b7da9172c45d766d36e7561d59ee289053b02b/docs/evidence/staging-database-platform-acceptance-2026-09-17.md) — private encrypted PostgreSQL `SUCCEEDED`; SQL grants, migrations and APP integration remain outside this receipt.
+- [FUN staging runtime receipt](https://github.com/rafaelxvr/Tech-challenge-15SOAT-functions/blob/329c4e95ee6ac63a40b6abd2234c4522992987ff/docs/evidence/staging-runtime-handoff-contract.md) — workflow `35304367076`, verification and private CodeBuild deployment succeeded with immutable source/artifact/manifest hashes; production was skipped.
 
 These records do not change `docs/phase-3/evidence/manifest.json`, whose eight-record verification still correctly refuses an incomplete acceptance matrix.
 
 ## Explicitly not run
 
-### R4 â€” cloud acceptance
+### R4 — cloud acceptance
 
 The [production promotion contract](../app-production-promotion-contract.md) adds a main-only, explicitly gated offline review job. Its negative tests require reviewed production inputs and a hash-pinned successful staging receipt for the same source commit. A valid contract still returns deployment-disabled; it does not invoke the production launcher, change any environment variable, or advance R4 acceptance.
 
@@ -95,7 +95,7 @@ All eight repository/environment records remain `NOT_RUN` in the [APP evidence m
 - [K8S R4 status](https://github.com/rafaelxvr/Tech-challenge-15SOAT-k8s-infra/blob/764648eed20446a242166511202a94742b0816c7/docs/evidence/r4-local-status.json)
 - [DB R4 status](https://github.com/rafaelxvr/Tech-challenge-15SOAT-db-infra/blob/33b7da9172c45d766d36e7561d59ee289053b02b/docs/evidence/r4-local-status.json)
 
-### Read-only deployment-input inventory â€” 2026-09-18
+### Read-only deployment-input inventory — 2026-09-18
 
 The GitHub environment secret listing was inspected by name and timestamp only; no secret values were read. APP staging and production have no listed deployment secrets. FUN staging lists `CLOUD_WINDOW_EVIDENCE_JSON` (`2026-09-18T13:20:34Z`) and `TERRAFORM_TFVARS_JSON` (`2026-09-17T23:53:09Z`); FUN production has none. K8S staging lists `CLOUD_WINDOW_EVIDENCE_JSON` (`2026-09-18T13:20:33Z`) and `TERRAFORM_TFVARS_JSON` (`2026-09-17T22:14:52Z`); K8S production has none. DB staging lists `CLOUD_WINDOW_EVIDENCE_JSON` (`2026-09-18T13:20:35Z`) and `TERRAFORM_TFVARS_JSON` (`2026-09-16T22:41:29Z`); DB production has none. These are names and timestamps only; secret values were not read or recorded. Re-inspect all inputs before R4, and the missing APP inputs must still be supplied. This inventory does not change the R4 `NOT_RUN` status.
 
@@ -103,7 +103,7 @@ Read-only GitHub API verification on 2026-09-18 confirmed that all four delivery
 
 The K8S staging control-plane observation records only the base API/platform handoff. It is not evidence of application, functions, database, production, protected-route, telemetry, failure-recovery or eight-run acceptance. Live AWS deployment, measured capacity/costs, SES/SNS/New Relic enrollment and cleanup authorization remain outstanding.
 
-### R5 â€” submission and publishing
+### R5 — submission and publishing
 
 The video, final PDF, external repository/reviewer access, video hosting and portal submission remain `NOT_RUN`. Prepared scripts and metadata may be reviewed locally, but no publication or submission is implied by this file.
 
