@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "submissionMode": "template",
-  "releaseRevision": "8a40858e521edbb035afce653cfcc0142dee885a",
+  "releaseRevision": "333b9873ee455875df4cc230696e2681333b44d0",
   "reviewerUsername": "soat-architecture",
   "repositories": [
     {
@@ -9,14 +9,14 @@
       "url": "https://github.com/rafaelxvr/Tech-challenge-15SOAT",
       "reviewerAccessVerified": false,
       "accessEvidence": "NOT_PROVIDED",
-      "reviewedRevision": "8a40858e521edbb035afce653cfcc0142dee885a"
+      "reviewedRevision": "333b9873ee455875df4cc230696e2681333b44d0"
     },
     {
       "name": "K8S",
       "url": "https://github.com/rafaelxvr/Tech-challenge-15SOAT-k8s-infra",
       "reviewerAccessVerified": false,
       "accessEvidence": "NOT_PROVIDED",
-      "reviewedRevision": "2c863ed6eaa0b3cae9bd05c84b21da0828b24e7c"
+      "reviewedRevision": "764648eed20446a242166511202a94742b0816c7"
     },
     {
       "name": "FUN",
@@ -36,8 +36,8 @@
   "videoUrl": "NOT_PROVIDED",
   "videoDurationSeconds": null,
   "documentationUrls": [
-    "https://github.com/rafaelxvr/Tech-challenge-15SOAT/blob/8a40858e521edbb035afce653cfcc0142dee885a/docs/phase-3/architecture/components.md",
-    "https://github.com/rafaelxvr/Tech-challenge-15SOAT/blob/8a40858e521edbb035afce653cfcc0142dee885a/docs/phase-3/evidence/implementation-audit.md",
+    "https://github.com/rafaelxvr/Tech-challenge-15SOAT/blob/333b9873ee455875df4cc230696e2681333b44d0/docs/phase-3/architecture/components.md",
+    "https://github.com/rafaelxvr/Tech-challenge-15SOAT/blob/333b9873ee455875df4cc230696e2681333b44d0/docs/phase-3/evidence/implementation-audit.md",
     "https://github.com/rafaelxvr/Tech-challenge-15SOAT-k8s-infra/blob/22d60af8964f08844517c6768cf38323c27ee3d7/docs/evidence/staging-platform-acceptance-2026-09-17.md",
     "https://github.com/rafaelxvr/Tech-challenge-15SOAT-k8s-infra/blob/f51d67ebc81235ed18239de8eed17d27a22a2f88/docs/evidence/monitoring-static-contract.md",
     "https://github.com/rafaelxvr/Tech-challenge-15SOAT-functions/blob/dbceabcf3dd9d11597af98825c3ca54159cbbf4f/docs/evidence/staging-runtime-handoff-contract.md",
@@ -45,8 +45,8 @@
   ],
   "status": "NOT_READY",
   "pendingEvidence": [
-    "R4 cloud acceptance and dynamic Helm checks remain pending.",
-    "APP staging build 02a7fcb8 failed on EKS identity mapping; live RoleBinding verification, successful promotion and runtime acceptance remain pending.",
+    "R4 cloud acceptance remains pending. A subsequent local Helm 4.3.0 check passed dynamic schema/render/resource accounting; live monitoring remains unverified.",
+    "Historical APP build 02a7fcb8 FAILED. Subsequent identity/RBAC and eight prerequisite creates are reviewed; fresh merged-validator readback, current immutable input publication, APP promotion and runtime acceptance remain pending, with AWS verification blocked by expired SSO.",
     "Authenticated reviewer access to all four repositories remains unverified.",
     "Video recording, playable video URL and measured duration remain unprovided.",
     "Final submission-mode PDF review and student portal submission remain pending."
