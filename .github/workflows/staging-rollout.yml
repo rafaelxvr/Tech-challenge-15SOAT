@@ -1,0 +1,103 @@
+name: APP staging rollout
+
+# Automatic deployment for the homologation branch. Every push to develop builds the
+# application image from that exact commit, publishes it to ECR under an immutable
+# commit tag, and rolls the staging Deployment forward. The job fails if the new
+# revision does not become healthy, so a red pipeline always means a bad release.
+
+on:
+  push:
+    branches:
+      - develop
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: app-staging-rollout
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-east-1
+  CLUSTER_NAME: oficina-phase3
+  NAMESPACE: oficina-staging
+  DEPLOYMENT: oficina-app
+  ECR_REPOSITORY: oficina-phase3-app
+
+jobs:
+  rollout:
+    name: Build and roll out to staging
+    environment:
+      name: staging
+      url: https://qcm8l43flb.execute-api.us-east-1.amazonaws.com/health
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the released commit
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Run the application test suite
+        run: ./mvnw --batch-mode --no-transfer-progress verify
+
+      - name: Assume the staging deployment role
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.APP_STAGING_ROLLOUT_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and publish the image
+        id: image
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          TAG="staging-${GITHUB_SHA::7}-$(date -u +%Y%m%d%H%M%S)"
+          IMAGE="$REGISTRY/$ECR_REPOSITORY:$TAG"
+          docker build --tag "$IMAGE" .
+          docker push "$IMAGE"
+          echo "reference=$IMAGE" >> "$GITHUB_OUTPUT"
+
+      - name: Roll the staging deployment forward
+        env:
+          IMAGE: ${{ steps.image.outputs.reference }}
+        run: |
+          aws eks update-kubeconfig --name "$CLUSTER_NAME" --region "$AWS_REGION"
+          kubectl set image "deployment/$DEPLOYMENT" "app=$IMAGE" -n "$NAMESPACE"
+          kubectl annotate "deployment/$DEPLOYMENT" -n "$NAMESPACE" --overwrite \
+            oficina.io/released-commit="$GITHUB_SHA" \
+            oficina.io/released-run="$GITHUB_RUN_ID"
+          kubectl rollout status "deployment/$DEPLOYMENT" -n "$NAMESPACE" --timeout=10m
+
+      - name: Verify the public health endpoint
+        run: |
+          for attempt in $(seq 1 10); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' \
+              https://qcm8l43flb.execute-api.us-east-1.amazonaws.com/health)
+            if [ "$code" = "200" ]; then
+              echo "staging is serving traffic (HTTP $code)"
+              exit 0
+            fi
+            echo "attempt $attempt: HTTP $code"
+            sleep 15
+          done
+          echo "staging did not return a healthy response"
+          exit 1
+
+      - name: Roll back to the previous revision on failure
+        if: failure()
+        run: |
+          kubectl rollout undo "deployment/$DEPLOYMENT" -n "$NAMESPACE" || true
+          kubectl rollout status "deployment/$DEPLOYMENT" -n "$NAMESPACE" --timeout=10m || true
