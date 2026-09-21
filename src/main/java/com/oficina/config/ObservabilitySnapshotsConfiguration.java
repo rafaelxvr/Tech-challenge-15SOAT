@@ -12,6 +12,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -54,6 +57,7 @@ public class ObservabilitySnapshotsConfiguration {
 
     /** Fixed 60-second cadence with at most one second random start jitter; no backlog or retry loop. */
     static final class SnapshotPoller implements SmartLifecycle {
+        private static final Logger LOG = LoggerFactory.getLogger(SnapshotPoller.class);
         private final SnapshotScheduler scheduler;
         private ScheduledExecutorService executor;
         SnapshotPoller(SnapshotScheduler scheduler) { this.scheduler = scheduler; }
@@ -64,6 +68,17 @@ public class ObservabilitySnapshotsConfiguration {
             });
             executor.scheduleWithFixedDelay(scheduler::exportarAgora,
                     java.util.concurrent.ThreadLocalRandom.current().nextLong(0, 1001), 60, TimeUnit.SECONDS);
+            registrarInicio();
+        }
+        private void registrarInicio() {
+            // Synchronous signal that the poller bean started, independent of whether any tick ever
+            // fires; this is what lets an operator tell "never started" apart from the other states.
+            MDC.put("event_name", "snapshot_poller_started");
+            try {
+                LOG.info("");
+            } finally {
+                MDC.remove("event_name");
+            }
         }
         @Override public synchronized void stop() { if (executor != null) executor.shutdownNow(); }
         @Override public synchronized boolean isRunning() { return executor != null && !executor.isShutdown(); }
