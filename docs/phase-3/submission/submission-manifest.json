@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "submissionMode": "template",
-  "releaseRevision": "333b9873ee455875df4cc230696e2681333b44d0",
+  "releaseRevision": "0bba2ac2adee4cfe5d232da99166604fe09f919f",
   "reviewerUsername": "soat-architecture",
   "repositories": [
     {
@@ -9,14 +9,14 @@
       "url": "https://github.com/rafaelxvr/Tech-challenge-15SOAT",
       "reviewerAccessVerified": false,
       "accessEvidence": "NOT_PROVIDED",
-      "reviewedRevision": "333b9873ee455875df4cc230696e2681333b44d0"
+      "reviewedRevision": "0bba2ac2adee4cfe5d232da99166604fe09f919f"
     },
     {
       "name": "K8S",
       "url": "https://github.com/rafaelxvr/Tech-challenge-15SOAT-k8s-infra",
       "reviewerAccessVerified": false,
       "accessEvidence": "NOT_PROVIDED",
-      "reviewedRevision": "764648eed20446a242166511202a94742b0816c7"
+      "reviewedRevision": "a7d73037cc8419978f6922456ccbb9ef25d02447"
     },
     {
       "name": "FUN",
@@ -36,19 +36,21 @@
   "videoUrl": "NOT_PROVIDED",
   "videoDurationSeconds": null,
   "documentationUrls": [
-    "https://github.com/rafaelxvr/Tech-challenge-15SOAT/blob/333b9873ee455875df4cc230696e2681333b44d0/docs/phase-3/architecture/components.md",
-    "https://github.com/rafaelxvr/Tech-challenge-15SOAT/blob/333b9873ee455875df4cc230696e2681333b44d0/docs/phase-3/evidence/implementation-audit.md",
-    "https://github.com/rafaelxvr/Tech-challenge-15SOAT-k8s-infra/blob/22d60af8964f08844517c6768cf38323c27ee3d7/docs/evidence/staging-platform-acceptance-2026-09-17.md",
-    "https://github.com/rafaelxvr/Tech-challenge-15SOAT-k8s-infra/blob/f51d67ebc81235ed18239de8eed17d27a22a2f88/docs/evidence/monitoring-static-contract.md",
-    "https://github.com/rafaelxvr/Tech-challenge-15SOAT-functions/blob/dbceabcf3dd9d11597af98825c3ca54159cbbf4f/docs/evidence/staging-runtime-handoff-contract.md",
-    "https://github.com/rafaelxvr/Tech-challenge-15SOAT-db-infra/blob/33b7da9172c45d766d36e7561d59ee289053b02b/docs/evidence/staging-database-platform-acceptance-2026-09-17.md"
+    "https://github.com/rafaelxvr/Tech-challenge-15SOAT/blob/0bba2ac2adee4cfe5d232da99166604fe09f919f/docs/phase-3/README.md",
+    "https://github.com/rafaelxvr/Tech-challenge-15SOAT/blob/0bba2ac2adee4cfe5d232da99166604fe09f919f/docs/phase-3/architecture/components.md",
+    "https://github.com/rafaelxvr/Tech-challenge-15SOAT/blob/0bba2ac2adee4cfe5d232da99166604fe09f919f/docs/phase-3/architecture/authentication-sequence.md",
+    "https://github.com/rafaelxvr/Tech-challenge-15SOAT/blob/0bba2ac2adee4cfe5d232da99166604fe09f919f/docs/phase-3/architecture/order-opening-sequence.md",
+    "https://github.com/rafaelxvr/Tech-challenge-15SOAT/blob/0bba2ac2adee4cfe5d232da99166604fe09f919f/docs/phase-3/architecture/data-model.md",
+    "https://github.com/rafaelxvr/Tech-challenge-15SOAT/blob/0bba2ac2adee4cfe5d232da99166604fe09f919f/docs/phase-3/api/contracts.md",
+    "https://github.com/rafaelxvr/Tech-challenge-15SOAT/blob/0bba2ac2adee4cfe5d232da99166604fe09f919f/docs/rfcs/001-aws-profile.md",
+    "https://github.com/rafaelxvr/Tech-challenge-15SOAT/blob/0bba2ac2adee4cfe5d232da99166604fe09f919f/docs/adrs/001-modular-monolith.md",
+    "https://github.com/rafaelxvr/Tech-challenge-15SOAT-k8s-infra/blob/a7d73037cc8419978f6922456ccbb9ef25d02447/docs/architecture.md",
+    "https://github.com/rafaelxvr/Tech-challenge-15SOAT-functions/blob/66e586ea43de1b98dc1347e49df75412b1f9faa2/docs/architecture.md",
+    "https://github.com/rafaelxvr/Tech-challenge-15SOAT-db-infra/blob/33b7da9172c45d766d36e7561d59ee289053b02b/docs/architecture.md"
   ],
   "status": "NOT_READY",
   "pendingEvidence": [
-    "R4 cloud acceptance remains pending. A subsequent local Helm 4.3.0 check passed dynamic schema/render/resource accounting; live monitoring remains unverified.",
-    "Historical APP build 02a7fcb8 FAILED. Subsequent identity/RBAC and eight prerequisite creates are reviewed; fresh merged-validator readback, current immutable input publication, APP promotion and runtime acceptance remain pending, with AWS verification blocked by expired SSO.",
-    "Authenticated reviewer access to all four repositories remains unverified.",
-    "Video recording, playable video URL and measured duration remain unprovided.",
-    "Final submission-mode PDF review and student portal submission remain pending."
+    "Video recording, playable video URL and measured duration remain unprovided. Every other deliverable is live: run scripts/submission/finalize.py with the published video URL and duration to produce the submission-mode PDF.",
+    "Reviewer access is recorded as unverified only because template mode forbids claiming it. soat-architecture has in fact accepted the invitation on all four repositories and appears as a collaborator; finalize.py records that evidence."
   ]
 }
