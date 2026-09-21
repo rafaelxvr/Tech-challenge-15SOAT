@@ -20,6 +20,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
@@ -41,11 +42,15 @@ class SnapshotSchedulerFailureTest {
     void distinguishesCaptureFailureFromExportFailure() {
         AtomicReference<String> observed = new AtomicReference<>();
 
+        AtomicBoolean exporterInvoked = new AtomicBoolean(false);
         SnapshotScheduler capturaQuebrada = schedulerWith(
                 () -> { throw new IllegalStateException("db down"); },
-                eventos -> { }, observed);
+                eventos -> exporterInvoked.set(true), observed);
         capturaQuebrada.exportarAgora();
         assertThat(observed.get()).isEqualTo("SNAPSHOT_CAPTURE_FAILED");
+        assertThat(exporterInvoked.get())
+                .as("a failed capture must never reach the exporter")
+                .isFalse();
 
         SnapshotScheduler exportQuebrado = schedulerWith(
                 () -> List.of(Map.of("eventType", "X", "environment", "staging", "timestamp", 1L)),
