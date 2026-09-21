@@ -24,17 +24,18 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Proves the tick-level diagnostics that let an operator tell, from pod logs alone, that the
  * poller's repeating task is actually completing ticks (state distinguishing "it runs and posts"
  * from "the repeating task died silently"), and that a tick throwing something the two existing
- * capture/export {@code catch (RuntimeException ...)} blocks do not catch (e.g. an {@link Error})
- * is contained rather than propagated, since {@code scheduleWithFixedDelay} permanently cancels a
- * task whose run throws. The one exception is a {@link VirtualMachineError}: that is still
- * reported, but then re-thrown rather than swallowed, since continuing to run the pod after a
- * genuine VM failure would hide the crash signal Kubernetes needs to act on.
+ * capture/export {@code catch (RuntimeException ...)} blocks do not catch (e.g. an {@link Error}
+ * or a {@link VirtualMachineError}) is always contained rather than propagated, since
+ * {@code scheduleWithFixedDelay} permanently cancels a task whose run throws. Nothing here is
+ * re-thrown, including a {@link VirtualMachineError}: the JVM usually survives one, and killing
+ * telemetry forever would be strictly worse than one contained, reported tick. The genuinely
+ * unrecoverable case (an unsurvivable {@code OutOfMemoryError}) is handled at the process level by
+ * {@code -XX:+ExitOnOutOfMemoryError}, outside this class.
  */
 class SnapshotSchedulerTickTest {
 
@@ -78,21 +79,23 @@ class SnapshotSchedulerTickTest {
         assertThat(mdc).isNotNull();
         assertThat(mdc.get("event_name")).isEqualTo("snapshot_tick_crashed");
         assertThat(mdc.get("error_code")).isEqualTo("SNAPSHOT_TICK_UNHANDLED");
+        assertThat(mdc.get("failure_type")).isEqualTo(AssertionError.class.getName());
     }
 
     @Test
-    void tickThrowingVirtualMachineErrorIsReportedThenPropagated() {
+    void tickThrowingVirtualMachineErrorIsContainedAndReportedRatherThanPropagated() {
         AtomicReference<Map<String, String>> observed = new AtomicReference<>();
         SnapshotScheduler scheduler = schedulerWith(
                 () -> { throw new InternalError("jvm in a corrupted state"); }, eventos -> { },
                 "snapshot_tick_crashed", observed);
 
-        assertThatThrownBy(scheduler::exportarAgora).isInstanceOf(VirtualMachineError.class);
+        assertThatCode(scheduler::exportarAgora).doesNotThrowAnyException();
 
         Map<String, String> mdc = observed.get();
         assertThat(mdc).isNotNull();
         assertThat(mdc.get("event_name")).isEqualTo("snapshot_tick_crashed");
         assertThat(mdc.get("error_code")).isEqualTo("SNAPSHOT_TICK_UNHANDLED");
+        assertThat(mdc.get("failure_type")).isEqualTo(InternalError.class.getName());
     }
 
     /**
