@@ -80,6 +80,12 @@ public class ObservabilitySnapshotsConfiguration {
         @Override public synchronized void start() {
             if (isRunning()) return;
             executor = executorFactory.get();
+            // Logged before scheduling so the "started" signal can never race a tick: with the jitter
+            // now correctly expressed in milliseconds, a zero draw lets the first tick fire almost
+            // immediately, and scheduleWithFixedDelay runs on the executor's own thread rather than
+            // this one, so registering the tick before logging its start could otherwise let a tick
+            // complete first.
+            registrarInicio();
             // Both arguments are milliseconds: a 0-1000ms startup jitter so replicas don't all
             // publish in the same instant, then a steady 60-second (60_000ms) cadence. Expressing
             // both in the same unit here is deliberate - mixing a millisecond jitter with a
@@ -88,7 +94,6 @@ public class ObservabilitySnapshotsConfiguration {
             executor.scheduleWithFixedDelay(scheduler::exportarAgora,
                     java.util.concurrent.ThreadLocalRandom.current().nextLong(0, 1001),
                     TimeUnit.SECONDS.toMillis(60), TimeUnit.MILLISECONDS);
-            registrarInicio();
         }
         private void registrarInicio() {
             // Synchronous signal that the poller bean started, independent of whether any tick ever
