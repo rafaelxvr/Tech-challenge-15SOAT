@@ -97,7 +97,14 @@ public class OutboxPublisher {
         } catch (RuntimeException exception) {
             databaseRetryAt = clock.instant().plusSeconds(5);
             // Never log exception text, payload, contact, credentials or arbitrary provider error codes.
-            LOG.warn("event_name=outbox_publish_failed error_code=OUTBOX_TRANSACTION_FAILED");
+            MDC.put("event_name", "outbox_publish_failed");
+            MDC.put("error_code", "OUTBOX_TRANSACTION_FAILED");
+            try {
+                LOG.warn("");
+            } finally {
+                MDC.remove("event_name");
+                MDC.remove("error_code");
+            }
             return false;
         }
     }

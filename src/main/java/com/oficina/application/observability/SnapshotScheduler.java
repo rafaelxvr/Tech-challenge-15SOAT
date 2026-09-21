@@ -7,6 +7,7 @@ import com.oficina.application.relatorio.StatusAtual;
 import com.oficina.entity.StatusOrdemServico;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -54,9 +55,20 @@ public final class SnapshotScheduler {
     public void exportarAgora() {
         try {
             exporter.exportar(capturar());
-        } catch (RuntimeException ignored) {
-            // Structured logging policy supplies correlation/version; never include provider response or report data.
-            LOG.warn("event_name=snapshot_export_failed error_code=SNAPSHOT_EXPORT_FAILED");
+        } catch (RuntimeException failure) {
+            registrarFalha("SNAPSHOT_EXPORT_FAILED");
+        }
+    }
+
+    private void registrarFalha(String errorCode) {
+        // Structured logging policy supplies correlation/version; never include provider response or report data.
+        MDC.put("event_name", "snapshot_export_failed");
+        MDC.put("error_code", errorCode);
+        try {
+            LOG.warn("");
+        } finally {
+            MDC.remove("event_name");
+            MDC.remove("error_code");
         }
     }
 
