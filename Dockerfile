@@ -54,7 +54,7 @@ HEALTHCHECK --interval=10s --timeout=2s --start-period=120s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:8080/api/actuator/health/liveness || exit 1
 
 # Variáveis de ambiente padrão
-ENV JAVA_OPTS="-Xms256m -Xmx512m -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0"
+ENV JAVA_OPTS="-Xms256m -Xmx512m -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError"
 # The JVM automatically consumes JAVA_TOOL_OPTIONS, so this remains active even when callers
 # add memory flags through JAVA_OPTS. The image intentionally contains no New Relic credential.
 ENV JAVA_TOOL_OPTIONS="-javaagent:/app/newrelic/newrelic.jar"
