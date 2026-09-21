@@ -7,7 +7,7 @@ This index describes the reviewed source state. No cloud deployment or public en
 - [Release operations runbook](runbooks/release-operations.md) for bootstrap, interruption, recovery, evidence, and cleanup
 - [APP staging activation checklist](staging-activation-checklist.md) for reviewed GitHub/OIDC inputs and post-run evidence
 - [R4 cloud-window status](evidence/cloud-window.md) and [cleanup proposal](../runbooks/cleanup.md)
-- [Offline submission/PDF guide](submission/README.md), [14-minute recording script](submission/video-script.md) and [unfilled NOT_READY manifest](submission/submission-manifest.json)
+- [Offline submission/PDF guide](submission/README.md) and [submission manifest](submission/submission-manifest.json)
 - [RFCs](../rfcs/001-aws-profile.md) and [ADRs](../adrs/001-modular-monolith.md)
 - [Current reviewed source references](evidence/implementation-audit.md), with historical activation/receipt revisions kept separate.
 - [Requirement/evidence matrix](evidence/requirements.md), including audited source revisions and explicit staged acceptance gaps.

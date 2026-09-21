@@ -1,170 +1,142 @@
-# Oficina Mecânica — Tech Challenge Fase 2 (15SOAT)
+# Oficina Mecânica — Tech Challenge Fase 3 (15SOAT)
 
-Back-end para gestão de ordens de serviço, clientes, veículos, catálogo e métricas, evoluído na **Fase 2** com foco em qualidade, resiliência, containerização, Kubernetes, IaC (Terraform) e CI/CD.
+Sistema de atendimento e execução de serviços de uma oficina mecânica de médio porte, rodando em nuvem gerenciada na AWS.
 
-## Fase 3: reviewed architecture
+A Fase 2 entregou a aplicação em Kubernetes local. A Fase 3 move o sistema para AWS: API Gateway como única superfície pública, EKS e RDS privados, autenticação de cliente em funções Lambda, infraestrutura em Terraform distribuída por quatro repositórios com CI/CD independentes, e observabilidade completa.
 
-Current reviewed source revisions and historical receipt provenance are indexed in the [implementation audit](docs/phase-3/evidence/implementation-audit.md).
-
-The [2026-09-19 APP staging attempt](docs/phase-3/evidence/app-staging-attempt-2026-09-19.md) published and verified six immutable inputs, then failed because EKS did not map the APP executor identity. Live RoleBinding verification and runtime acceptance remain pending; R4 and submission readiness are unchanged.
-
-The [staging public ConfigMap contract](docs/phase-3/staging-public-configmap-contract.md) adds a seventh versioned input from the existing K8S public-config renderer. Offline tests cover hash/version validation and lock-protected creation/readback before migration. No new publication, deployment or runtime acceptance is claimed.
-
-Start with the [APP architecture guide](docs/architecture.md), [requirement/evidence matrix](docs/phase-3/evidence/requirements.md), and [disabled cloud adapter prerequisites](docs/i7-pipeline-contracts.md). The Phase 2 material below remains historical; its topology is not the Phase 3 cloud profile.
-
-The Phase 3 component, authentication, order-delivery, and relational-model evidence is in [the architecture index](docs/phase-3/README.md). Use the committed, credential-free [OpenAPI and Postman snapshots](docs/phase-3/api/contracts.md) for local contract review. They document source revision `7ca6e2948e423ea171c252eddeaca266179bd153`; they do not claim an active cloud endpoint. Run `./mvnw.cmd -q test` locally; the protected-cloud handoff remains an authorized R4 action.
-
-Run `./mvnw.cmd -B verify`, `python scripts/check-doc-links.py docs README.md`, and `python scripts/verify-api-snapshots.py` from this repository root. CI is [`.github/workflows/ci-cd.yml`](.github/workflows/ci-cd.yml): it runs on push and pull request for `main` and `develop`. PR checks have no deployment identity; GHCR publishing is push-only and Kind is explicitly local. Its image/deployment stages require their configured environment and do not make a cloud deployment claim in this document.
-
-The [Phase 3 offline submission guide](docs/phase-3/submission/README.md) includes the 14-minute recording plan, unfilled manifest and local PDF checks. Generated template PDFs remain `NOT_READY / FIXTURE_ONLY`; no video, publication, reviewer access or portal submission is claimed.
+**O ambiente de staging está no ar e verificado.** Produção permanece desligada por padrão, atrás de gates explícitos.
 
 ---
 
-## Objetivos desta fase
-
-- Reduzir riscos operacionais com infraestrutura escalável (K8s + HPA)
-- Automatizar provisionamento (Terraform) e deploy (GitHub Actions)
-- Manter evolução sustentável (arquitetura em camadas/hexagonal + testes)
-- Suportar picos de demanda com escalabilidade dinâmica
-
----
-
-## Arquitetura proposta
-
-```
-                    ┌─────────────────┐     ┌──────────────────┐
-                    │ Swagger/Postman │     │ Webhook / e-mail │
-                    └────────┬────────┘     └────────┬─────────┘
-                             │                       │
-                             └───────────┬───────────┘
-                                         ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│  Kubernetes (namespace oficina)                                        │
-│                                                                        │
-│   ConfigMap + Secret ──▶  Service :30080 ──▶  oficina-app (2–6 pods) │
-│                              ▲                      │                  │
-│                              │                      ├──▶ PostgreSQL    │
-│                         HPA (CPU/Mem)               └──▶ MailHog SMTP  │
-└────────────────────────────────────────────────────────────────────────┘
-                                         ▲
-                                         │ kubectl apply /k8s
-┌────────────────────────────────────────┴───────────────────────────────┐
-│  CI/CD (GitHub Actions)                                                │
-│   mvn verify  →  Docker build/push GHCR  →  Kind + deploy              │
-└────────────────────────────────────────────────────────────────────────┘
-                                         ▲
-                                         │
-                              Terraform (infra/) → Kind cluster
-```
-
-Diagramas Mermaid (exportáveis para o PDF) e roteiro do vídeo: [`docs/diagrama-arquitetura.md`](docs/diagrama-arquitetura.md) · [`docs/roteiro-video-demonstracao.md`](docs/roteiro-video-demonstracao.md).
-
-<details>
-<summary>Diagrama Mermaid (renderiza no GitHub; no IntelliJ use o plugin Mermaid ou o ASCII acima)</summary>
+## Arquitetura
 
 ```mermaid
-flowchart TB
-  subgraph clients [Clientes]
-    Swagger[Swagger / Postman]
-    EmailTool[Ferramenta de e-mail / webhook]
-  end
-
-  subgraph k8s [Kubernetes - namespace oficina]
-    HPA[HPA CPU/Mem]
-    AppDeploy[Deployment oficina-app]
-    AppSvc[Service NodePort 30080]
-    PgDeploy[Deployment PostgreSQL]
-    MailHog[MailHog SMTP]
-    CM[ConfigMap]
-    SEC[Secret]
-    HPA --> AppDeploy
-    AppSvc --> AppDeploy
-    AppDeploy --> PgDeploy
-    AppDeploy --> MailHog
-    CM -.-> AppDeploy
-    SEC -.-> AppDeploy
-  end
-
-  subgraph cicd [CI/CD GitHub Actions]
-    Build[mvn verify]
-    Image[Docker build/push GHCR]
-    Deploy[kind + kubectl apply]
-    Build --> Image --> Deploy
-  end
-
-  Swagger --> AppSvc
-  EmailTool --> AppSvc
-  Deploy --> k8s
+flowchart LR
+  Cliente --> GW[API Gateway HTTP]
+  Staff --> GW
+  GW -->|rotas públicas de CPF| L1[Lambda challenge / verification]
+  GW -->|demais rotas| AUTHZ[Lambda authorizer]
+  AUTHZ -.->|contrato phase3-v2| GW
+  GW --> ALB[ALB interno]
+  ALB --> APP[Spring Boot no EKS]
+  APP --> DB[(RDS PostgreSQL)]
+  APP --> SQS[Fila FIFO]
+  SQS --> L2[Lambda notification]
+  L1 --> SES[SES]
+  L2 --> SES
 ```
 
-</details>
+O API Gateway é o único endereço público. O cluster fica atrás de um ALB interno e o banco não tem endereço público.
 
-### Componentes da aplicação (hexagonal / ports & adapters)
+A autorização não está espalhada pelo código: é um contrato de rotas versionado, o `phase3-v2`, **default-deny** — rota sem concessão explícita é recusada. Ele é aplicado duas vezes: o gateway vincula cada rota ao authorizer, e o authorizer reaplica o mesmo contrato do lado servidor.
 
-| Camada | Pacotes | Responsabilidade |
-|---|---|---|
-| Domínio | `entity`, `exception`, `validation` | Regras e modelo de negócio (OS, estoque, transições) |
-| Aplicação | `service`, `application.port.out` | Casos de uso; portas de saída (ex.: `NotificacaoPort`) |
-| Adaptadores de entrada | `controller`, `dto` | REST / OpenAPI |
-| Adaptadores de saída | `repository`, `adapter.out.outbox` | JPA/Postgres e intenção de notificação transacional |
-| Configuração | `config` | Security JWT, OpenAPI, wiring Spring |
+Diagramas detalhados: [componentes](docs/phase-3/architecture/components.md) · [sequência de autenticação](docs/phase-3/architecture/authentication-sequence.md) · [abertura e entrega da OS](docs/phase-3/architecture/order-opening-sequence.md) · [modelo ER](docs/phase-3/architecture/data-model.md).
 
-Classe de entrada: `OficinaApplication`.
+### Componentes implantados
 
-### Infraestrutura provisionada
-
-| Recurso | Onde | Descrição |
-|---|---|---|
-| Cluster K8s | Terraform (`infra/`) + Kind | Cluster local com NodePort 30080 |
-| Banco | `k8s/postgres.yaml` | PostgreSQL 16 + PVC; schema via Flyway na API |
-| API | `k8s/app.yaml` | Deployment (2 réplicas), Service, HPA |
-| Config | `k8s/configmap.yaml` + `secret.yaml` | Variáveis e segredos (JWT, senhas, token e-mail) |
-| E-mail local | MailHog (Compose profile `tools`) | Destino de testes do consumidor; ativação explícita com `local-mailhog` |
-
-### Fluxo de deploy
-
-1. **CI**: `mvn verify` (build + testes)
-2. **Imagem**: build Docker → push GHCR (`ghcr.io/<owner>/oficina-mecanica`)
-3. **CD**: sobe Kind → aplica Postgres → aplica App/HPA/MailHog
-4. Flyway migra o banco no startup da aplicação
+| Componente | Identidade |
+|---|---|
+| Kubernetes | EKS `oficina-phase3`, versão 1.35, dois node groups gerenciados |
+| Workload | `oficina-app` no namespace `oficina-staging`, atrás de target group do ALB interno |
+| Escala | HorizontalPodAutoscaler, 1 a 2 réplicas, alvo de 60% de CPU |
+| Banco | RDS PostgreSQL 16.15, privado, schema na versão 8 do Flyway |
+| Serverless | Lambdas `challenge`, `verification`, `authorizer` e `notification` |
+| Observabilidade | New Relic: 4 dashboards, 14 condições de alerta, 1 monitor sintético |
 
 ---
 
-## Stack tecnológica
+## Quatro repositórios
 
-| Tecnologia | Versão | Uso |
+Cada repositório tem pipeline próprio e é dono de um estado Terraform distinto; nenhum recurso é gerenciado por dois estados.
+
+| Repositório | Responsável por | Deploy |
 |---|---|---|
-| Java | 17 | Runtime |
-| Spring Boot | 3.2.5 | Framework |
-| PostgreSQL | 16 | Banco |
-| Flyway | (Boot) | Migrações |
-| Spring Security + JWT | jjwt 0.12.x | API stateless |
-| Spring Mail + MailHog | — | Testes locais de entrega após commit |
-| Kubernetes | Kind / manifests em `/k8s` | Orquestração + HPA |
-| Terraform | 1.15.8 | Provisionamento do cluster + apply |
-| GitHub Actions | `.github/workflows/ci-cd.yml` | CI/CD |
-| SpringDoc OpenAPI | 2.5 | Swagger |
-| Testcontainers | 1.19.x | Testes com Postgres |
+| [APP](https://github.com/rafaelxvr/Tech-challenge-15SOAT) (este) | aplicação Spring Boot, migrações, imagem, manifests de workload | imagem no ECR + rollout no EKS |
+| [K8S](https://github.com/rafaelxvr/Tech-challenge-15SOAT-k8s-infra) | rede, EKS, add-ons, ALB interno, casca do gateway, monitoramento | `terraform apply` por ambiente |
+| [FUN](https://github.com/rafaelxvr/Tech-challenge-15SOAT-functions) | Lambdas, authorizer, rotas públicas de CPF, IAM das funções | `terraform apply` + código das funções |
+| [DB](https://github.com/rafaelxvr/Tech-challenge-15SOAT-db-infra) | RDS, regras de rede, backup, referências de credencial | `terraform apply` por ambiente |
+
+Arquitetura por repositório: [APP](docs/architecture.md) · [índice da Fase 3](docs/phase-3/README.md).
 
 ---
 
-## Pré-requisitos
+## Autenticação
 
-- **Java 17**, **Docker Desktop** ativo; Maven 3.9.16 é fornecido pelo wrapper
-- Para K8s local: **kubectl**, **Kind 0.33.0**, **Terraform 1.15.8**
+Duas identidades independentes chegam ao mesmo gateway.
 
-Versões e checksums reproduzíveis estão em [`toolchain.lock.json`](toolchain.lock.json). No PowerShell, selecione um JDK 17 para a sessão e valide o ambiente:
+**Cliente, por CPF.** `POST /api/auth/cpf/desafios` localiza o cliente, guarda o hash de um código de uso único e o envia por e-mail via SES. `POST /api/auth/cpf/verificar` troca o código por um token **RS256** com `principal_type: customer` e escopos restritos ao próprio pedido (`orders:read:self`, `orders:decide:self`). O desafio expira em 5 minutos; o token vale 15 minutos e não tem refresh.
 
-```powershell
-$env:JAVA_HOME = 'C:\Program Files\Eclipse Adoptium\jdk-17.0.20.101-hotspot'
-$env:PATH = "$env:JAVA_HOME\bin;$env:PATH"
-.\scripts\check-toolchain.ps1
-.\mvnw.cmd -B verify
+**Staff, por credencial.** `POST /api/auth/login` devolve um token **HS256** com o papel do operador.
+
+Ambas as rotas de emissão são anônimas no gateway. Todas as outras passam pelo authorizer.
+
+---
+
+## Ambiente de staging
+
+Endereço público: `https://qcm8l43flb.execute-api.us-east-1.amazonaws.com`
+
+```bash
+BASE=https://qcm8l43flb.execute-api.us-east-1.amazonaws.com
+
+curl -s $BASE/health                                              # 200
+curl -s -o /dev/null -w '%{http_code}\n' $BASE/api/clientes       # 401, anônimo
+curl -s -o /dev/null -w '%{http_code}\n' $BASE/api/clientes \
+  -H 'Authorization: Bearer invalido'                             # 401
 ```
 
+O stage aceita **1 requisição por segundo** (burst 2); rajadas recebem `429`.
+
+Detalhes verificados do ambiente: [live environment](docs/phase-3/evidence/live-environment.md).
+
 ---
 
-## Execução local (Docker Compose)
+## CI/CD
+
+Push em `develop` dispara `APP staging rollout`: testa o commit, constrói a imagem, publica no ECR com tag imutável `staging-<sha>-<timestamp>`, atualiza o Deployment, espera a nova revisão ficar saudável e só então verifica o health público. Falha em qualquer etapa reverte o Deployment para a revisão anterior.
+
+A autenticação dos pipelines na AWS é por **OIDC**, com credenciais de curta duração; a role de deploy confia no repositório exato por owner e repo imutáveis. Nenhuma chave estática é guardada no GitHub.
+
+O Deployment registra a origem do que está rodando:
+
+```bash
+kubectl get deployment oficina-app -n oficina-staging \
+  -o jsonpath='{.metadata.annotations.oficina\.io/released-commit}'
+```
+
+Produção roda só em `main`, condicionada a `vars.APP_PRODUCTION_DEPLOYMENT_ENABLED == 'true'` e ao ambiente protegido `production`. Os gates ficam desligados por padrão; `develop` continua exclusivo de staging. Ver [contrato de promoção](docs/phase-3/app-production-promotion-contract.md).
+
+---
+
+## Observabilidade
+
+Dashboards, condições de alerta e monitor sintético são recursos Terraform no repositório K8S — nenhum montado à mão.
+
+| Dashboard | Cobre |
+|---|---|
+| `Oficina Phase 3 Platform` | latência p95, capacidade do Kubernetes, heartbeat de telemetria, logs correlacionados |
+| `Oficina Phase 3 Business` | duração média por status |
+| `Oficina Phase 3 Orders` | volume de ordens e idade por status |
+| `Oficina Phase 3 Delivery` | outbox bloqueado, falhas de entrega e de integração |
+
+As 14 condições de alerta ficam na policy `Oficina Phase 3 <ambiente> operations`. Os logs da aplicação são JSON estruturado e cada resposta carrega `X-Correlation-Id`, que liga a requisição ao trace distribuído.
+
+---
+
+## Documentação canônica
+
+`docs/` guarda apenas documentação canônica. Material de planejamento e roteiros de gravação ficam fora do repositório.
+
+- [Índice da Fase 3](docs/phase-3/README.md) — arquitetura, runbooks, evidências
+- [Arquitetura da APP](docs/architecture.md)
+- [Matriz requisito/evidência](docs/phase-3/evidence/requirements.md)
+- [Contratos de API](docs/phase-3/api/contracts.md) — snapshots OpenAPI e Postman com hash
+- [RFCs](docs/rfcs/001-aws-profile.md) e [ADRs](docs/adrs/001-modular-monolith.md)
+- [Guia de submissão](docs/phase-3/submission/README.md)
+
+---
+
+## Execução local
 
 ```bash
 docker compose up --build -d
@@ -176,17 +148,12 @@ Com ferramentas de e-mail e PgAdmin:
 docker compose --profile tools up --build -d
 ```
 
-- API: http://localhost:8080/api  
-- Health: http://localhost:8080/api/actuator/health  
-- Swagger: http://localhost:8080/api/swagger-ui.html  
-- MailHog UI: http://localhost:8025  
+- API: http://localhost:8080/api
+- Health: http://localhost:8080/api/actuator/health
+- Swagger: http://localhost:8080/api/swagger-ui.html
+- MailHog: http://localhost:8025
 
-```bash
-copy .env.example .env
-docker compose logs -f app
-```
-
-### App local + só Postgres
+Apenas a aplicação, com Postgres em container:
 
 ```bash
 docker compose up -d postgres
@@ -194,76 +161,39 @@ docker compose --profile tools up -d mailhog
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
 ```
 
----
+### Pré-requisitos
 
-## Deploy em Kubernetes
-
-### Opção A — script (Windows PowerShell)
+Java 17 e Docker Desktop ativo; o Maven vem pelo wrapper. Versões e checksums reproduzíveis em [`toolchain.lock.json`](toolchain.lock.json).
 
 ```powershell
-docker build -t oficina-mecanica:local .
-kind create cluster --name oficina-k8s --config - <<'EOF'
-# ou use Terraform (Opção B)
-EOF
-.\infra\apply-k8s.ps1 -Image "oficina-mecanica:local" -ClusterName "oficina-k8s"
-```
-
-Se o cluster ainda não existir, use a Opção B (Terraform cria o Kind com o NodePort mapeado).
-
-### Opção B — Terraform (recomendado)
-
-```bash
-docker build -t oficina-mecanica:local .
-cd infra
-terraform init
-terraform apply
-```
-
-No Windows, se o `local-exec` do apply falhar no shell, após o cluster criado:
-
-```powershell
-.\infra\apply-k8s.ps1
-```
-
-API no Kind: **http://localhost:30080/api**
-
-```bash
-kubectl -n oficina get deploy,svc,hpa,pods
-kubectl -n oficina logs -f deploy/oficina-app
-```
-
-Escalar / observar HPA (demo de carga):
-
-```bash
-kubectl -n oficina autoscale deployment oficina-app --cpu-percent=50 --min=2 --max=6
-# ou use o HPA já declarado em k8s/app.yaml
-kubectl -n oficina get hpa -w
+$env:JAVA_HOME = 'C:\Program Files\Eclipse Adoptium\jdk-17.0.20.101-hotspot'
+$env:PATH = "$env:JAVA_HOME\bin;$env:PATH"
+.\scripts\check-toolchain.ps1
+.\mvnw.cmd -B verify
 ```
 
 ---
 
-## Provisionamento com Terraform (`/infra`)
+## Stack
 
-Recursos criados (ver `terraform output recursos_criados`):
-
-1. Cluster **Kind** (`oficina-k8s`) com mapeamento do NodePort **30080**
-2. Load da imagem Docker no nó Kind
-3. Apply dos manifestos em `/k8s` (namespace, ConfigMap, Secret, Postgres, App, HPA, MailHog)
-
-Destruir:
-
-```bash
-cd infra
-terraform destroy
-```
-
-Detalhes: [`infra/README.md`](infra/README.md).
+| Tecnologia | Versão | Uso |
+|---|---|---|
+| Java | 17 | Runtime |
+| Spring Boot | 3.2.5 | Framework |
+| PostgreSQL | 16 | Banco (RDS 16.15 em nuvem) |
+| Flyway | (Boot) | Migrações |
+| Spring Security + JWT | jjwt 0.12.x | API stateless, HS256 staff e RS256 cliente |
+| Kubernetes | EKS 1.35 | Orquestração + HPA |
+| Terraform | 1.15.8 | Provisionamento |
+| GitHub Actions | `.github/workflows/` | CI/CD com OIDC |
+| SpringDoc OpenAPI | 2.5 | Swagger |
+| Testcontainers | 1.19.x | Testes com Postgres |
 
 ---
 
-## APIs de Ordem de Serviço (Fase 3)
+## APIs de Ordem de Serviço
 
-Base: **http://localhost:8080/api** (Compose) ou **http://localhost:30080/api** (Kind).
+Base: `https://qcm8l43flb.execute-api.us-east-1.amazonaws.com/api` (staging) ou `http://localhost:8080/api` (local).
 
 | Método | Caminho | Autorização |
 |---|---|---|
@@ -273,9 +203,7 @@ Base: **http://localhost:8080/api** (Compose) ou **http://localhost:30080/api** 
 | POST | `/ordens-servico/{numero}/aprovar` | Alias autenticado de aprovação; documento deve concordar com o cliente do JWT |
 | POST | `/ordens-servico/{numero}/orcamento/notificacao` | Alias autenticado de decisão; documento deve concordar com o cliente do JWT |
 
-Use o **número retornado pela criação da OS**, não um número fixo. Ordem inexistente ou pertencente a outro cliente retorna 404. A resposta inclui valores e itens do orçamento e histórico de status, sem nome, documento, placa, contato, identificadores de atores ou observações internas.
-
-O cliente obtém seu token no fluxo CPF + código de email do gateway. O token customer dura 15 minutos e não tem refresh. O login staff continua em `POST /api/auth/login`; ele não autentica o cliente. Tokens anteriores à atualização exigem **novo login**. Veja [migração das operações de cliente](docs/runbooks/customer-order-access.md).
+Use o **número retornado pela criação da OS**, não um número fixo. Ordem inexistente ou de outro cliente retorna 404. A resposta traz valores, itens do orçamento e histórico de status, sem nome, documento, placa, contato, identificadores de atores ou observações internas.
 
 ### Exemplo — decisão autenticada
 
@@ -290,11 +218,17 @@ Content-Type: application/json
 }
 ```
 
-Para recusar, envie `"decisao": "RECUSADO"`. O corpo canônico não recebe identidade. Os aliases legados exigem `documentoCliente`, apenas como conferência do cliente já autenticado.
+Para recusar, envie `"decisao": "RECUSADO"`. O corpo canônico não recebe identidade; os aliases legados exigem `documentoCliente` apenas como conferência do cliente já autenticado.
 
-`/ordens-servico/email/atualizar-status` foi removido: retorna 404 inclusive com o antigo token compartilhado e não executa serviços. Emails são notificações; a decisão exige login do cliente. A variável `MAIL_STATUS_TOKEN` não é mais consumida pela aplicação.
+`/ordens-servico/email/atualizar-status` foi removido: retorna 404 inclusive com o antigo token compartilhado, e nunca é exposto no gateway. E-mails são notificações; a decisão exige login do cliente.
 
-Swagger UI em `/api/swagger-ui.html` e OpenAPI em `/api/v3/api-docs` exigem JWT staff. Somente `POST /api/auth/login` e `GET /api/actuator/health` permitem acesso anônimo na APP. O fluxo CPF do gateway pertence ao serviço de autenticação separado.
+Swagger UI em `/api/swagger-ui.html` e OpenAPI em `/api/v3/api-docs` exigem JWT staff.
+
+### Postman
+
+`postman/Oficina-Fase3-Staging.postman_collection.json` cobre o fluxo completo contra o staging, na ordem da demonstração: saúde, login de staff, catálogo, abertura da OS, autenticação por CPF, decisão do cliente, entrega, controles negativos e métricas de negócio. Os scripts encadeiam tokens e identificadores sozinhos.
+
+Importe junto `postman/Oficina-Fase3-Staging.postman_environment.json` e preencha `admin_senha` com a credencial do operador — o arquivo versionado vai vazio de propósito.
 
 ---
 
@@ -302,48 +236,12 @@ Swagger UI em `/api/swagger-ui.html` e OpenAPI em `/api/v3/api-docs` exigem JWT 
 
 ```bash
 ./mvnw test
-./mvnw test jacoco:report
+./mvnw test jacoco:report          # relatório em target/site/jacoco/index.html
+python scripts/check-doc-links.py docs README.md
+python scripts/verify-api-snapshots.py
 ```
 
-Abrir: `target/site/jacoco/index.html`. Testcontainers exige Docker.
-
----
-
-## Vídeo demonstrativo
-
-Roteiro completo (tempo a tempo, comandos e payloads): [`docs/roteiro-video-demonstracao.md`](docs/roteiro-video-demonstracao.md)
-Diagramas para o PDF/vídeo: [`docs/diagrama-arquitetura.md`](docs/diagrama-arquitetura.md)
-
-Vídeo publicado no YouTube, conforme o roteiro de demonstração:
-
-- [Assistir ao vídeo demonstrativo](https://youtu.be/iAgTYmfNnx0)
-
----
-
-## Entrega no portal
-
-Documentos finais:
-
-- [Fonte Markdown da entrega](docs/entrega-fase-2.md)
-- [PDF para o portal do aluno](docs/entrega-fase-2.pdf)
-
-O PDF contém:
-
-1. Link do repositório GitHub compartilhado com o usuário **`soat-architecture`**
-2. Desenho da arquitetura (diagrama deste README)
-3. Link do vídeo demonstrativo
-
----
-
-## Banco (DBeaver)
-
-| Campo | Valor |
-|---|---|
-| Host | `localhost` |
-| Porta | `5432` |
-| Banco | `oficina_mecanica` |
-| Usuário | `oficina` |
-| Senha | `oficina123` |
+Testcontainers exige Docker.
 
 ---
 
@@ -352,24 +250,28 @@ O PDF contém:
 | Variável | Padrão | Descrição |
 |---|---|---|
 | `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` | ver Compose | JDBC |
-| `JWT_SECRET` | Obrigatório | Segredo staff com pelo menos 32 bytes UTF-8 e entropia aleatória; emissores, audiências, IDs e chaves públicas também são obrigatórios. Veja [configuração de confiança JWT](docs/runbooks/jwt-trust.md). |
-| `MAIL_HOST` / `MAIL_PORT` | localhost:1025 | SMTP para testes do consumidor com perfil `local-mailhog` |
-| `MAIL_ENABLED` | legado | Não seleciona mais a notificação; toda transição grava no [outbox transacional](docs/runbooks/transactional-notifications.md) |
-| `HISTORICO_ZONA_COMPATIBILIDADE` | obrigatório; `UTC` nos dados sintéticos novos | Zona comprovada para horários de compatibilidade; veja [primeiro cutover](docs/runbooks/first-writer-cutover.md) |
+| `JWT_SECRET` | obrigatório | Segredo staff com no mínimo 32 bytes UTF-8 e entropia aleatória. Emissores, audiências, key IDs e chaves públicas também são obrigatórios; ver [confiança JWT](docs/runbooks/jwt-trust.md) |
+| `MAIL_HOST` / `MAIL_PORT` | localhost:1025 | SMTP para testes locais com perfil `local-mailhog` |
+| `HISTORICO_ZONA_COMPATIBILIDADE` | obrigatório; `UTC` em dados sintéticos novos | Zona comprovada para horários de compatibilidade; ver [primeiro cutover](docs/runbooks/first-writer-cutover.md) |
+
+O `kid` da chave pública do cliente publicado à APP precisa coincidir com o `customer_key_id` configurado nas funções. Divergência faz a APP recusar todo token de cliente com 401, enquanto o authorizer continua aceitando.
+
+---
+
+## Entrega
+
+O PDF de submissão reúne os links dos quatro repositórios, o desenho da arquitetura e o link do vídeo. Processo e checagens em [guia de submissão](docs/phase-3/submission/README.md).
+
+O repositório precisa estar compartilhado com o usuário **`soat-architecture`**.
+
+---
+
+## Fase 2 (histórico)
+
+A entrega anterior, com Kind local, permanece registrada em [`docs/entrega-fase-2.md`](docs/entrega-fase-2.md) e no [PDF](docs/entrega-fase-2.pdf). O [vídeo da Fase 2](https://youtu.be/iAgTYmfNnx0) continua publicado. A topologia descrita ali não é o perfil de nuvem da Fase 3.
 
 ---
 
 ## Licença
 
 Projeto privado — todos os direitos reservados.
-# Phase 3 documentation
-
-See [architecture and operations](docs/phase-3/README.md). The repository records reviewed source artifacts; no cloud deployment is represented as active.
-
-Use o [harness de aceite local dos quatro repositórios](docs/phase-3/local-acceptance.md) para executar os contratos sem credenciais cloud e gerar um recibo JSON com commits, comandos, resultados e verificações cloud explicitamente não executadas.
-
-O [contrato de promoção para produção](docs/phase-3/app-production-promotion-contract.md) roda somente em `main`, condicionado a `vars.APP_PRODUCTION_DEPLOYMENT_ENABLED == 'true'` e ao ambiente protegido `production`. Valida inputs revisados e recibo staging do mesmo commit; não obtém credenciais AWS nem executa produção. O preflight opcional exige também `APP_PRODUCTION_RUNTIME_ENABLED`; o adapter privado exige habilitação e execução explícitas, workload V8 existente e os mesmos hashes/recibos revisados. O transporte CodeBuild de produção permanece pendente. Os gates permanecem desligados por padrão; `develop` continua exclusivo de staging.
-
-The staging FirstWriter adapter requires the [hash-bound migration identity prerequisite](docs/phase-3/staging-migration-identity-contract.md) before migration. This local contract does not claim cloud readiness.
-
-The [platform prerequisite bundle](docs/phase-3/staging-prerequisites-contract.md) must have a reviewed private-foundation receipt before FirstWriter. APP validates the existing immutable platform envelope and performs no platform provisioning.
