@@ -56,8 +56,12 @@ public final class SnapshotScheduler {
      * failure while capturing and an HTTP failure while exporting to New Relic surface as distinct
      * error codes; both are still explicitly contained outside domain transactions. The outer
      * containment reports and swallows anything the two inner {@code catch (RuntimeException ...)}
-     * blocks do not, such as an {@link Error}: {@code scheduleWithFixedDelay} permanently cancels a
-     * repeating task whose run throws, so this tick must never propagate.
+     * blocks do not, such as an ordinary {@link Error}: {@code scheduleWithFixedDelay} permanently
+     * cancels a repeating task whose run throws, so this tick must never propagate one of those.
+     * A {@link VirtualMachineError} (e.g. {@code OutOfMemoryError}, {@code StackOverflowError}) is
+     * still reported here but then re-thrown rather than swallowed: it signals the JVM itself is in
+     * a corrupted state, and continuing to run the pod with no crash signal for Kubernetes to act on
+     * would be a behavior change beyond diagnostics, not just a logging one.
      */
     public void exportarAgora() {
         try {
@@ -76,6 +80,9 @@ public final class SnapshotScheduler {
                 return;
             }
             registrarSucesso(capturedCount, capturedCount);
+        } catch (VirtualMachineError failure) {
+            registrarFalhaNaoTratada();
+            throw failure;
         } catch (Throwable failure) {
             registrarFalhaNaoTratada();
         }

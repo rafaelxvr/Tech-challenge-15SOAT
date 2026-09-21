@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Proves the tick-level diagnostics that let an operator tell, from pod logs alone, that the
@@ -31,7 +32,9 @@ import static org.assertj.core.api.Assertions.assertThatCode;
  * from "the repeating task died silently"), and that a tick throwing something the two existing
  * capture/export {@code catch (RuntimeException ...)} blocks do not catch (e.g. an {@link Error})
  * is contained rather than propagated, since {@code scheduleWithFixedDelay} permanently cancels a
- * task whose run throws.
+ * task whose run throws. The one exception is a {@link VirtualMachineError}: that is still
+ * reported, but then re-thrown rather than swallowed, since continuing to run the pod after a
+ * genuine VM failure would hide the crash signal Kubernetes needs to act on.
  */
 class SnapshotSchedulerTickTest {
 
@@ -70,6 +73,21 @@ class SnapshotSchedulerTickTest {
                 "snapshot_tick_crashed", observed);
 
         assertThatCode(scheduler::exportarAgora).doesNotThrowAnyException();
+
+        Map<String, String> mdc = observed.get();
+        assertThat(mdc).isNotNull();
+        assertThat(mdc.get("event_name")).isEqualTo("snapshot_tick_crashed");
+        assertThat(mdc.get("error_code")).isEqualTo("SNAPSHOT_TICK_UNHANDLED");
+    }
+
+    @Test
+    void tickThrowingVirtualMachineErrorIsReportedThenPropagated() {
+        AtomicReference<Map<String, String>> observed = new AtomicReference<>();
+        SnapshotScheduler scheduler = schedulerWith(
+                () -> { throw new InternalError("jvm in a corrupted state"); }, eventos -> { },
+                "snapshot_tick_crashed", observed);
+
+        assertThatThrownBy(scheduler::exportarAgora).isInstanceOf(VirtualMachineError.class);
 
         Map<String, String> mdc = observed.get();
         assertThat(mdc).isNotNull();
