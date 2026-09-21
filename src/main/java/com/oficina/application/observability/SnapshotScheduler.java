@@ -181,7 +181,12 @@ public final class SnapshotScheduler {
         event.put("current_count", status.quantidade());
         event.put("known_age_count", status.amostrasIdade());
         event.put("unknown_age_count", status.idadesDesconhecidas());
-        event.put("max_age_seconds", status.idadeMaximaSegundos());
+        // A null maximum means no order is currently in this status with a known age (see
+        // StatusAtual's javadoc); Map.copyOf/Map.ofEntries reject null values, and the Event API
+        // has no notion of a null attribute either, so the key is omitted rather than sent as null.
+        if (status.idadeMaximaSegundos() != null) {
+            event.put("max_age_seconds", status.idadeMaximaSegundos());
+        }
         event.put("snapshot_id", environment + ":status:" + status.status() + ":" + capturedAt.toEpochMilli());
         return Map.copyOf(event);
     }
