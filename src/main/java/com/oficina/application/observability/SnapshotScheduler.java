@@ -51,10 +51,21 @@ public final class SnapshotScheduler {
         this.droppedExports = Objects.requireNonNull(droppedExports);
     }
 
-    /** Runs one safe capture. Failures are explicitly contained outside domain transactions. */
+    /**
+     * Runs one safe capture and export. The two phases are contained separately so a database
+     * failure while capturing and an HTTP failure while exporting to New Relic surface as distinct
+     * error codes; both are still explicitly contained outside domain transactions.
+     */
     public void exportarAgora() {
+        List<Map<String, Object>> eventos;
         try {
-            exporter.exportar(capturar());
+            eventos = capturar();
+        } catch (RuntimeException failure) {
+            registrarFalha("SNAPSHOT_CAPTURE_FAILED");
+            return;
+        }
+        try {
+            exporter.exportar(eventos);
         } catch (RuntimeException failure) {
             registrarFalha("SNAPSHOT_EXPORT_FAILED");
         }
