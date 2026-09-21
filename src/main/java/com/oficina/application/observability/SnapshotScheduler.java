@@ -27,8 +27,6 @@ import java.util.Objects;
  */
 public final class SnapshotScheduler {
     private static final Logger LOG = LoggerFactory.getLogger(SnapshotScheduler.class);
-    private static final List<StatusOrdemServico> DURATION_STATUSES = List.of(
-            StatusOrdemServico.EM_DIAGNOSTICO, StatusOrdemServico.EM_EXECUCAO, StatusOrdemServico.FINALIZADA);
 
     private final RelatoriosPort reports;
     private final SnapshotExporter exporter;
@@ -53,50 +51,72 @@ public final class SnapshotScheduler {
 
     /**
      * Runs one safe capture and export. The two phases are contained separately so a database
-     * failure while capturing and an HTTP failure while exporting to New Relic surface as distinct
-     * error codes; both are still explicitly contained outside domain transactions. The outer
-     * containment reports and swallows anything the two inner {@code catch (RuntimeException ...)}
-     * blocks do not, such as an ordinary {@link Error}: {@code scheduleWithFixedDelay} permanently
-     * cancels a repeating task whose run throws, so this tick must never propagate one of those.
-     * A {@link VirtualMachineError} (e.g. {@code OutOfMemoryError}, {@code StackOverflowError}) is
-     * still reported here but then re-thrown rather than swallowed: it signals the JVM itself is in
-     * a corrupted state, and continuing to run the pod with no crash signal for Kubernetes to act on
-     * would be a behavior change beyond diagnostics, not just a logging one.
+     * failure while capturing and a failure while exporting to New Relic surface as distinct error
+     * codes; both are still explicitly contained outside domain transactions. The outer containment
+     * is a plain {@code catch (Throwable ...)} that reports and swallows anything the two inner
+     * {@code catch (RuntimeException ...)} blocks do not, such as an {@link Error}, with no
+     * exception: {@code scheduleWithFixedDelay} permanently cancels a repeating task whose run
+     * throws, and that cancellation is invisible - no {@code UncaughtExceptionHandler} runs, nothing
+     * is printed, and both the poller and its liveness probe keep reporting healthy while telemetry
+     * stays dead forever. That is strictly worse than continuing, including for a
+     * {@link VirtualMachineError} (e.g. {@code OutOfMemoryError}, {@code StackOverflowError}): the
+     * JVM usually survives one, so this method never re-throws. The genuinely unrecoverable case is
+     * instead handled at the process level, by {@code -XX:+ExitOnOutOfMemoryError} in the
+     * container's {@code JAVA_OPTS}, which exits the JVM so Kubernetes can restart the pod - the
+     * crash signal a re-thrown {@link Error} here could never reliably deliver.
      */
     public void exportarAgora() {
         try {
             List<Map<String, Object>> eventos;
             try {
                 eventos = capturar();
+                validarEventos(eventos);
             } catch (RuntimeException failure) {
-                registrarFalha("SNAPSHOT_CAPTURE_FAILED");
+                registrarFalha("SNAPSHOT_CAPTURE_FAILED", failure);
                 return;
             }
             int capturedCount = eventos.size();
             try {
                 exporter.exportar(eventos);
             } catch (RuntimeException failure) {
-                registrarFalha("SNAPSHOT_EXPORT_FAILED");
+                registrarFalha("SNAPSHOT_EXPORT_FAILED", failure);
                 return;
             }
             registrarSucesso(capturedCount, capturedCount);
-        } catch (VirtualMachineError failure) {
-            registrarFalhaNaoTratada();
-            throw failure;
         } catch (Throwable failure) {
-            registrarFalhaNaoTratada();
+            registrarFalhaNaoTratada(failure);
         }
     }
 
-    private void registrarFalha(String errorCode) {
+    /**
+     * Re-checks the shape {@link #base(String, Instant)} promises (non-blank {@code eventType}, a
+     * known {@code environment}, a numeric {@code timestamp}) before any event crosses into the
+     * exporter. A violation here is a capture-side defect - {@code capturar()} produced it - so it
+     * must fail as {@code SNAPSHOT_CAPTURE_FAILED}, not surface later as an export failure once it
+     * is inside {@link SnapshotExporter#exportar(List)}.
+     */
+    private static void validarEventos(List<Map<String, Object>> eventos) {
+        for (Map<String, Object> evento : eventos) {
+            if (evento == null || !(evento.get("eventType") instanceof String type) || type.isBlank()
+                    || !(evento.get("environment") instanceof String environment)
+                    || !List.of("staging", "production").contains(environment)
+                    || !(evento.get("timestamp") instanceof Number)) {
+                throw new IllegalStateException("Captured snapshot event is missing required fields");
+            }
+        }
+    }
+
+    private void registrarFalha(String errorCode, Throwable failure) {
         // Structured logging policy supplies correlation/version; never include provider response or report data.
-        MDC.put("event_name", "snapshot_export_failed");
+        MDC.put("event_name", "snapshot_tick_failed");
         MDC.put("error_code", errorCode);
+        MDC.put("failure_type", failure.getClass().getName());
         try {
             LOG.warn("");
         } finally {
             MDC.remove("event_name");
             MDC.remove("error_code");
+            MDC.remove("failure_type");
         }
     }
 
@@ -115,16 +135,18 @@ public final class SnapshotScheduler {
         }
     }
 
-    private void registrarFalhaNaoTratada() {
-        // Anything neither inner catch handles (e.g. an Error) must still be contained here so the
-        // scheduleWithFixedDelay task never dies silently.
+    private void registrarFalhaNaoTratada(Throwable failure) {
+        // Anything neither inner catch handles (e.g. an Error, including a VirtualMachineError) must
+        // still be contained here so the scheduleWithFixedDelay task never dies silently.
         MDC.put("event_name", "snapshot_tick_crashed");
         MDC.put("error_code", "SNAPSHOT_TICK_UNHANDLED");
+        MDC.put("failure_type", failure.getClass().getName());
         try {
             LOG.error("");
         } finally {
             MDC.remove("event_name");
             MDC.remove("error_code");
+            MDC.remove("failure_type");
         }
     }
 
