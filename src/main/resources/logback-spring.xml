@@ -16,6 +16,8 @@
                     <includeMdcKeyName>api_gateway_request_id</includeMdcKeyName>
                     <includeMdcKeyName>traceparent</includeMdcKeyName>
                     <includeMdcKeyName>diagnostic_id</includeMdcKeyName>
+                    <includeMdcKeyName>events_captured_count</includeMdcKeyName>
+                    <includeMdcKeyName>events_exported_count</includeMdcKeyName>
                 </mdc>
             </providers>
         </encoder>

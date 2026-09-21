@@ -54,20 +54,30 @@ public final class SnapshotScheduler {
     /**
      * Runs one safe capture and export. The two phases are contained separately so a database
      * failure while capturing and an HTTP failure while exporting to New Relic surface as distinct
-     * error codes; both are still explicitly contained outside domain transactions.
+     * error codes; both are still explicitly contained outside domain transactions. The outer
+     * containment reports and swallows anything the two inner {@code catch (RuntimeException ...)}
+     * blocks do not, such as an {@link Error}: {@code scheduleWithFixedDelay} permanently cancels a
+     * repeating task whose run throws, so this tick must never propagate.
      */
     public void exportarAgora() {
-        List<Map<String, Object>> eventos;
         try {
-            eventos = capturar();
-        } catch (RuntimeException failure) {
-            registrarFalha("SNAPSHOT_CAPTURE_FAILED");
-            return;
-        }
-        try {
-            exporter.exportar(eventos);
-        } catch (RuntimeException failure) {
-            registrarFalha("SNAPSHOT_EXPORT_FAILED");
+            List<Map<String, Object>> eventos;
+            try {
+                eventos = capturar();
+            } catch (RuntimeException failure) {
+                registrarFalha("SNAPSHOT_CAPTURE_FAILED");
+                return;
+            }
+            int capturedCount = eventos.size();
+            try {
+                exporter.exportar(eventos);
+            } catch (RuntimeException failure) {
+                registrarFalha("SNAPSHOT_EXPORT_FAILED");
+                return;
+            }
+            registrarSucesso(capturedCount, capturedCount);
+        } catch (Throwable failure) {
+            registrarFalhaNaoTratada();
         }
     }
 
@@ -77,6 +87,34 @@ public final class SnapshotScheduler {
         MDC.put("error_code", errorCode);
         try {
             LOG.warn("");
+        } finally {
+            MDC.remove("event_name");
+            MDC.remove("error_code");
+        }
+    }
+
+    private void registrarSucesso(int capturedCount, int exportedCount) {
+        // Per-tick signal that lets an operator distinguish "runs and posts" from a dead repeating
+        // task; counts only, never event payloads.
+        MDC.put("event_name", "snapshot_tick_completed");
+        MDC.put("events_captured_count", Integer.toString(capturedCount));
+        MDC.put("events_exported_count", Integer.toString(exportedCount));
+        try {
+            LOG.info("");
+        } finally {
+            MDC.remove("event_name");
+            MDC.remove("events_captured_count");
+            MDC.remove("events_exported_count");
+        }
+    }
+
+    private void registrarFalhaNaoTratada() {
+        // Anything neither inner catch handles (e.g. an Error) must still be contained here so the
+        // scheduleWithFixedDelay task never dies silently.
+        MDC.put("event_name", "snapshot_tick_crashed");
+        MDC.put("error_code", "SNAPSHOT_TICK_UNHANDLED");
+        try {
+            LOG.error("");
         } finally {
             MDC.remove("event_name");
             MDC.remove("error_code");
