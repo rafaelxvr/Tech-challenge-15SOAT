@@ -59,15 +59,35 @@ public class ObservabilitySnapshotsConfiguration {
     static final class SnapshotPoller implements SmartLifecycle {
         private static final Logger LOG = LoggerFactory.getLogger(SnapshotPoller.class);
         private final SnapshotScheduler scheduler;
+        private final java.util.function.Supplier<ScheduledExecutorService> executorFactory;
         private ScheduledExecutorService executor;
-        SnapshotPoller(SnapshotScheduler scheduler) { this.scheduler = scheduler; }
+
+        SnapshotPoller(SnapshotScheduler scheduler) {
+            this(scheduler, () -> Executors.newSingleThreadScheduledExecutor(task -> {
+                Thread thread = new Thread(task, "snapshot-exporter");
+                thread.setDaemon(true);
+                return thread;
+            }));
+        }
+
+        /** Visible for tests: lets a test observe exactly what start() passes to
+         * scheduleWithFixedDelay (in particular the TimeUnit) without depending on wall-clock timing. */
+        SnapshotPoller(SnapshotScheduler scheduler, java.util.function.Supplier<ScheduledExecutorService> executorFactory) {
+            this.scheduler = scheduler;
+            this.executorFactory = executorFactory;
+        }
+
         @Override public synchronized void start() {
             if (isRunning()) return;
-            executor = Executors.newSingleThreadScheduledExecutor(task -> {
-                Thread thread = new Thread(task, "snapshot-exporter"); thread.setDaemon(true); return thread;
-            });
+            executor = executorFactory.get();
+            // Both arguments are milliseconds: a 0-1000ms startup jitter so replicas don't all
+            // publish in the same instant, then a steady 60-second (60_000ms) cadence. Expressing
+            // both in the same unit here is deliberate - mixing a millisecond jitter with a
+            // TimeUnit.SECONDS call previously turned the intended sub-second stagger into a
+            // 0-1000 SECOND delay before the first tick.
             executor.scheduleWithFixedDelay(scheduler::exportarAgora,
-                    java.util.concurrent.ThreadLocalRandom.current().nextLong(0, 1001), 60, TimeUnit.SECONDS);
+                    java.util.concurrent.ThreadLocalRandom.current().nextLong(0, 1001),
+                    TimeUnit.SECONDS.toMillis(60), TimeUnit.MILLISECONDS);
             registrarInicio();
         }
         private void registrarInicio() {
