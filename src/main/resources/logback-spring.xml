@@ -11,6 +11,7 @@
                 </pattern>
                 <mdc>
                     <includeMdcKeyName>event_name</includeMdcKeyName>
+                    <includeMdcKeyName>error_code</includeMdcKeyName>
                     <includeMdcKeyName>correlation_id</includeMdcKeyName>
                     <includeMdcKeyName>api_gateway_request_id</includeMdcKeyName>
                     <includeMdcKeyName>traceparent</includeMdcKeyName>

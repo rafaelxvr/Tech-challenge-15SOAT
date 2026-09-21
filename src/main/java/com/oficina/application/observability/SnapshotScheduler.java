@@ -7,6 +7,7 @@ import com.oficina.application.relatorio.StatusAtual;
 import com.oficina.entity.StatusOrdemServico;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -50,13 +51,35 @@ public final class SnapshotScheduler {
         this.droppedExports = Objects.requireNonNull(droppedExports);
     }
 
-    /** Runs one safe capture. Failures are explicitly contained outside domain transactions. */
+    /**
+     * Runs one safe capture and export. The two phases are contained separately so a database
+     * failure while capturing and an HTTP failure while exporting to New Relic surface as distinct
+     * error codes; both are still explicitly contained outside domain transactions.
+     */
     public void exportarAgora() {
+        List<Map<String, Object>> eventos;
         try {
-            exporter.exportar(capturar());
-        } catch (RuntimeException ignored) {
-            // Structured logging policy supplies correlation/version; never include provider response or report data.
-            LOG.warn("event_name=snapshot_export_failed error_code=SNAPSHOT_EXPORT_FAILED");
+            eventos = capturar();
+        } catch (RuntimeException failure) {
+            registrarFalha("SNAPSHOT_CAPTURE_FAILED");
+            return;
+        }
+        try {
+            exporter.exportar(eventos);
+        } catch (RuntimeException failure) {
+            registrarFalha("SNAPSHOT_EXPORT_FAILED");
+        }
+    }
+
+    private void registrarFalha(String errorCode) {
+        // Structured logging policy supplies correlation/version; never include provider response or report data.
+        MDC.put("event_name", "snapshot_export_failed");
+        MDC.put("error_code", errorCode);
+        try {
+            LOG.warn("");
+        } finally {
+            MDC.remove("event_name");
+            MDC.remove("error_code");
         }
     }
 
