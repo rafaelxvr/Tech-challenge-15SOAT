@@ -1,0 +1,1104 @@
+{
+  "info": {
+    "name": "Oficina Mecânica — Fase 3 (staging AWS)",
+    "description": "Demo de gravação da Fase 3 contra o ambiente de staging na AWS (API Gateway HTTP + EKS + Lambda de autenticação por CPF).\n\n**Ordem das pastas = ordem da gravação.** Cada pasta carrega a identidade que usa: staff, cliente ou anônimo.\n\n1. `00` prova que o ambiente responde.\n2. `01`–`03` abrem a OS até o orçamento, com token de staff.\n3. `04` autentica o cliente por CPF + OTP (código chega por e-mail; o desafio expira em 5 minutos).\n4. `05` mostra o cliente acompanhando e aprovando com o próprio token.\n5. `06` fecha a OS.\n6. `07` prova o default-deny.\n7. `08` mostra os agregados de negócio.\n\nO stage do API Gateway está limitado a 1 requisição por segundo (burst 2). Dispare as requisições manualmente, uma de cada vez — o Collection Runner sem atraso recebe 429.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "noauth"
+  },
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Guarda global: o stage limita a 1 req/s (burst 2).",
+          "if (pm.response.code === 429) {",
+          "  pm.test('throttle do API Gateway atingido', () => {",
+          "    pm.expect.fail('429: o stage aceita 1 requisição por segundo. Aguarde e repita.');",
+          "  });",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "00 · Saúde",
+      "description": "Rota anônima publicada pelo API Gateway. Serve para provar que o ambiente está no ar antes de qualquer autenticação.",
+      "item": [
+        {
+          "name": "Health check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Rota pública: nenhuma credencial é enviada.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "auth": {
+        "type": "noauth"
+      }
+    },
+    {
+      "name": "01 · Staff — autenticação",
+      "description": "Login do atendente/administrador. O token de staff vale 24h e é guardado em `staff_token`.",
+      "item": [
+        {
+          "name": "Login do staff",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Emite o JWT HS256 de staff. Rota anônima no gateway.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{admin_email}}\",\n  \"senha\": \"{{admin_senha}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const corpo = pm.response.json();",
+                  "pm.environment.set('staff_token', corpo.accessToken);",
+                  "pm.test('token de staff recebido', () => pm.expect(corpo.accessToken).to.be.a('string').and.not.empty);",
+                  "console.log('staff_token armazenado, expira em', corpo.expiresIn, 'segundos');"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "auth": {
+        "type": "noauth"
+      }
+    },
+    {
+      "name": "02 · Catálogo e cliente (staff)",
+      "description": "Leituras que alimentam as variáveis usadas na abertura da OS: um serviço, uma peça e o cliente dono do CPF da demo.",
+      "item": [
+        {
+          "name": "Listar serviços",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/servicos?page=0&size=10",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "servicos"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const itens = pm.response.json().data.content;",
+                  "pm.expect(itens, 'catálogo de serviços vazio').to.not.be.empty;",
+                  "pm.environment.set('servico_id', itens[0].id);",
+                  "console.log('serviço escolhido:', itens[0].nome);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar peças",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/pecas?page=0&size=10",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "pecas"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const itens = pm.response.json().data.content;",
+                  "pm.expect(itens, 'catálogo de peças vazio').to.not.be.empty;",
+                  "const comEstoque = itens.find(p => p.quantidadeEstoque > 0) || itens[0];",
+                  "pm.environment.set('peca_id', comEstoque.id);",
+                  "console.log('peça escolhida:', comEstoque.nome);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Localizar o cliente do CPF da demo",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/clientes?page=0&size=50",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "clientes"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "50"
+                }
+              ]
+            },
+            "description": "Guarda `cliente_id` a partir do CPF configurado no environment."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const cpf = pm.environment.get('cpf_cliente');",
+                  "const cliente = pm.response.json().data.content.find(c => c.documentoSomenteDigitos === cpf);",
+                  "pm.test('cliente do CPF existe', () => pm.expect(cliente, 'cliente com CPF ' + cpf + ' não cadastrado').to.exist);",
+                  "pm.environment.set('cliente_id', cliente.id);",
+                  "console.log('cliente:', cliente.nome, '| e-mail do OTP:', cliente.email);"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{staff_token}}",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "03 · Ordem de serviço — abertura e orçamento (staff)",
+      "description": "Cadastra o veículo, abre a OS, executa o diagnóstico e envia o orçamento. Ao final a OS fica em `AGUARDANDO_APROVACAO`, esperando a decisão do cliente.",
+      "item": [
+        {
+          "name": "Cadastrar veículo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/veiculos",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "veiculos"
+              ]
+            },
+            "description": "A placa é sorteada no pre-request para a gravação ser repetível.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"placa\": \"{{veiculo_placa}}\",\n  \"marca\": \"Volkswagen\",\n  \"modelo\": \"Gol G6\",\n  \"ano\": 2018,\n  \"cor\": \"Prata\",\n  \"chassi\": \"9BWZZZ377VT004251\",\n  \"clienteId\": \"{{cliente_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Placa Mercosul aleatória: cada gravação cria um veículo novo.",
+                  "if (!pm.environment.get('veiculo_placa')) {",
+                  "  const letras = 'ABCDEFGHJKLMNPQRSTUVWXYZ';",
+                  "  const sorteia = (origem, n) => Array.from({length: n}, () => origem[Math.floor(Math.random() * origem.length)]).join('');",
+                  "  pm.environment.set('veiculo_placa', sorteia(letras, 3) + sorteia('0123456789', 1) + sorteia(letras, 1) + sorteia('0123456789', 2));",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const veiculo = pm.response.json().data;",
+                  "pm.environment.set('veiculo_id', veiculo.id);",
+                  "console.log('veículo:', veiculo.placa);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Abrir OS com orçamento automático",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/ordens-servico",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"documentoCliente\": \"{{cpf_cliente}}\",\n  \"placaVeiculo\": \"{{veiculo_placa}}\",\n  \"marca\": \"Volkswagen\",\n  \"modelo\": \"Gol G6\",\n  \"ano\": 2018,\n  \"servicos\": [\n    {\n      \"servicoId\": \"{{servico_id}}\",\n      \"quantidade\": 1,\n      \"observacao\": \"Serviço solicitado pelo cliente\"\n    }\n  ],\n  \"pecas\": [\n    {\n      \"pecaId\": \"{{peca_id}}\",\n      \"quantidade\": 1\n    }\n  ],\n  \"observacoes\": \"Cliente relata barulho ao frear\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const os = pm.response.json().data;",
+                  "pm.environment.set('os_id', os.id);",
+                  "pm.environment.set('os_numero', os.numero);",
+                  "pm.test('nasce em RECEBIDA', () => pm.expect(os.status).to.eql('RECEBIDA'));",
+                  "console.log('OS', os.numero, '| total', os.valorTotal);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Iniciar diagnóstico",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/ordens-servico/{{os_id}}/iniciar-diagnostico",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{os_id}}",
+                "iniciar-diagnostico"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"observacao\": \"Mecânico iniciou a inspeção\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('status EM_DIAGNOSTICO', () => pm.expect(pm.response.json().data.status).to.eql('EM_DIAGNOSTICO'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Enviar orçamento ao cliente",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/ordens-servico/{{os_id}}/enviar-orcamento",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{os_id}}",
+                "enviar-orcamento"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"observacao\": \"Orçamento enviado por e-mail\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('status AGUARDANDO_APROVACAO', () => pm.expect(pm.response.json().data.status).to.eql('AGUARDANDO_APROVACAO'));"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{staff_token}}",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "04 · Cliente — autenticação por CPF (OTP)",
+      "description": "Fluxo serverless: a Lambda emite um desafio, envia o código por e-mail (SES) e troca o código por um JWT RS256 de cliente. O desafio expira em 5 minutos e o token vale 15 minutos — rode esta pasta imediatamente antes da aprovação.",
+      "item": [
+        {
+          "name": "Solicitar desafio por CPF",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/auth/cpf/desafios",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "cpf",
+                "desafios"
+              ]
+            },
+            "description": "Rota anônima. O código de 6 dígitos chega no e-mail do cliente.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cpf\": \"{{cpf_cliente}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('202 Accepted', () => pm.response.to.have.status(202));",
+                  "const dados = pm.response.json().data;",
+                  "pm.environment.set('desafio_id', dados.desafioId);",
+                  "pm.environment.unset('otp_codigo');",
+                  "console.log('desafio', dados.desafioId, '| expira em', dados.expiraEmSegundos, 'segundos');",
+                  "console.log('>>> copie o código do e-mail para a variável otp_codigo e rode a próxima requisição.');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Trocar o código pelo token do cliente",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/auth/cpf/verificar",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "cpf",
+                "verificar"
+              ]
+            },
+            "description": "Preencha `otp_codigo` no environment com o código recebido antes de enviar.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"desafioId\": \"{{desafio_id}}\",\n  \"codigo\": \"{{otp_codigo}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const codigo = pm.environment.get('otp_codigo');",
+                  "if (!codigo || !/^[0-9]{6}$/.test(codigo)) {",
+                  "  throw new Error('Preencha otp_codigo no environment com os 6 dígitos recebidos por e-mail.');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const dados = pm.response.json().data;",
+                  "pm.environment.set('customer_token', dados.accessToken);",
+                  "const claims = JSON.parse(atob(dados.accessToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));",
+                  "pm.test('principal é customer', () => pm.expect(claims.principal_type).to.eql('customer'));",
+                  "pm.test('escopos self', () => pm.expect(claims.scopes).to.have.members(['orders:read:self', 'orders:decide:self']));",
+                  "console.log('token de cliente para', claims.sub, '| expira em', dados.expiresIn, 'segundos');"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "auth": {
+        "type": "noauth"
+      }
+    },
+    {
+      "name": "05 · Cliente — acompanhamento e aprovação",
+      "description": "Rotas que só aceitam token de cliente com escopo `orders:read:self` e `orders:decide:self`. Endereçadas pelo número da OS, não pelo id.",
+      "item": [
+        {
+          "name": "Acompanhar a OS",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/ordens-servico/{{os_numero}}/acompanhamento",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{os_numero}}",
+                "acompanhamento"
+              ]
+            },
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const os = pm.response.json().data;",
+                  "pm.test('aguardando decisão', () => pm.expect(os.status).to.eql('AGUARDANDO_APROVACAO'));",
+                  "console.log('OS', os.numero, '| total', os.valorTotal, '| eventos:', os.historico.length);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Aprovar o orçamento",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/ordens-servico/{{os_numero}}/aprovar",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{os_numero}}",
+                "aprovar"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"documentoCliente\": \"{{cpf_cliente}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('status EM_EXECUCAO', () => pm.expect(pm.response.json().data.status).to.eql('EM_EXECUCAO'));"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{customer_token}}",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "06 · Ordem de serviço — execução e entrega (staff)",
+      "description": "Fecha o ciclo da OS depois da aprovação do cliente.",
+      "item": [
+        {
+          "name": "Detalhar a OS",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/ordens-servico/{{os_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{os_id}}"
+              ]
+            },
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "console.log('status atual:', pm.response.json().data.status);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Finalizar",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/ordens-servico/{{os_id}}/finalizar",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{os_id}}",
+                "finalizar"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"observacao\": \"Serviço concluído e veículo testado\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('status FINALIZADA', () => pm.expect(pm.response.json().data.status).to.eql('FINALIZADA'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Entregar",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/ordens-servico/{{os_id}}/entregar",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{os_id}}",
+                "entregar"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"observacao\": \"Veículo entregue ao cliente, NF emitida\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('status ENTREGUE', () => pm.expect(pm.response.json().data.status).to.eql('ENTREGUE'));"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{staff_token}}",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "07 · Controles de segurança (negativos)",
+      "description": "Prova o default-deny: sem token, com token da identidade errada e com token adulterado. Nenhuma destas requisições deve ter sucesso.",
+      "item": [
+        {
+          "name": "Anônimo em rota protegida → 401",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/ordens-servico/{{os_numero}}/acompanhamento",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico",
+                "{{os_numero}}",
+                "acompanhamento"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Token de cliente em rota de staff → 403",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/clientes",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "clientes"
+              ]
+            },
+            "description": "O authorizer valida o token e nega o acesso por falta de grant.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customer_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Token adulterado → 401",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJpbnZhbGlkbyJ9.assinatura-invalida"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/ordens-servico",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "ordens-servico"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "auth": {
+        "type": "noauth"
+      }
+    },
+    {
+      "name": "08 · Métricas de negócio (staff)",
+      "description": "Agregados exigidos pela Fase 3: ordens do período, duração por status e tempo de execução. Rode depois de fechar a OS para os números incluírem a ordem criada na gravação.",
+      "item": [
+        {
+          "name": "Relatório de ordens por período",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/admin/relatorios/ordens?inicio={{relatorio_inicio}}&fimExclusive={{relatorio_fim}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "relatorios",
+                "ordens"
+              ],
+              "query": [
+                {
+                  "key": "inicio",
+                  "value": "{{relatorio_inicio}}"
+                },
+                {
+                  "key": "fimExclusive",
+                  "value": "{{relatorio_fim}}"
+                }
+              ]
+            },
+            "description": "`inicio` e `fimExclusive` são obrigatórios, no formato YYYY-MM-DD; o pre-request calcula a janela."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Janela do relatório: últimos 7 dias até amanhã (fim é exclusivo).",
+                  "const dia = (deslocamento) => {",
+                  "  const data = new Date();",
+                  "  data.setUTCDate(data.getUTCDate() + deslocamento);",
+                  "  return data.toISOString().slice(0, 10);",
+                  "};",
+                  "pm.environment.set('relatorio_inicio', dia(-7));",
+                  "pm.environment.set('relatorio_fim', dia(1));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const dados = pm.response.json().data;",
+                  "pm.test('conta ordens criadas', () => pm.expect(dados.criadas).to.be.a('number'));",
+                  "console.log('ordens criadas na janela:', dados.criadas);",
+                  "Object.entries(dados.duracoes).forEach(([status, d]) => console.log(status, '| amostras', d.amostras, '| média', d.mediaSegundos));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Tempo médio de execução dos serviços",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/admin/metricas/tempo-execucao-servicos",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "metricas",
+                "tempo-execucao-servicos"
+              ]
+            },
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const dados = pm.response.json().data;",
+                  "console.log('estimado', dados.tempoMedioEstimadoServicosMinutos, 'min | real', dados.tempoMedioExecucaoRealMinutos, 'min | ordens medidas', dados.ordensComTempoMedido);"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{staff_token}}",
+            "type": "string"
+          }
+        ]
+      }
+    }
+  ]
+}

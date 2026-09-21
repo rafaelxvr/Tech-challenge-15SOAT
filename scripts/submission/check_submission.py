@@ -54,7 +54,7 @@ def verified_url(value, label, fixture):
         fail(f"{label} uses a placeholder host")
 
 def validate(manifest, allow_fixture=False, allow_template=False):
-    if not isinstance(manifest, dict) or set(manifest) != FIELDS or type(manifest.get("schemaVersion")) is not int or manifest["schemaVersion"] != 1:
+    if not isinstance(manifest, dict) or set(manifest) not in (FIELDS, FIELDS | {"pendingEvidence"}) or type(manifest.get("schemaVersion")) is not int or manifest["schemaVersion"] != 1:
         fail("manifest must have the exact schema-v1 object fields")
     mode = manifest["submissionMode"]
     if mode == "fixture" and not allow_fixture:
@@ -66,15 +66,36 @@ def validate(manifest, allow_fixture=False, allow_template=False):
     if manifest["reviewerUsername"] != "soat-architecture":
         fail("reviewerUsername must be soat-architecture")
     repos = manifest["repositories"]
-    if not isinstance(repos, list) or len(repos) != 4 or any(not isinstance(r, dict) or set(r) != REPO_FIELDS for r in repos):
+    if not isinstance(repos, list) or len(repos) != 4 or any(not isinstance(r, dict) or set(r) not in (REPO_FIELDS, REPO_FIELDS | {"reviewedRevision"}) for r in repos):
         fail("repositories must contain exactly four complete records")
     if any(not isinstance(r["name"], str) for r in repos) or {r["name"] for r in repos} != NAMES:
         fail("repository names must be exactly APP, K8S, FUN, DB")
+    if any("reviewedRevision" in r for r in repos):
+        if any(not isinstance(r.get("reviewedRevision"), str) or not re.fullmatch(r"[0-9a-f]{40}", r["reviewedRevision"]) for r in repos):
+            fail("reviewed source references require four immutable revisions")
+        if next(r["reviewedRevision"] for r in repos if r["name"] == "APP") != manifest["releaseRevision"]:
+            fail("APP reviewed revision must match releaseRevision")
+    pending = manifest.get("pendingEvidence", [])
+    if not isinstance(pending, list) or any(not isinstance(item, str) or not item.strip() for item in pending):
+        fail("pendingEvidence must be a list of nonempty strings")
+    if mode != "template" and pending:
+        fail("pending evidence cannot pass fixture or submission readiness")
     if mode == "template":
-        if manifest["status"] != "NOT_READY" or manifest["releaseRevision"] != "NOT_CAPTURED" or manifest["videoUrl"] != "NOT_PROVIDED" or manifest["videoDurationSeconds"] is not None or manifest["documentationUrls"] != []:
-            fail("template must retain explicit unknown release/video/documentation values")
-        if any(r["url"] != "NOT_PROVIDED" or r["accessEvidence"] != "NOT_PROVIDED" or r["reviewerAccessVerified"] is not False for r in repos):
-            fail("template must not claim repository URLs or reviewer access")
+        revision = manifest["releaseRevision"]
+        if not isinstance(revision, str) or (revision != "NOT_CAPTURED" and not re.fullmatch(r"[0-9a-f]{40}", revision)):
+            fail("template release reference must be unknown or an immutable source revision")
+        if manifest["status"] != "NOT_READY" or manifest["videoUrl"] != "NOT_PROVIDED" or manifest["videoDurationSeconds"] is not None:
+            fail("template must remain NOT_READY with video and duration unrecorded")
+        if any(r["accessEvidence"] != "NOT_PROVIDED" or r["reviewerAccessVerified"] is not False for r in repos):
+            fail("template must not claim reviewer access")
+        urls = [r["url"] for r in repos if r["url"] != "NOT_PROVIDED"]
+        if len(set(urls)) != len(urls):
+            fail("provided repository URLs must be distinct")
+        docs = manifest["documentationUrls"]
+        if not isinstance(docs, list):
+            fail("template documentationUrls must be a list")
+        for url in urls + docs:
+            verified_url(url, "template source reference", False)
         return
     fixture = mode == "fixture"
     if not isinstance(manifest["releaseRevision"], str) or not re.fullmatch(r"[0-9a-f]{40}", manifest["releaseRevision"]):
@@ -134,6 +155,10 @@ def check_pdf(manifest, path):
         for required in ["Video", "Documentation", "soat-architecture", manifest["releaseRevision"], "Recorded duration: " + duration, *["Repository " + name for name in sorted(NAMES)]]:
             if required not in combined:
                 fail("PDF is missing a required entry")
+        compact = re.sub(r"\s+", "", combined)
+        for required in [*(r["reviewedRevision"] for r in manifest["repositories"] if "reviewedRevision" in r), *manifest.get("pendingEvidence", [])]:
+            if re.sub(r"\s+", "", required) not in compact:
+                fail("PDF is missing a reviewed source reference or pending evidence")
         if urls != expected_urls(manifest):
             fail("PDF clickable links differ from the manifest")
     except ValueError:

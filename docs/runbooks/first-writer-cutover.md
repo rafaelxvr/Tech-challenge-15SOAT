@@ -1,6 +1,6 @@
 # Reviewed APP migration and rollout contract
 
-Status: source-only I6 adapter. `scripts/deploy-app.ps1` renders locally by default; the existing I7 `start-deploy.ps1` and `deploy.ps1` remain disabled. No cluster rehearsal, schema upgrade, interruption measurement or cloud release is claimed. Run the offline [contract tests](../../tests/app-rollout-contract.ps1) with `pwsh -File tests/app-rollout-contract.ps1`.
+Status: source-only I6 adapter. `scripts/deploy-app.ps1` renders locally by default; the I7 launcher remains opt-in and the APP Terraform adapter is staging-only with an explicit apply switch. No cluster rehearsal, schema upgrade, interruption measurement or cloud release is claimed. Run the offline [contract tests](../../tests/app-rollout-contract.ps1) with `pwsh -File tests/app-rollout-contract.ps1`.
 
 ## Inputs and ownership
 
@@ -15,14 +15,15 @@ The separately reviewed release JSON has these fields:
 | `schemaVersion`, `environment`, `mode` | `1`; `staging` or `production`; `FirstWriter`, `Compatible` or `Rollback` |
 | `sourceCommit`, `contractVersion`, `databaseSchemaVersion` | Exact reviewed source commit; `phase3-v2`; `V8` |
 | `platformInputsSha256`, `migrationSqlSha256` | SHA-256 of platform JSON; canonical V1–V8 SQL index from `Get-AppMigrationDigest` |
-| `image`, `previousImage`, `migrationImage` | Same-account `ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/REPOSITORY@sha256:DIGEST`; current intended APP, expected existing APP, approved Flyway toolkit |
+| `image`, `previousImage`, `migrationImage`, `bootstrapImage` | Same-account `ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/REPOSITORY@sha256:DIGEST`; current intended APP, expected existing APP, retained legacy migration reference, and dedicated Java BootstrapMain image |
+| `bootstrapReview` | Exact `BootstrapReview` v1 object: source/environment-bound database host and CA hash plus the managed master and four runtime ARN/immutable VersionId references; no credential values |
 | `kubeContext` | Explicit reviewed EKS ARN, same account/region; the caller's default context is ignored |
 | `migrationSecretName`, `migrationServiceAccount` | Both `oficina-migration-ENVIRONMENT`, distinct from APP identity |
 | `rollback` (Rollback only) | `image`, `databaseSchemaVersion: V8`, `contractVersion: phase3-v2`, `compatibilityEvidence` reviewed artifact/reference |
 
 `ExpectedReleaseSha256` is supplied independently by the reviewer. A checksum binds reviewed bytes, not reviewer identity: the future launcher must resolve these from versioned approved receipts, enforce branch/window/lock rules and bind `sourceCommit` to the verified source archive and APP image provenance. The renderer does not fabricate that attestation. Migration SQL is copied from that source archive into an immutable ConfigMap; its digest covers each sorted filename and SHA-256, joined as `filename:sha256\n`. Historical migrations are unchanged.
 
-The migration image must supply a non-root Flyway CLI entrypoint accepting `migrate`, PostgreSQL support compatible with these migrations, and a read-only root filesystem with only `/tmp` writable. Validate that image against disposable PostgreSQL 16 before approval; the APP JRE image cannot serve as a Flyway CLI. The image digest and SQL bundle are independently pinned. The Job targets V8, disables clean/baseline/out-of-order, validates migrations and has no retries, a 600-second deadline, separate credential Secret references and no Kubernetes service-account token mount.
+The dedicated `docker/bootstrap/Dockerfile` image supplies Java 17, `BootstrapMain`, the locked runtime dependencies and a wrapper that verifies the review digest, runs the role/bootstrap/V1–V8 sequence and emits the reference-only receipt. It runs non-root with a read-only root filesystem and only the review, public CA, receipt and `/tmp` mounts writable. The immutable image digest and release review bytes are independently pinned. `BootstrapMain` disables Flyway clean/baseline/out-of-order, validates migrations, has no retry through the Job (`backoffLimit: 0`), a 600-second deadline, and receives no credential values or Kubernetes service-account token. The retained `migrationImage` field remains part of the release schema for compatibility evidence; the writer path executes `bootstrapImage`.
 
 ## Offline review
 
@@ -47,9 +48,9 @@ sequenceDiagram
     E->>K: Require existing V8 and phase3-v2 annotations
   end
   alt Not Rollback
-    E->>K: Create new immutable SQL ConfigMap and Job
-    K->>J: Run reviewed Flyway image with separate migration credential
-    J-->>E: Complete condition for exact migration image
+    E->>K: Create immutable review ConfigMap and Job
+    K->>J: Run reviewed BootstrapMain image with IRSA and exact secret references
+    J-->>E: Complete condition plus bounded V2 receipt proving V8/V5/V7
   end
   alt Successful migration or compatible rollback receipt
     E->>K: Strategic image patch with Flyway disabled and Hibernate validate
@@ -81,7 +82,7 @@ API compatibility remains unchanged: `criadoEm` history fields are preserved; `o
 
 ### Bootstrap, platform access and release activation
 
-The initializer that securely creates separate roles/credentials, installs least-privilege grants/default privileges and proves schema/view/role-denial contracts remains required. This Job invokes Flyway only: **Job completion does not prove bootstrap grants or runtime authorization**. Existing V2/V4 development account seeds must be disabled/rotated by that reviewed bootstrap before traffic; this source task neither changes old migrations nor releases those credentials. Database V8, auth view V5 and recipient view V7 must be verified privately before enabling FUN/APP routes.
+The initializer that securely creates separate roles/credentials, installs least-privilege grants/default privileges and proves schema/view/role-denial contracts is now the source Job contract. A successful Job must emit and pass the V2 receipt parser before any writer patch; an absent, malformed, mismatched or secret-bearing receipt leaves writers stopped. Existing V2/V4 development account seeds must be disabled/rotated by that reviewed bootstrap before traffic; this source task neither changes old migrations nor releases those credentials. Database V8, auth view V5 and recipient view V7 must be verified privately before enabling FUN/APP routes.
 
 Platform prerequisites include the stable namespace/Deployment/Service/HPA (and production PDB), public key and pinned CA ConfigMap, separately provisioned migration Secret/service account, and a migration-specific NetworkPolicy allowing only DNS/database connectivity. APP's default-deny policies do not automatically permit this new pod label. Review narrowly scoped namespace RBAC for Job create/get/watch, immutable ConfigMap create, HPA delete/create/update, Deployment get/patch/watch, pod list and service-account get; current platform deployer RBAC must not be assumed to supply them. The renderer does not grant IAM, read secret values, initialize roles or create platform routes.
 

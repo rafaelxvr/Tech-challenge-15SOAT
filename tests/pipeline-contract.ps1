@@ -2,15 +2,29 @@
 param()
 Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
+& (Join-Path $PSScriptRoot 'runtime-public-configmap-contract.ps1')
+& (Join-Path $PSScriptRoot 'migration-identity-contract.ps1')
+& (Join-Path $PSScriptRoot 'app-prerequisites-contract.ps1')
 & (Join-Path $PSScriptRoot 'deployment-lock-race-contract.ps1')
 & (Join-Path $PSScriptRoot 'app-rollout-contract.ps1')
+& (Join-Path $PSScriptRoot 'staging-rollout-contract.ps1')
+& (Join-Path $PSScriptRoot 'staging-first-deployment-contract.ps1')
+& (Join-Path $PSScriptRoot 'staging-first-deployment-contract.ps1') -ExecutorEntrypoint
+& (Join-Path $PSScriptRoot 'bootstrap-release-adapter-contract.ps1')
 $repo=Split-Path -Parent $PSScriptRoot
 function aws { throw 'Offline tests forbid AWS.' }
 function Reject([scriptblock]$Action) { try { & $Action | Out-Null } catch { return }; throw 'Expected invalid output rejection.' }
 & "$PSScriptRoot/source-package-contract.ps1"
+& "$PSScriptRoot/offline-release-handoff-contract.ps1"
 & "$PSScriptRoot/workflow-context-contract.ps1"
 & "$PSScriptRoot/cloud-window-tests.ps1"
 & "$PSScriptRoot/release-guards-contract.ps1"
+& "$PSScriptRoot/staging-deploy-workflow-contract.ps1"
+& "$PSScriptRoot/production-promotion-contract.ps1"
+& "$PSScriptRoot/staging-activation-contract.ps1"
+# Isolate the mock AWS/sleep commands from this script's no-cloud guard.
+& pwsh -NoLogo -NoProfile -NonInteractive -File "$PSScriptRoot/start-deploy-contract.ps1"
+if ($LASTEXITCODE -ne 0) { throw 'Offline APP launcher contract failed.' }
 $workflow=Get-Content -LiteralPath "$repo/.github/workflows/ci-cd.yml" -Raw
 foreach($required in @('branches: [main, develop]','contents: read','cancel-in-progress: false','./mvnw -B verify','./tests/pipeline-contract.ps1','local-kind-smoke:')) {
     if(-not $workflow.Contains($required)) { throw "Missing APP workflow contract: $required" }

@@ -1,16 +1,56 @@
 {
   "schemaVersion": 1,
   "submissionMode": "template",
-  "releaseRevision": "NOT_CAPTURED",
+  "releaseRevision": "0bba2ac2adee4cfe5d232da99166604fe09f919f",
   "reviewerUsername": "soat-architecture",
   "repositories": [
-    {"name":"APP","url":"NOT_PROVIDED","reviewerAccessVerified":false,"accessEvidence":"NOT_PROVIDED"},
-    {"name":"K8S","url":"NOT_PROVIDED","reviewerAccessVerified":false,"accessEvidence":"NOT_PROVIDED"},
-    {"name":"FUN","url":"NOT_PROVIDED","reviewerAccessVerified":false,"accessEvidence":"NOT_PROVIDED"},
-    {"name":"DB","url":"NOT_PROVIDED","reviewerAccessVerified":false,"accessEvidence":"NOT_PROVIDED"}
+    {
+      "name": "APP",
+      "url": "https://github.com/rafaelxvr/Tech-challenge-15SOAT",
+      "reviewerAccessVerified": false,
+      "accessEvidence": "NOT_PROVIDED",
+      "reviewedRevision": "0bba2ac2adee4cfe5d232da99166604fe09f919f"
+    },
+    {
+      "name": "K8S",
+      "url": "https://github.com/rafaelxvr/Tech-challenge-15SOAT-k8s-infra",
+      "reviewerAccessVerified": false,
+      "accessEvidence": "NOT_PROVIDED",
+      "reviewedRevision": "a7d73037cc8419978f6922456ccbb9ef25d02447"
+    },
+    {
+      "name": "FUN",
+      "url": "https://github.com/rafaelxvr/Tech-challenge-15SOAT-functions",
+      "reviewerAccessVerified": false,
+      "accessEvidence": "NOT_PROVIDED",
+      "reviewedRevision": "66e586ea43de1b98dc1347e49df75412b1f9faa2"
+    },
+    {
+      "name": "DB",
+      "url": "https://github.com/rafaelxvr/Tech-challenge-15SOAT-db-infra",
+      "reviewerAccessVerified": false,
+      "accessEvidence": "NOT_PROVIDED",
+      "reviewedRevision": "33b7da9172c45d766d36e7561d59ee289053b02b"
+    }
   ],
   "videoUrl": "NOT_PROVIDED",
   "videoDurationSeconds": null,
-  "documentationUrls": [],
-  "status": "NOT_READY"
+  "documentationUrls": [
+    "https://github.com/rafaelxvr/Tech-challenge-15SOAT/blob/0bba2ac2adee4cfe5d232da99166604fe09f919f/docs/phase-3/README.md",
+    "https://github.com/rafaelxvr/Tech-challenge-15SOAT/blob/0bba2ac2adee4cfe5d232da99166604fe09f919f/docs/phase-3/architecture/components.md",
+    "https://github.com/rafaelxvr/Tech-challenge-15SOAT/blob/0bba2ac2adee4cfe5d232da99166604fe09f919f/docs/phase-3/architecture/authentication-sequence.md",
+    "https://github.com/rafaelxvr/Tech-challenge-15SOAT/blob/0bba2ac2adee4cfe5d232da99166604fe09f919f/docs/phase-3/architecture/order-opening-sequence.md",
+    "https://github.com/rafaelxvr/Tech-challenge-15SOAT/blob/0bba2ac2adee4cfe5d232da99166604fe09f919f/docs/phase-3/architecture/data-model.md",
+    "https://github.com/rafaelxvr/Tech-challenge-15SOAT/blob/0bba2ac2adee4cfe5d232da99166604fe09f919f/docs/phase-3/api/contracts.md",
+    "https://github.com/rafaelxvr/Tech-challenge-15SOAT/blob/0bba2ac2adee4cfe5d232da99166604fe09f919f/docs/rfcs/001-aws-profile.md",
+    "https://github.com/rafaelxvr/Tech-challenge-15SOAT/blob/0bba2ac2adee4cfe5d232da99166604fe09f919f/docs/adrs/001-modular-monolith.md",
+    "https://github.com/rafaelxvr/Tech-challenge-15SOAT-k8s-infra/blob/a7d73037cc8419978f6922456ccbb9ef25d02447/docs/architecture.md",
+    "https://github.com/rafaelxvr/Tech-challenge-15SOAT-functions/blob/66e586ea43de1b98dc1347e49df75412b1f9faa2/docs/architecture.md",
+    "https://github.com/rafaelxvr/Tech-challenge-15SOAT-db-infra/blob/33b7da9172c45d766d36e7561d59ee289053b02b/docs/architecture.md"
+  ],
+  "status": "NOT_READY",
+  "pendingEvidence": [
+    "Video recording, playable video URL and measured duration remain unprovided. Every other deliverable is live: run scripts/submission/finalize.py with the published video URL and duration to produce the submission-mode PDF.",
+    "Reviewer access is recorded as unverified only because template mode forbids claiming it. soat-architecture has in fact accepted the invitation on all four repositories and appears as a collaborator; finalize.py records that evidence."
+  ]
 }

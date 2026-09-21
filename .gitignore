@@ -56,3 +56,10 @@ Thumbs.db
 artifacts/
 __pycache__/
 .venv-submission/
+
+# Ferramental de planejamento (specs/plans do superpowers): local, nunca publicado
+docs/superpowers/
+.superpowers/
+
+# Material de gravação e rascunhos locais; docs/ guarda só documentação canônica
+.local/

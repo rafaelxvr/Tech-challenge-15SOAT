@@ -11,14 +11,112 @@ param(
     [Parameter(Mandatory)][string]$TerraformBackendKey,
     [Parameter(Mandatory)][string]$TerraformBackendLockKey,
     [Parameter(Mandatory)][string]$TerraformBackendRegion,
+    [string]$SourceArchiveFile,
+    [string]$PlatformInputsFile,
+    [string]$StagingWorkloadFile,
+    [string]$CloudWindowEvidenceFile,
+    [string]$RuntimePublicConfigMapObjectKey=$env:RUNTIME_PUBLIC_CONFIGMAP_OBJECT_KEY,
+    [string]$RuntimePublicConfigMapVersionId=$env:RUNTIME_PUBLIC_CONFIGMAP_VERSION_ID,
+    [string]$ExpectedRuntimePublicConfigMapSha256=$env:RUNTIME_PUBLIC_CONFIGMAP_SHA256,
+    [string]$ArtifactBucket=$env:SOURCE_BUCKET,
+    [string]$StateBucket,
+    [string]$SourceKey,
+    [string]$ProductionEnabled='', [string]$ProductionRuntimeEnabled='', [string]$ProtectedEnvironment='',
+    [string]$ProductionInputsFile='', [string]$ExpectedProductionInputsSha256='', [string]$ProductionRoleArn='',
+    [string]$EventName=$env:GITHUB_EVENT_NAME, [string]$BranchRef=$env:GITHUB_REF,
     [switch]$ApplyReviewedPlan,
     [switch]$DryRun
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-if ($TerraformBackendRegion -cne 'us-east-1' -or $TerraformBackendKey -cne "app/$Environment.tfstate" -or $TerraformBackendLockKey -cne "$TerraformBackendKey.tflock" -or $TerraformVariablesFile -cne "/tmp/oficina/app_$Environment.tfvars.json") { throw 'Unreviewed application state, lock, region or trusted tfvars path.' }
+
+function Require-ScalarString([object]$Object, [string]$Name) {
+    $property = $Object.PSObject.Properties[$Name]
+    if ($null -eq $property -or $property.Value -isnot [string] -or [string]::IsNullOrWhiteSpace([string]$property.Value)) {
+        throw "Manifest field '$Name' must be a non-empty scalar string."
+    }
+    return [string]$property.Value
+}
+
+# The platform executor owns these exact paths for the APP repository. Artifact
+# uploads use releases/app/<environment>; source and Terraform state identities
+# are separate contracts. Keep the existing production namespace unchanged.
+$expectedBackendKey = "app/$Environment.tfstate"
+$expectedTerraformVariablesFile = "/tmp/oficina/app_${Environment}.tfvars.json"
+if ($TerraformBackendRegion -cne 'us-east-1' -or $TerraformBackendKey -cne $expectedBackendKey -or $TerraformBackendLockKey -cne "$expectedBackendKey.tflock" -or $TerraformVariablesFile -cne $expectedTerraformVariablesFile) { throw 'Unreviewed application state, lock, region or trusted tfvars path.' }
 if ((Get-FileHash -LiteralPath $ReleaseManifest -Algorithm SHA256).Hash.ToLowerInvariant() -cne $ExpectedManifestSha256) { throw 'Manifest digest mismatch.' }
 $manifest = Get-Content -LiteralPath $ReleaseManifest -Raw | ConvertFrom-Json
-if ($manifest.schemaVersion -ne 1 -or $manifest.environment -cne $Environment -or $manifest.sourceCommit -cne $SourceCommit -or $manifest.artifactSha256 -cne $ExpectedSourceSha256 -or $manifest.deployerImageDigest -cne $ExpectedDeployerImageDigest) { throw 'Manifest does not bind the reviewed executor/source/environment.' }
-if ($DryRun -and -not $ApplyReviewedPlan) { Write-Output 'INPUTS_VALIDATED_DEPLOYMENT_DISABLED'; return }
-throw 'APP_DEPLOYMENT_DISABLED: APP migration/rollout orchestration, release promotion, shared lock and cloud-window guards require separate reviewed activation. No Terraform operation was attempted.'
+if ($manifest.schemaVersion -ne 1 -or
+    (Require-ScalarString $manifest 'environment') -cne $Environment -or
+    (Require-ScalarString $manifest 'sourceCommit') -cne $SourceCommit -or
+    (Require-ScalarString $manifest 'artifactSha256') -cne $ExpectedSourceSha256 -or
+    (Require-ScalarString $manifest 'deployerImageDigest') -cne $ExpectedDeployerImageDigest) {
+    throw 'Manifest does not bind the reviewed executor/source/environment.'
+}
+
+# The launcher and the platform-owned CodeBuild bootstrap provide the reviewed
+# cloud-window evidence before this script is reached. Keep the dry-run path
+# side-effect free and use the existing reviewed apply switch as the explicit
+# staging activation. Production additionally requires its reviewed promotion
+# inputs, main/protected-environment context and a separate runtime gate.
+if ($Environment -ceq 'production') {
+    if(@($RuntimePublicConfigMapObjectKey,$RuntimePublicConfigMapVersionId,$ExpectedRuntimePublicConfigMapSha256|Where-Object {-not[string]::IsNullOrWhiteSpace($_)}).Count){throw 'APP_PUBLIC_CONFIG_INVALID: staging transport forbidden for production.'}
+    . (Join-Path $PSScriptRoot 'production-executor-inputs.ps1')
+    $review=Read-ProductionExecutorInputs -Enabled $ProductionEnabled -RuntimeEnabled $ProductionRuntimeEnabled -ProtectedEnvironment $ProtectedEnvironment `
+        -InputsFile $ProductionInputsFile -ExpectedInputsSha256 $ExpectedProductionInputsSha256 -RoleArn $ProductionRoleArn `
+        -SourceCommit $SourceCommit -EventName $EventName -BranchRef $BranchRef
+    if ($ExpectedManifestSha256 -cne $review.ReleaseFile.Sha256 -or $ExpectedSourceSha256 -cne $review.Source.Sha256 -or
+        $TerraformBackendBucket -cne $review.Inputs.stateBucket -or $StateBucket -cne $review.Inputs.stateBucket -or
+        $SourceKey -cne 'releases/app/production/bundle.zip' -or
+        [string]::IsNullOrWhiteSpace($SourceArchiveFile) -or -not (Test-Path -LiteralPath $SourceArchiveFile -PathType Leaf) -or
+        (Get-FileHash -LiteralPath $SourceArchiveFile -Algorithm SHA256).Hash.ToLowerInvariant() -cne $review.Source.Sha256 -or
+        -not (Test-Path -LiteralPath $TerraformVariablesFile -PathType Leaf) -or
+        (Get-FileHash -LiteralPath $TerraformVariablesFile -Algorithm SHA256).Hash.ToLowerInvariant() -cne $review.TerraformVariables.Sha256) {
+        throw 'APP_PRODUCTION_EXECUTOR_BINDING_MISMATCH'
+    }
+    & (Join-Path $PSScriptRoot 'deploy-production.ps1') -Enabled $ProductionEnabled -RuntimeEnabled $ProductionRuntimeEnabled `
+        -ProtectedEnvironment $ProtectedEnvironment -InputsFile $ProductionInputsFile -ExpectedInputsSha256 $ExpectedProductionInputsSha256 `
+        -RoleArn $ProductionRoleArn -SourceCommit $SourceCommit -EventName $EventName -BranchRef $BranchRef `
+        -OutputDirectory (Join-Path (Split-Path -Parent ([IO.Path]::GetFullPath($ReleaseManifest))) 'app-rollout') `
+        -ExecuteReviewedPlan:($ApplyReviewedPlan -and -not $DryRun)
+    return
+}
+if ($DryRun) {
+    Write-Output 'INPUTS_VALIDATED_DEPLOYMENT_DISABLED'
+    return
+}
+if (-not $ApplyReviewedPlan) {
+    throw 'APP_DEPLOYMENT_DISABLED: staging execution requires the explicit -ApplyReviewedPlan activation.'
+}
+
+$entrypoint = Join-Path $PSScriptRoot 'deploy-app.ps1'
+if (-not (Test-Path -LiteralPath $entrypoint -PathType Leaf)) { throw 'APP_ROLLOUT_ENTRYPOINT_MISSING: scripts/deploy-app.ps1 is required.' }
+. (Join-Path $PSScriptRoot 'staging-executor-inputs.ps1')
+Assert-StagingExecutorBaseInputs $manifest $PlatformInputsFile $StagingWorkloadFile $CloudWindowEvidenceFile
+if ($StateBucket -cne $TerraformBackendBucket -or $SourceKey -cne 'releases/app/staging/bundle.zip' -or
+    [string]::IsNullOrWhiteSpace($SourceArchiveFile) -or -not (Test-Path -LiteralPath $SourceArchiveFile -PathType Leaf) -or
+    (Get-FileHash -LiteralPath $SourceArchiveFile -Algorithm SHA256).Hash.ToLowerInvariant() -cne $ExpectedSourceSha256) {
+    throw 'APP_STAGING_INPUTS_INVALID: source archive, source key or shared lock bucket mismatch.'
+}
+$tfvarsSha=Require-ScalarString $manifest 'terraformVariablesSha256'
+if ($tfvarsSha -cnotmatch '\A[a-f0-9]{64}\z' -or -not (Test-Path -LiteralPath $TerraformVariablesFile -PathType Leaf) -or
+    (Get-FileHash -LiteralPath $TerraformVariablesFile -Algorithm SHA256).Hash.ToLowerInvariant() -cne $tfvarsSha) {
+    throw 'APP_STAGING_INPUTS_INVALID: reviewed executor configuration digest mismatch.'
+}
+& (Join-Path $PSScriptRoot 'check-cloud-window.ps1') -EvidenceFile $CloudWindowEvidenceFile -Environment staging | Out-Null
+. (Join-Path $PSScriptRoot 'runtime-public-configmap-contract.ps1')
+$publicConfigPath=Join-Path (Split-Path -Parent ([IO.Path]::GetFullPath($ReleaseManifest))) 'runtime-public-staging.json'
+$null=Receive-StagingPublicConfigMap $manifest $ArtifactBucket $RuntimePublicConfigMapObjectKey $RuntimePublicConfigMapVersionId $ExpectedRuntimePublicConfigMapSha256 $publicConfigPath
+Assert-StagingExecutorInputs $manifest $PlatformInputsFile $StagingWorkloadFile $CloudWindowEvidenceFile $publicConfigPath
+$inputs=@{
+    ReleaseFile=$ReleaseManifest; ExpectedReleaseSha256=$ExpectedManifestSha256
+    PlatformInputsFile=$PlatformInputsFile; StagingWorkloadFile=$StagingWorkloadFile
+    RuntimePublicConfigMapFile=$publicConfigPath
+    CloudWindowEvidenceFile=$CloudWindowEvidenceFile; StateBucket=$StateBucket
+    SourceArchiveFile=$SourceArchiveFile; SourceKey=$SourceKey; ExpectedDeployerImageDigest=$ExpectedDeployerImageDigest
+    OutputDirectory=(Join-Path (Split-Path -Parent ([IO.Path]::GetFullPath($ReleaseManifest))) 'app-rollout')
+}
+# Invoke the real I6 entry point. Its preflight verifies the complete release and
+# workload before its executing path acquires the shared lock and touches EKS.
+& $entrypoint @inputs | Out-Null
+& $entrypoint @inputs -ExecuteReviewedPlan
