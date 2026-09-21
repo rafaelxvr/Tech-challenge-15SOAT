@@ -9,6 +9,27 @@
   },
   "event": [
     {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Gera um traceparent W3C novo por requisição (00-<32 hex>-<16 hex>-<2 hex>) para exercitar",
+          "// a cadeia de correlação completa (correlation_id + api_gateway_request_id + traceparent).",
+          "function randomHex(length) {",
+          "  let hex = '';",
+          "  for (let i = 0; i < length; i++) {",
+          "    hex += Math.floor(Math.random() * 16).toString(16);",
+          "  }",
+          "  return hex;",
+          "}",
+          "const traceId = randomHex(32);",
+          "const spanId = randomHex(16);",
+          "const traceparent = `00-${traceId}-${spanId}-01`;",
+          "pm.request.headers.upsert({ key: 'traceparent', value: traceparent });"
+        ]
+      }
+    },
+    {
       "listen": "test",
       "script": {
         "type": "text/javascript",
