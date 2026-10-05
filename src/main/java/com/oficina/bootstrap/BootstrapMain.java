@@ -103,10 +103,17 @@ public final class BootstrapMain {
         denied(connection, "SELECT * FROM public.flyway_schema_history LIMIT 0");
         if (!key.equals("app")) {
             for (String table : DatabaseBootstrap.TABLES) {
+                if (!relationExists(connection, table)) continue; // created by migrations after the V8 bootstrap target
                 denied(connection, "SELECT * FROM public." + table + " LIMIT 0");
                 denied(connection, "DELETE FROM public." + table + " WHERE false");
             }
             denied(connection, "SELECT * FROM public." + (key.equals("auth") ? "notificacao_destinatario_snapshot" : "auth_cliente_snapshot") + " LIMIT 0");
+        }
+    }
+    private static boolean relationExists(Connection connection, String name) throws SQLException {
+        try (var statement=connection.prepareStatement("SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relname=?")) {
+            statement.setString(1, name);
+            try (var rows=statement.executeQuery()) { return rows.next(); }
         }
     }
     private static void denied(Connection connection, String sql) throws SQLException {

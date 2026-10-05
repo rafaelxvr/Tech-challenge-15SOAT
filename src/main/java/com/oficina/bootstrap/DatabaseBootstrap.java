@@ -9,7 +9,7 @@ import java.util.Map;
 public final class DatabaseBootstrap {
     static final List<String> TABLES = List.of("usuarios", "clientes", "veiculos", "servicos", "pecas",
             "ordens_servico", "os_servicos", "os_pecas", "os_historico", "cliente_identidade_auditoria",
-            "outbox_eventos", "outbox_recuperacoes");
+            "outbox_eventos", "outbox_recuperacoes", "os_saga", "os_saga_passo", "saga_outbox", "saga_inbox");
     static final List<String> VIEWS = List.of("auth_cliente_snapshot", "notificacao_destinatario_snapshot");
     static final List<String> TYPES = List.of("tipo_documento", "status_os", "role_usuario");
 
@@ -87,6 +87,7 @@ public final class DatabaseBootstrap {
                 execute(migration, "REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM " + name);
             }
             for (String table : TABLES) {
+                if (!relationExists(migration, table)) continue; // created by migrations after the V8 bootstrap target
                 execute(migration, "REVOKE ALL ON TABLE public." + quote(table) + " FROM PUBLIC");
                 execute(migration, "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public." + quote(table) + " TO " + quote(review.username("app")));
             }
@@ -159,6 +160,9 @@ public final class DatabaseBootstrap {
         }
     }
     private static String quote(String name) { return '"' + name.replace("\"", "\"\"") + '"'; }
+    private static boolean relationExists(Connection connection, String name) throws SQLException {
+        return exists(connection, "SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relname=?", name);
+    }
     private static boolean exists(Connection connection, String sql, String argument) throws SQLException {
         try (var statement = connection.prepareStatement(sql)) {
             statement.setString(1, argument); try (var result=statement.executeQuery()) { return result.next(); }
