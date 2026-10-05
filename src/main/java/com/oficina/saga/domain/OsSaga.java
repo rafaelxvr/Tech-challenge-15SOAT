@@ -101,11 +101,14 @@ public class OsSaga {
 
     /** Payment replies keep answering RegistrarDecisao, so the awaited command id is kept. */
     public void orcamentoAprovado(String checkoutUrl, MomentoSaga m) {
+        if (checkoutUrl == null || !checkoutUrl.startsWith("https://")) {
+            throw new IllegalArgumentException("checkoutUrl deve ser https");
+        }
         exigir(EstadoSaga.AGUARDANDO_DECISAO);
         if (!Boolean.TRUE.equals(decisaoAprovada)) {
             throw new IllegalStateException("Aprovação recebida sem decisão de aprovação");
         }
-        this.checkoutUrl = Objects.requireNonNull(checkoutUrl, "checkoutUrl");
+        this.checkoutUrl = checkoutUrl;
         acoes.add(AcaoLocal.AGUARDAR_PAGAMENTO_OS);
         mudarPara(EstadoSaga.AGUARDANDO_PAGAMENTO, EtapaSaga.PAGAMENTO, m);
         prazo = m.agora().plus(m.prazos().pagamento());
@@ -113,6 +116,9 @@ public class OsSaga {
 
     public void orcamentoRecusado(MomentoSaga m) {
         exigir(EstadoSaga.AGUARDANDO_DECISAO);
+        if (!Boolean.FALSE.equals(decisaoAprovada)) {
+            throw new IllegalStateException("Recusa recebida sem decisão de recusa");
+        }
         desempilhar(Compensacao.CANCELAR_ORCAMENTO);
         orcamentoId = null;
         valorOrcado = null;
@@ -152,6 +158,46 @@ public class OsSaga {
         acoes.add(AcaoLocal.FINALIZAR_OS);
         mudarPara(EstadoSaga.CONCLUIDA, EtapaSaga.EXECUCAO, m);
         encerrarEspera();
+    }
+
+    public void falhar(MotivoFalha motivo, MomentoSaga m) {
+        if (estado.terminal() || estado == EstadoSaga.EM_EXECUCAO || estado == EstadoSaga.COMPENSANDO) {
+            throw new IllegalStateException("Saga %s não admite falha em %s".formatted(id, estado));
+        }
+        motivoFalha = Objects.requireNonNull(motivo, "motivo");
+        registrar("FALHA:" + motivo.name(), m);
+        mudarPara(EstadoSaga.COMPENSANDO, etapa, m);
+        tentativasCompensacao = 0;
+        avancarCompensacao(m);
+    }
+
+    public void compensacaoConcluida(MomentoSaga m) {
+        exigir(EstadoSaga.COMPENSANDO);
+        List<Compensacao> pilha = pilha();
+        pilha.remove(pilha.size() - 1);
+        gravarPilha(pilha);
+        tentativasCompensacao = 0;
+        avancarCompensacao(m);
+    }
+
+    public void compensacaoFalhou(MomentoSaga m) {
+        exigir(EstadoSaga.COMPENSANDO);
+        mudarPara(EstadoSaga.FALHA_COMPENSACAO, etapa, m);
+        encerrarEspera();
+    }
+
+    public void prazoExpirado(MomentoSaga m) {
+        if (prazo == null || m.agora().isBefore(prazo)) return;
+        switch (estado) {
+            case COMPENSANDO -> reenviarCompensacao(m);
+            case AGUARDANDO_DIAGNOSTICO -> falhar(MotivoFalha.DIAGNOSTICO_SEM_RESPOSTA, m);
+            case AGUARDANDO_ORCAMENTO -> falhar(MotivoFalha.ORCAMENTO_SEM_RESPOSTA, m);
+            case AGUARDANDO_DECISAO -> falhar(comandoAguardadoId == null
+                    ? MotivoFalha.DECISAO_EXPIRADA : MotivoFalha.DECISAO_SEM_RESPOSTA, m);
+            case AGUARDANDO_PAGAMENTO -> falhar(MotivoFalha.PAGAMENTO_EXPIRADO, m);
+            case AGUARDANDO_REPARO -> falhar(MotivoFalha.REPARO_SEM_RESPOSTA, m);
+            default -> throw new IllegalStateException("Estado %s não tem prazo".formatted(estado));
+        }
     }
 
     public List<ComandoSaga> retirarComandos() {
@@ -237,5 +283,40 @@ public class OsSaga {
         }
         pilha.remove(pilha.size() - 1);
         gravarPilha(pilha);
+    }
+
+    /** Runs local compensations inline and stops at the first remote one, which stays on top until confirmed. */
+    private void avancarCompensacao(MomentoSaga m) {
+        while (true) {
+            List<Compensacao> pilha = pilha();
+            if (pilha.isEmpty()) {
+                acoes.add(AcaoLocal.CANCELAR_OS);
+                mudarPara(EstadoSaga.CANCELADA, etapa, m);
+                encerrarEspera();
+                return;
+            }
+            Compensacao proxima = pilha.get(pilha.size() - 1);
+            registrar("COMPENSACAO:" + proxima.name(), m);
+            if (!proxima.local()) {
+                emitir(proxima.comando(), m, m.prazos().compensacao());
+                return;
+            }
+            pilha.remove(pilha.size() - 1);
+            gravarPilha(pilha);
+            acoes.add(AcaoLocal.REPOR_ESTOQUE);
+        }
+    }
+
+    private void reenviarCompensacao(MomentoSaga m) {
+        tentativasCompensacao++;
+        if (tentativasCompensacao >= m.prazos().maxTentativasCompensacao()) {
+            mudarPara(EstadoSaga.FALHA_COMPENSACAO, etapa, m);
+            encerrarEspera();
+            return;
+        }
+        List<Compensacao> pilha = pilha();
+        Compensacao topo = pilha.get(pilha.size() - 1);
+        registrar("REENVIO:" + topo.name(), m);
+        emitir(topo.comando(), m, m.prazos().compensacao());
     }
 }
