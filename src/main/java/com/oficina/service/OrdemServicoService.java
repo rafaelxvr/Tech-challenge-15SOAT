@@ -50,7 +50,8 @@ public class OrdemServicoService {
     /** Status excluídos logicamente da listagem operacional (não são apagados do banco). */
     private static final Set<StatusOrdemServico> STATUS_EXCLUIDOS_LISTAGEM = EnumSet.of(
             StatusOrdemServico.FINALIZADA,
-            StatusOrdemServico.ENTREGUE
+            StatusOrdemServico.ENTREGUE,
+            StatusOrdemServico.CANCELADA
     );
 
     private final OrdemServicoRepository ordemServicoRepository;
@@ -137,7 +138,7 @@ public class OrdemServicoService {
     public Page<OrdemServicoResumoResponse> listar(StatusOrdemServico status, Pageable pageable) {
         if (status != null && STATUS_EXCLUIDOS_LISTAGEM.contains(status)) {
             throw new BusinessRuleException(
-                    "Ordens FINALIZADA/ENTREGUE não entram na listagem operacional. Use a consulta por id ou número."
+                    "Ordens FINALIZADA/ENTREGUE/CANCELADA não entram na listagem operacional. Use a consulta por id ou número."
             );
         }
         Pageable semSortCliente = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());

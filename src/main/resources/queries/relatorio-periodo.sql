@@ -33,6 +33,8 @@ WITH candidatos AS MATERIALIZED (
                 ('EM_DIAGNOSTICO','AGUARDANDO_APROVACAO'),
                 ('AGUARDANDO_APROVACAO','EM_DIAGNOSTICO'),
                 ('AGUARDANDO_APROVACAO','EM_EXECUCAO'),
+                ('AGUARDANDO_APROVACAO','AGUARDANDO_PAGAMENTO'),
+                ('AGUARDANDO_PAGAMENTO','EM_EXECUCAO'),
                 ('EM_EXECUCAO','FINALIZADA'), ('FINALIZADA','ENTREGUE')))
             AND CASE WHEN i.sequencia = os.sequencia_historico THEN
                 i.status_novo = 'ENTREGUE' AND i.proxima_sequencia IS NULL
