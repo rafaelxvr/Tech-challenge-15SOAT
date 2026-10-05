@@ -10,6 +10,8 @@ public final class DatabaseBootstrap {
     static final List<String> TABLES = List.of("usuarios", "clientes", "veiculos", "servicos", "pecas",
             "ordens_servico", "os_servicos", "os_pecas", "os_historico", "cliente_identidade_auditoria",
             "outbox_eventos", "outbox_recuperacoes", "os_saga", "os_saga_passo", "saga_outbox", "saga_inbox");
+    /** Tables created by migrations after the V8 bootstrap target: the only ones allowed to be absent. */
+    static final List<String> POST_V8_TABLES = List.of("os_saga", "os_saga_passo", "saga_outbox", "saga_inbox");
     static final List<String> VIEWS = List.of("auth_cliente_snapshot", "notificacao_destinatario_snapshot");
     static final List<String> TYPES = List.of("tipo_documento", "status_os", "role_usuario");
 
@@ -69,6 +71,10 @@ public final class DatabaseBootstrap {
 
     /** Invoke after V8 migration, as the migration role. Does not expose the master to runtime. */
     public void grantRuntime(Connection migration, BootstrapReview review) throws SQLException {
+        grantRuntime(migration, review, TABLES);
+    }
+
+    void grantRuntime(Connection migration, BootstrapReview review, List<String> tables) throws SQLException {
         transaction(migration, () -> {
             execute(migration, "SELECT pg_advisory_xact_lock(153003)");
             try (var statement=migration.createStatement(); var rows=statement.executeQuery("SELECT current_user")) {
@@ -86,8 +92,8 @@ public final class DatabaseBootstrap {
                 execute(migration, "REVOKE ALL ON ALL TABLES IN SCHEMA public FROM " + name);
                 execute(migration, "REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM " + name);
             }
-            for (String table : TABLES) {
-                if (!relationExists(migration, table)) continue; // created by migrations after the V8 bootstrap target
+            for (String table : tables) {
+                if (isAbsentPostV8Table(migration, table)) continue;
                 execute(migration, "REVOKE ALL ON TABLE public." + quote(table) + " FROM PUBLIC");
                 execute(migration, "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public." + quote(table) + " TO " + quote(review.username("app")));
             }
@@ -160,8 +166,11 @@ public final class DatabaseBootstrap {
         }
     }
     private static String quote(String name) { return '"' + name.replace("\"", "\"\"") + '"'; }
-    private static boolean relationExists(Connection connection, String name) throws SQLException {
-        return exists(connection, "SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relname=?", name);
+    /** True only for a post-V8 table not created yet; any other missing table must keep failing loudly. */
+    static boolean isAbsentPostV8Table(Connection connection, String table) throws SQLException {
+        return POST_V8_TABLES.contains(table) && !exists(connection,
+                "SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace "
+                + "WHERE n.nspname='public' AND c.relkind IN ('r','p') AND c.relname=?", table);
     }
     private static boolean exists(Connection connection, String sql, String argument) throws SQLException {
         try (var statement = connection.prepareStatement(sql)) {

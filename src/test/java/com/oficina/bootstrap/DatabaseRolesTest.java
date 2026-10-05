@@ -89,6 +89,41 @@ class DatabaseRolesTest {
             }
         }
     }
+    @Test void grantsSkipOnlyPostV8TablesAndStillFailOnAnyOtherMissingTable() throws Exception {
+        try (var postgres=new PostgreSQLContainer<>("postgres:16-alpine").withDatabaseName("oficina")) {
+            postgres.start();
+            var review=review();
+            String masterPassword=UUID.randomUUID().toString();
+            try (var admin=DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword()); var sql=admin.createStatement()) {
+                sql.execute("CREATE ROLE bootstrap_master LOGIN CREATEROLE CREATEDB PASSWORD '"+masterPassword+"'");
+                sql.execute("ALTER DATABASE oficina OWNER TO bootstrap_master");
+                sql.execute("ALTER SCHEMA public OWNER TO bootstrap_master");
+            }
+            var credentials=new LinkedHashMap<String,BootstrapSecrets.Credential>();
+            for(String key:BootstrapReview.ROLE_KEYS) credentials.put(key,new BootstrapSecrets.Credential(review.username(key),UUID.randomUUID().toString()));
+            var bootstrap=new DatabaseBootstrap();
+            try(var master=DriverManager.getConnection(postgres.getJdbcUrl(),"bootstrap_master",masterPassword)) {
+                bootstrap.prepare(master,review,credentials);
+            }
+            var migration=credentials.get("migration");
+            Flyway.configure().dataSource(postgres.getJdbcUrl(),migration.username(),migration.password()).target("8").load().migrate();
+            try(var connection=connect(postgres,migration)) {
+                for(String table:DatabaseBootstrap.POST_V8_TABLES) {
+                    assertThat(DatabaseBootstrap.isAbsentPostV8Table(connection,table)).isTrue();
+                }
+                assertThat(DatabaseBootstrap.isAbsentPostV8Table(connection,"clientes")).isFalse();
+                var withTypo=new java.util.ArrayList<>(DatabaseBootstrap.TABLES); withTypo.add("clientez");
+                assertThatThrownBy(()->bootstrap.grantRuntime(connection,review,withTypo)).isInstanceOf(java.sql.SQLException.class);
+            }
+            try(var connection=connect(postgres,migration)) {
+                bootstrap.grantRuntime(connection,review);
+                try(var sql=connection.createStatement();var rows=sql.executeQuery(
+                        "SELECT count(*) FROM pg_class WHERE relname IN ('os_saga','os_saga_passo','saga_outbox','saga_inbox')")) {
+                    rows.next(); assertThat(rows.getInt(1)).isZero();
+                }
+            }
+        }
+    }
     private Connection connect(PostgreSQLContainer<?> postgres,BootstrapSecrets.Credential credential) throws Exception {
         return DriverManager.getConnection(postgres.getJdbcUrl(),credential.username(),credential.password());
     }
