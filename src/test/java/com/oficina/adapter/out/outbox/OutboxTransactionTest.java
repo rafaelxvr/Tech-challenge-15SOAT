@@ -40,7 +40,7 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
 
-@Import({OrdemServicoService.class, OutboxNotificacaoAdapter.class, com.oficina.adapter.out.mail.EmailNotificacaoAdapter.class,
+@Import({OrdemServicoService.class, com.oficina.service.RegistroTransicaoOs.class, OutboxNotificacaoAdapter.class, com.oficina.adapter.out.mail.EmailNotificacaoAdapter.class,
         OutboxTransactionTest.Configuration.class})
 @org.springframework.test.context.ActiveProfiles("local-mailhog")
 @TestPropertySource(properties = "oficina.historico.zona-compatibilidade=UTC")

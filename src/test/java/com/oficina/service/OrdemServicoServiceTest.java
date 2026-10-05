@@ -68,7 +68,6 @@ class OrdemServicoServiceTest {
     @org.mockito.Spy
     private Clock clock = Clock.fixed(Instant.parse("2026-09-15T12:00:00Z"), ZoneOffset.UTC);
 
-    @InjectMocks
     private OrdemServicoService ordemServicoService;
 
     @AfterEach
@@ -78,7 +77,8 @@ class OrdemServicoServiceTest {
 
     @org.junit.jupiter.api.BeforeEach
     void setToken() {
-        ReflectionTestUtils.setField(ordemServicoService, "zonaCompatibilidade", "UTC");
+        ordemServicoService = new OrdemServicoService(ordemServicoRepository, clienteService, veiculoService,
+                servicoService, pecaService, new RegistroTransicaoOs(ordemServicoRepository, notificacaoPort, clock, "UTC"));
         ordemServicoService.setTelemetry(telemetry);
     }
 

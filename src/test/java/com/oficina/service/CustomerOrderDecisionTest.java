@@ -25,14 +25,14 @@ class CustomerOrderDecisionTest {
     final OrdemServicoRepository orders = mock(OrdemServicoRepository.class);
     final NotificacaoPort notifications = mock(NotificacaoPort.class);
     final OrdemServicoService service = new OrdemServicoService(orders, mock(ClienteService.class),
-            mock(VeiculoService.class), mock(ServicoService.class), mock(PecaService.class), notifications, TokenFixtures.CLOCK);
+            mock(VeiculoService.class), mock(ServicoService.class), mock(PecaService.class),
+            new RegistroTransicaoOs(orders, notifications, TokenFixtures.CLOCK, "UTC"));
     final UUID ownerId = UUID.randomUUID();
     final IdentidadeAutenticada owner = identity(TipoPrincipal.CUSTOMER, ownerId,
             "SCOPE_orders:read:self", "SCOPE_orders:decide:self");
     OrdemServico order;
 
     @BeforeEach void setup() {
-        ReflectionTestUtils.setField(service, "zonaCompatibilidade", "UTC");
         order = Fixtures.ordem(Fixtures.cliente(ownerId), StatusOrdemServico.AGUARDANDO_APROVACAO);
         order.setNumero(77L);
         order.setId(UUID.randomUUID());

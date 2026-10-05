@@ -1,9 +1,6 @@
 package com.oficina.service;
 
-import com.oficina.application.port.out.NotificacaoPort;
-import com.oficina.application.notificacao.StatusOrdemServicoRegistrado;
 import com.oficina.config.SecurityUtils;
-import com.oficina.config.CorrelationFilter;
 import com.oficina.application.observability.OrderTelemetry;
 import com.oficina.domain.identidade.Ator;
 import com.oficina.dto.*;
@@ -16,7 +13,6 @@ import com.oficina.security.IdentidadeAutenticada;
 import com.oficina.security.TipoPrincipal;
 import org.springframework.security.access.AccessDeniedException;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -27,10 +23,8 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
-import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
@@ -59,19 +53,14 @@ public class OrdemServicoService {
     private final VeiculoService veiculoService;
     private final ServicoService servicoService;
     private final PecaService pecaService;
-    private final NotificacaoPort notificacaoPort;
-    private final Clock clock;
+    private final RegistroTransicaoOs registro;
     private OrderTelemetry telemetry = (operation, outcome) -> { };
 
     @Autowired(required = false)
     void setTelemetry(OrderTelemetry telemetry) { this.telemetry = telemetry; }
 
-    @Value("${oficina.historico.zona-compatibilidade}")
-    private String zonaCompatibilidade;
-
     private Instant prepararHistorico(OrdemServico os) {
-        os.setZonaCompatibilidade(ZoneId.of(zonaCompatibilidade));
-        return clock.instant();
+        return registro.preparar(os);
     }
 
     private Ator atorAtual() {
@@ -325,17 +314,7 @@ public class OrdemServicoService {
     }
 
     private void registrarNotificacao(OrdemServico os) {
-        // Persist generated order number, optimistic versions and canonical history before JDBC insertion.
-        ordemServicoRepository.flush();
-        OsHistorico historico = os.getHistorico().stream()
-                .filter(h -> h.getSequencia() != null && h.getSequencia() == os.getSequenciaHistorico())
-                .findFirst().orElseThrow(() -> new IllegalStateException("Canonical history required"));
-        notificacaoPort.notificarAtualizacaoStatus(new StatusOrdemServicoRegistrado(
-                UUID.randomUUID(), StatusOrdemServicoRegistrado.EVENT_TYPE,
-                StatusOrdemServicoRegistrado.SCHEMA_VERSION, os.getId(), os.getNumero(),
-                os.getCliente().getId(), os.getCliente().getVersaoIdentidade(), historico.getSequencia(),
-                historico.getStatusAnterior() == null ? null : historico.getStatusAnterior().name(),
-                historico.getStatusNovo().name(), historico.getOcorridoEm(), CorrelationFilter.correlationId(), CorrelationFilter.traceparent()));
+        registro.notificar(os);
     }
 
     private void validarDocumentoCliente(OrdemServico os, String documentoInformado) {
