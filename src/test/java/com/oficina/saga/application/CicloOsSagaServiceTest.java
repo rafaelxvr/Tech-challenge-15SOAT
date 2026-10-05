@@ -87,6 +87,15 @@ class CicloOsSagaServiceTest extends PostgresIntegrationSupport {
                 .isInstanceOf(org.springframework.transaction.IllegalTransactionStateException.class);
     }
 
+    @Test void decisaoComSagaForaDeAguardandoDecisaoERegraDeNegocio() {
+        UUID os = ordemRecebida();
+        transaction.executeWithoutResult(st -> ciclo.iniciar(os));
+        assertThatThrownBy(() -> transaction.executeWithoutResult(st -> ciclo.registrarDecisao(os, true)))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessage("Orçamento não está mais aguardando decisão.");
+        assertThat(ciclo.resumo(os)).get().extracting(r -> r.estado()).isEqualTo("AGUARDANDO_DIAGNOSTICO");
+    }
+
     @Test void detalharExpoeTrilha() {
         UUID os = ordemRecebida();
         transaction.executeWithoutResult(st -> ciclo.iniciar(os));

@@ -65,6 +65,24 @@ class OsSagaRepositoryTest extends PostgresIntegrationSupport {
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
+    @Test void colunasDeEnumAceitamSomenteOsNomesDoDominio() {
+        UUID osId = novaOrdem();
+        transaction.executeWithoutResult(st -> sagas.save(OsSaga.iniciar(osId, new MomentoSaga(T0, PRAZOS))));
+        String saga = "UPDATE os_saga SET %s = ? WHERE os_id = ?";
+        String passo = "UPDATE os_saga_passo SET %s = ? WHERE saga_id = (SELECT id FROM os_saga WHERE os_id = ?)";
+        assertSomente(saga.formatted("comando_aguardado"), osId, Comando.values());
+        assertSomente(saga.formatted("motivo_falha"), osId, MotivoFalha.values());
+        assertSomente(passo.formatted("etapa"), osId, EtapaSaga.values());
+        assertSomente(passo.formatted("estado_saga"), osId, EstadoSaga.values());
+        jdbc.update(saga.formatted("comando_aguardado"), null, osId);
+        jdbc.update(saga.formatted("motivo_falha"), null, osId);
+    }
+
+    private void assertSomente(String update, UUID osId, Enum<?>[] valores) {
+        for (Enum<?> valor : valores) assertThat(jdbc.update(update, valor.name(), osId)).isPositive();
+        assertThatThrownBy(() -> jdbc.update(update, "INVALIDO", osId)).isInstanceOf(DataIntegrityViolationException.class);
+    }
+
     @Test void vencidasSaoSelecionadasPeloPrazo() {
         UUID osId = novaOrdem();
         transaction.executeWithoutResult(st -> sagas.save(OsSaga.iniciar(osId, new MomentoSaga(T0, PRAZOS))));

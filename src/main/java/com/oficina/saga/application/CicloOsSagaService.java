@@ -63,6 +63,10 @@ public class CicloOsSagaService implements CicloOsPort {
     public void registrarDecisao(UUID osId, boolean aprovado) {
         OsSaga saga = sagas.findByOsId(osId)
                 .orElseThrow(() -> new EntityNotFoundException("Saga da ordem de serviço", osId));
+        // The order stays AGUARDANDO_APROVACAO while an expired decision is being compensated.
+        if (saga.getEstado() != EstadoSaga.AGUARDANDO_DECISAO) {
+            throw new BusinessRuleException("Orçamento não está mais aguardando decisão.");
+        }
         saga.registrarDecisao(aprovado, momento());
         efeitos.executar(saga);
     }

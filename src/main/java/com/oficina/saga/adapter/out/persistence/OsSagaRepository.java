@@ -17,7 +17,12 @@ public interface OsSagaRepository extends JpaRepository<OsSaga, UUID> {
 
     boolean existsByOsId(UUID osId);
 
-    /** Rows locked FOR UPDATE SKIP LOCKED so several pods never expire the same saga twice. */
+    /**
+     * FOR UPDATE SKIP LOCKED only keeps concurrent selections apart: the lock is released when the short
+     * selection transaction commits, before each saga expires in its own transaction. Multi-pod safety comes
+     * from the {@code @Version} check and the {@code prazo} re-check in {@code OsSaga.prazoExpirado}; the losing
+     * pod rolls back and logs {@code saga_prazo_falhou}.
+     */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "-2"))
     @Query("SELECT s FROM OsSaga s WHERE s.prazo <= :agora ORDER BY s.prazo")

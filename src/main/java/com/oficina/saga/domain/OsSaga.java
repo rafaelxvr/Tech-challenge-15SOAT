@@ -72,6 +72,9 @@ public class OsSaga {
     public void diagnosticoConcluido(MomentoSaga m) {
         exigir(EstadoSaga.AGUARDANDO_DIAGNOSTICO);
         desempilhar(Compensacao.CANCELAR_EXECUCAO);
+        // Pushed with the command, like the execution steps: a late GerarOrcamento after a timeout or failure
+        // may still create an orçamento, so it is always cancelled (billing answers with a null id if none exists).
+        empilhar(Compensacao.CANCELAR_ORCAMENTO);
         mudarPara(EstadoSaga.AGUARDANDO_ORCAMENTO, EtapaSaga.ORCAMENTO, m);
         emitir(Comando.GERAR_ORCAMENTO, m, m.prazos().respostaAutomatica());
     }
@@ -83,7 +86,6 @@ public class OsSaga {
         }
         this.orcamentoId = orcamentoId;
         this.valorOrcado = valor;
-        empilhar(Compensacao.CANCELAR_ORCAMENTO);
         acoes.add(AcaoLocal.ENVIAR_ORCAMENTO_OS);
         mudarPara(EstadoSaga.AGUARDANDO_DECISAO, EtapaSaga.DECISAO, m);
         aguardarSemComando(m.agora().plus(m.prazos().decisao()));

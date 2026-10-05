@@ -128,6 +128,20 @@ class OrdemServicoSagaIntegracaoTest extends PostgresIntegrationSupport {
                 .isInstanceOf(BusinessRuleException.class);
     }
 
+    @Test void decisaoDuranteCompensacaoRetorna422() {
+        var criada = abrir();
+        levarAteAguardandoAprovacao(criada.id());
+        jdbc.update("UPDATE os_saga SET prazo = ?::timestamptz WHERE os_id = ?", "2026-09-14T00:00:00Z", criada.id());
+        assertThat(ciclo.expirarPrazosVencidos(10)).isEqualTo(1);
+        assertThat(ciclo.resumo(criada.id())).get().extracting(r -> r.estado()).isEqualTo("COMPENSANDO");
+        assertThat(ordens.findById(criada.id()).orElseThrow().getStatus()).isEqualTo(StatusOrdemServico.AGUARDANDO_APROVACAO);
+
+        assertThatThrownBy(() -> service.decidirComoCliente(criada.numero(), dono(),
+                new DecisaoClienteRequest(DecisaoOrcamentoRequest.DecisaoOrcamento.APROVADO, null)))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessage("Orçamento não está mais aguardando decisão.");
+    }
+
     @Test void decisaoForaDeAguardandoAprovacaoERecusada() {
         var criada = abrir();
         assertThatThrownBy(() -> service.decidirComoCliente(criada.numero(), dono(),

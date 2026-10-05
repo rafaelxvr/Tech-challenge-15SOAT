@@ -55,7 +55,7 @@ class OsSagaTest {
         assertThat(s.getEstado()).isEqualTo(AGUARDANDO_ORCAMENTO);
         assertThat(tipos(s.retirarComandos())).containsExactly(Comando.GERAR_ORCAMENTO);
         assertThat(s.getPrazo()).isEqualTo(em(65).agora());
-        assertThat(s.compensacoesPendentes()).isEmpty();
+        assertThat(s.compensacoesPendentes()).containsExactly(CANCELAR_ORCAMENTO);
     }
 
     @Test void orcamentoGeradoGuardaValorEAvisaOs() {

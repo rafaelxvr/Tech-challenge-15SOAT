@@ -121,14 +121,28 @@ class OsSagaCompensacaoTest {
         assertThat(tipos(s.retirarComandos())).containsExactly(Comando.CANCELAR_ORCAMENTO);
     }
 
-    @Test void orcamentoSemRespostaFalhaSemCompensacaoRemota() {
+    @Test void orcamentoSemRespostaCancelaOrcamentoAntesDeCancelarAOs() {
         var s = OsSaga.iniciar(osId, em(0));
         s.diagnosticoConcluido(em(1));
         s.retirarComandos(); s.retirarAcoes();
         s.prazoExpirado(em(6));
         assertThat(s.getMotivoFalha()).isEqualTo(MotivoFalha.ORCAMENTO_SEM_RESPOSTA);
+        assertThat(s.getEstado()).isEqualTo(COMPENSANDO);
+        assertThat(tipos(s.retirarComandos())).containsExactly(Comando.CANCELAR_ORCAMENTO);
+        assertThat(s.retirarAcoes()).isEmpty();
+        s.compensacaoConcluida(em(7));
         assertThat(s.getEstado()).isEqualTo(CANCELADA);
         assertThat(s.retirarAcoes()).containsExactly(AcaoLocal.CANCELAR_OS);
+        assertThat(s.compensacoesPendentes()).isEmpty();
+    }
+
+    @Test void orcamentoFalhouTambemCancelaOrcamento() {
+        var s = OsSaga.iniciar(osId, em(0));
+        s.diagnosticoConcluido(em(1));
+        s.retirarComandos(); s.retirarAcoes();
+        s.falhar(MotivoFalha.ORCAMENTO_FALHOU, em(2));
+        assertThat(s.getEstado()).isEqualTo(COMPENSANDO);
+        assertThat(tipos(s.retirarComandos())).containsExactly(Comando.CANCELAR_ORCAMENTO);
     }
 
     @Test void compensacaoSemRespostaReenviaAteLimiteEDepoisFalha() {
