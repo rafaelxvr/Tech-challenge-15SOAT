@@ -6,14 +6,16 @@ import com.oficina.exception.EntityNotFoundException;
 import com.oficina.saga.adapter.out.persistence.OsSagaRepository;
 import com.oficina.saga.application.mensagem.Envelope;
 import com.oficina.saga.domain.*;
-import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Clock;
 import java.util.List;
@@ -21,7 +23,6 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Service
-@RequiredArgsConstructor
 public class CicloOsSagaService implements CicloOsPort {
     private static final Logger LOG = LoggerFactory.getLogger(CicloOsSagaService.class);
     private final OsSagaRepository sagas;
@@ -29,6 +30,20 @@ public class CicloOsSagaService implements CicloOsPort {
     private final RoteadorRespostas roteador;
     private final PrazosSaga prazos;
     private final Clock clock;
+    private final TransactionTemplate transacaoCurta;
+    private final TransactionTemplate transacaoPorSaga;
+
+    public CicloOsSagaService(OsSagaRepository sagas, ExecutorEfeitos efeitos, RoteadorRespostas roteador,
+                              PrazosSaga prazos, Clock clock, PlatformTransactionManager transacoes) {
+        this.sagas = sagas;
+        this.efeitos = efeitos;
+        this.roteador = roteador;
+        this.prazos = prazos;
+        this.clock = clock;
+        this.transacaoCurta = new TransactionTemplate(transacoes);
+        this.transacaoPorSaga = new TransactionTemplate(transacoes);
+        this.transacaoPorSaga.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+    }
 
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
@@ -73,15 +88,29 @@ public class CicloOsSagaService implements CicloOsPort {
         efeitos.executar(saga);
     }
 
-    @Transactional
+    /** Each overdue saga expires in its own transaction, so one failure never blocks the others. */
     public int expirarPrazosVencidos(int limite) {
-        MomentoSaga m = momento();
-        List<OsSaga> vencidas = sagas.findVencidasParaProcessar(m.agora(), PageRequest.of(0, limite));
-        for (OsSaga saga : vencidas) {
-            saga.prazoExpirado(m);
-            efeitos.executar(saga);
+        List<UUID> vencidas = transacaoCurta.execute(st -> sagas
+                .findVencidasParaProcessar(clock.instant(), PageRequest.of(0, limite)).stream()
+                .map(OsSaga::getId).toList());
+        int processadas = 0;
+        for (UUID id : vencidas) {
+            try {
+                if (Boolean.TRUE.equals(transacaoPorSaga.execute(st -> expirar(id)))) processadas++;
+            } catch (RuntimeException e) {
+                registrarFalhaPrazo(e);
+            }
         }
-        return vencidas.size();
+        return processadas;
+    }
+
+    private boolean expirar(UUID id) {
+        Optional<OsSaga> encontrada = sagas.findById(id);
+        if (encontrada.isEmpty()) return false;
+        OsSaga saga = encontrada.get();
+        saga.prazoExpirado(momento());
+        efeitos.executar(saga);
+        return true;
     }
 
     @Transactional(readOnly = true)
@@ -99,5 +128,11 @@ public class CicloOsSagaService implements CicloOsPort {
     private static void registrarDescarte(String evento) {
         MDC.put("event_name", evento);
         try { LOG.info(""); } finally { MDC.remove("event_name"); }
+    }
+
+    private static void registrarFalhaPrazo(RuntimeException e) {
+        MDC.put("event_name", "saga_prazo_falhou");
+        MDC.put("error_code", e.getClass().getSimpleName());
+        try { LOG.warn(""); } finally { MDC.remove("event_name"); MDC.remove("error_code"); }
     }
 }

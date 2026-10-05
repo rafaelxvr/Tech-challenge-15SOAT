@@ -42,6 +42,7 @@ public class ExecutorEfeitos {
             case FINALIZAR_OS -> os.finalizar(id);
             case REPOR_ESTOQUE -> os.reporPecas(id);
             case CANCELAR_OS -> os.cancelar(id, saga.getMotivoFalha());
+            default -> throw new IllegalStateException("Ação local não suportada: " + acao);
         }
     }
 }

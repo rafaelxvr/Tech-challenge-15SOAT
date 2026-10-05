@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
@@ -46,6 +47,7 @@ class CicloOsSagaServiceTest extends PostgresIntegrationSupport {
     @Autowired PecaRepository pecas;
     @Autowired ServicoRepository servicos;
     @MockBean NotificacaoPort notificacoes;
+    @SpyBean OsDaSagaAdapter osDaSaga;
 
     @BeforeEach void limpar() {
         jdbc.update("DELETE FROM saga_outbox");
@@ -93,5 +95,23 @@ class CicloOsSagaServiceTest extends PostgresIntegrationSupport {
         assertThat(detalhe.passos()).extracting(SagaDetalhe.Passo::evento)
                 .containsExactly("ESTADO:AGUARDANDO_DIAGNOSTICO", "COMANDO:IniciarDiagnostico");
         assertThat(detalhe.compensacoesPendentes()).containsExactly("CANCELAR_EXECUCAO");
+    }
+
+    @Test void sagaComFalhaNaoImpedeAsDemaisDeExpirar() {
+        UUID falha = ordemRecebida();
+        UUID saudavel = ordemRecebida();
+        transaction.executeWithoutResult(st -> { ciclo.iniciar(falha); ciclo.iniciar(saudavel); });
+        jdbc.update("DELETE FROM saga_outbox");
+        jdbc.update("UPDATE os_saga SET prazo = ?::timestamptz WHERE os_id = ?", "2026-09-14T00:00:00Z", falha);
+        jdbc.update("UPDATE os_saga SET prazo = ?::timestamptz WHERE os_id = ?", "2026-09-14T01:00:00Z", saudavel);
+        transaction.executeWithoutResult(st -> org.mockito.Mockito.doThrow(new IllegalStateException("boom"))
+                .when(osDaSaga).snapshot(falha));
+
+        assertThat(ciclo.expirarPrazosVencidos(10)).isEqualTo(1);
+
+        assertThat(ciclo.resumo(saudavel)).get().extracting(r -> r.estado()).isEqualTo("COMPENSANDO");
+        assertThat(ciclo.resumo(falha)).get().extracting(r -> r.estado()).isEqualTo("AGUARDANDO_DIAGNOSTICO");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM saga_outbox WHERE os_id=?", Integer.class, saudavel))
+                .isEqualTo(1);
     }
 }
