@@ -9,6 +9,7 @@ import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.*;
 
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -35,14 +36,14 @@ public class SqsRespostasListener implements SmartLifecycle {
         Set<String> gruposComFalha = new HashSet<>();
         int processadas = 0;
         for (Message mensagem : mensagens) {
-            String grupo = mensagem.attributes().get(MessageSystemAttributeName.MESSAGE_GROUP_ID);
-            if (grupo != null && gruposComFalha.contains(grupo)) continue;
+            String grupo = Objects.requireNonNullElse(mensagem.attributes().get(MessageSystemAttributeName.MESSAGE_GROUP_ID), "");
+            if (gruposComFalha.contains(grupo)) continue;
             try {
                 processador.processar(mensagem.body());
                 sqs.deleteMessage(DeleteMessageRequest.builder().queueUrl(fila).receiptHandle(mensagem.receiptHandle()).build());
                 processadas++;
             } catch (RuntimeException e) {
-                if (grupo != null) gruposComFalha.add(grupo);
+                gruposComFalha.add(grupo);
                 MDC.put("event_name", "saga_resposta_falhou");
                 MDC.put("error_code", e.getClass().getSimpleName());
                 try { LOG.warn(""); } finally { MDC.remove("event_name"); MDC.remove("error_code"); }
@@ -65,7 +66,8 @@ public class SqsRespostasListener implements SmartLifecycle {
                     receberUmLote();
                 } catch (RuntimeException e) {
                     MDC.put("event_name", "saga_recepcao_falhou");
-                    try { LOG.warn(""); } finally { MDC.remove("event_name"); }
+                    MDC.put("error_code", e.getClass().getSimpleName());
+                    try { LOG.warn(""); } finally { MDC.remove("event_name"); MDC.remove("error_code"); }
                     dormir();
                 }
             }

@@ -5,9 +5,7 @@ import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.*;
 
-import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -41,6 +39,16 @@ class SqsRespostasListenerTest {
         verify(processador, never()).processar("depois");
         verify(processador).processar("outra");
         verify(sqs, times(1)).deleteMessage(any(DeleteMessageRequest.class));
+    }
+
+    @Test void mensagensSemGrupoCompartilhamUmaChaveDeRetencao() {
+        Message semGrupo1 = Message.builder().body("falha").receiptHandle("r1").build();
+        Message semGrupo2 = Message.builder().body("depois").receiptHandle("r2").build();
+        when(sqs.receiveMessage(any(ReceiveMessageRequest.class))).thenReturn(ReceiveMessageResponse.builder()
+                .messages(semGrupo1, semGrupo2).build());
+        doThrow(new IllegalStateException("x")).when(processador).processar("falha");
+        assertThat(listener.receberUmLote()).isZero();
+        verify(processador, never()).processar("depois");
     }
 
     @Test void pedeAtributoDeGrupoELongPolling() {
