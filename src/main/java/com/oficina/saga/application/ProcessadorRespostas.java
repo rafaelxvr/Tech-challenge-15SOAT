@@ -28,8 +28,9 @@ public class ProcessadorRespostas {
         String priorCorrelation = MDC.get(CorrelationFilter.CORRELATION_ID);
         String priorTrace = MDC.get("traceparent");
         try {
-            MDC.put(CorrelationFilter.CORRELATION_ID, envelope.correlationId());
-            if (envelope.traceparent() != null) MDC.put("traceparent", envelope.traceparent());
+            // Reply fields are untrusted: only a UUID correlation id and a W3C traceparent reach MDC and commands.
+            MDC.put(CorrelationFilter.CORRELATION_ID, CorrelationFilter.correlationIdOrNew(envelope.correlationId()));
+            restaurar("traceparent", CorrelationFilter.validTraceparent(envelope.traceparent()));
             MDC.put("saga_id", envelope.sagaId().toString());
             MDC.put("os_id", envelope.osId().toString());
             if (!inbox.registrar(envelope.messageId(), envelope.type())) {

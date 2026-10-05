@@ -106,6 +106,30 @@ class CicloOsSagaServiceTest extends PostgresIntegrationSupport {
         assertThat(detalhe.compensacoesPendentes()).containsExactly("CANCELAR_EXECUCAO");
     }
 
+    @Test void cadaSagaExpiradaTemUmaUnicaCorrelacaoNoMdc() {
+        UUID primeira = ordemRecebida();
+        UUID segunda = ordemRecebida();
+        transaction.executeWithoutResult(st -> { ciclo.iniciar(primeira); ciclo.iniciar(segunda); });
+        jdbc.update("DELETE FROM saga_outbox");
+        jdbc.update("UPDATE os_saga SET prazo = ?::timestamptz", "2026-09-14T00:00:00Z");
+        Map<UUID, String> correlacoes = new java.util.concurrent.ConcurrentHashMap<>();
+        transaction.executeWithoutResult(st -> org.mockito.Mockito.doAnswer(chamada -> {
+            correlacoes.put(chamada.getArgument(0), org.slf4j.MDC.get(com.oficina.config.CorrelationFilter.CORRELATION_ID));
+            return chamada.callRealMethod();
+        }).when(osDaSaga).snapshot(org.mockito.ArgumentMatchers.any()));
+
+        assertThat(ciclo.expirarPrazosVencidos(10)).isEqualTo(2);
+
+        for (UUID os : java.util.List.of(primeira, segunda)) {
+            assertThat(correlacoes.get(os)).as("MDC correlation while %s expires", os)
+                    .matches("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
+            assertThat(jdbc.queryForObject("SELECT envelope->>'correlationId' FROM saga_outbox WHERE os_id=?",
+                    String.class, os)).isEqualTo(correlacoes.get(os));
+        }
+        assertThat(correlacoes.get(primeira)).isNotEqualTo(correlacoes.get(segunda));
+        assertThat(org.slf4j.MDC.get(com.oficina.config.CorrelationFilter.CORRELATION_ID)).isNull();
+    }
+
     @Test void sagaComFalhaNaoImpedeAsDemaisDeExpirar() {
         UUID falha = ordemRecebida();
         UUID saudavel = ordemRecebida();

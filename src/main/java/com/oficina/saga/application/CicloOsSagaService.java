@@ -1,6 +1,7 @@
 package com.oficina.saga.application;
 
 import com.oficina.application.port.out.CicloOsPort;
+import com.oficina.config.CorrelationFilter;
 import com.oficina.exception.BusinessRuleException;
 import com.oficina.exception.EntityNotFoundException;
 import com.oficina.saga.adapter.out.persistence.OsSagaRepository;
@@ -99,10 +100,14 @@ public class CicloOsSagaService implements CicloOsPort {
                 .map(OsSaga::getId).toList());
         int processadas = 0;
         for (UUID id : vencidas) {
+            // One correlation id per expired saga, shared by its command envelope and its status notification.
+            MDC.put(CorrelationFilter.CORRELATION_ID, UUID.randomUUID().toString());
             try {
                 if (Boolean.TRUE.equals(transacaoPorSaga.execute(st -> expirar(id)))) processadas++;
             } catch (RuntimeException e) {
                 registrarFalhaPrazo(e);
+            } finally {
+                MDC.remove(CorrelationFilter.CORRELATION_ID);
             }
         }
         return processadas;

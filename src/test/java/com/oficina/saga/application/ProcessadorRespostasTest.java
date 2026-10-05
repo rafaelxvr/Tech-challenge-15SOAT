@@ -81,6 +81,17 @@ class ProcessadorRespostasTest extends PostgresIntegrationSupport {
                 Instant.parse("2026-09-15T12:01:00Z"), UUID.randomUUID().toString(), null, payload));
     }
 
+    String respostaComRastreio(String tipo, UUID causa, String correlationId, String traceparent) {
+        var saga = sagas.findByOsId(os).orElseThrow();
+        return mapeador.escrever(new Envelope(UUID.randomUUID(), Envelope.Kind.REPLY, tipo, 1, saga.getId(), os, 1, causa,
+                Instant.parse("2026-09-15T12:01:00Z"), correlationId, traceparent, JsonNodeFactory.instance.objectNode()));
+    }
+
+    Map<String, Object> rastreioDoUltimoComando() {
+        return jdbc.queryForMap("SELECT envelope->>'correlationId' AS correlation, envelope->>'traceparent' AS trace "
+                + "FROM saga_outbox WHERE os_id=? ORDER BY sequencia DESC LIMIT 1", os);
+    }
+
     EstadoSaga estado() { return sagas.findByOsId(os).orElseThrow().getEstado(); }
 
     @Test void respostaValidaAvancaSagaEEmiteProximoComando() {
@@ -132,6 +143,24 @@ class ProcessadorRespostasTest extends PostgresIntegrationSupport {
                 JsonNodeFactory.instance.objectNode()));
         assertThatThrownBy(() -> processador.processar(comando)).isInstanceOf(MensagemInvalidaException.class);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM saga_inbox", Integer.class)).isZero();
+    }
+
+    @Test void rastreioValidoDaRespostaSegueNoProximoComando() {
+        String correlation = UUID.randomUUID().toString();
+        String trace = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
+        processador.processar(respostaComRastreio("DiagnosticoConcluido", ultimoComando(), correlation, trace));
+        assertThat(rastreioDoUltimoComando()).containsEntry("correlation", correlation).containsEntry("trace", trace);
+    }
+
+    @Test void rastreioInvalidoDaRespostaNaoChegaAoProximoComando() {
+        processador.processar(respostaComRastreio("DiagnosticoConcluido", ultimoComando(),
+                "nao-e-uuid\"}", "01-invalido"));
+        var rastreio = rastreioDoUltimoComando();
+        assertThat((String) rastreio.get("correlation"))
+                .matches("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
+        assertThat(rastreio.get("trace")).isNull();
+        assertThat(org.slf4j.MDC.get("correlation_id")).isNull();
+        assertThat(org.slf4j.MDC.get("traceparent")).isNull();
     }
 
     @Test void tipoDesconhecidoEConsumidoSemEfeito() {
