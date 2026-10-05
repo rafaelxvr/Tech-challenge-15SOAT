@@ -355,6 +355,9 @@
                                 <include>com/oficina/entity/*</include>
                                 <include>com/oficina/validation/*</include>
                                 <include>com/oficina/service/*</include>
+                                <include>com/oficina/saga/domain/*</include>
+                                <include>com/oficina/saga/application/*</include>
+                                <include>com/oficina/saga/application/mensagem/*</include>
                             </includes>
                             <rules>
                                 <rule>
