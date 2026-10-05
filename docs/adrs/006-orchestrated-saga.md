@@ -27,7 +27,8 @@ Use an **orchestrated** saga owned by os-service (`OsSaga`, table `os_saga`), no
   refund payment, cancel orçamento, then cancel the order. Starting the repair is the pivot: nothing after
   it is compensated.
 - Every wait has a deadline (`prazo`); a poller turns expired waits into failures and re-sends unconfirmed
-  compensations up to 5 times before `FALHA_COMPENSACAO` (alerted, resolved by runbook). Each due saga is
+  compensations, up to 5 sends in total (1 + 4 re-sends), before `FALHA_COMPENSACAO` (alerted, resolved by
+  runbook). Each due saga is
   processed in its own transaction: a failing saga is logged and skipped, it does not block the others.
 - Pollers contain and log every tick failure (`event_name=poller_falhou`) and keep running.
 
@@ -46,5 +47,5 @@ Use an **orchestrated** saga owned by os-service (`OsSaga`, table `os_saga`), no
 - Contracts are versioned JSON Schemas (`contracts/<type>/v<N>.json`) owned by the consuming service.
 - Orders created before this change (no saga row) keep the manual Phase 3 flow.
 - Database grants: the release bootstrap (pinned to Flyway V8) skips only the four post-V8 saga tables
-  when absent; runtime grants for those tables are delivered by the platform rollout (Phase 4 Plan 4)
-  before messaging is enabled.
+  (`os_saga`, `os_saga_passo`, `saga_outbox`, `saga_inbox`) when absent; runtime grants for those tables
+  are delivered by the platform rollout (Phase 4 Plan 4) before messaging is enabled.
