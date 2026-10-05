@@ -16,15 +16,20 @@ public final class SagaFixtures {
         return clientes.findByDocumento("39053344705").orElseGet(() -> clientes.save(Fixtures.cliente(null)));
     }
 
-    /** Valid Mercosul plate (ValidadorPlaca: ^[A-Z]{3}\d[A-Z\d]\d{2}$), random enough for the unique index. */
+    /**
+     * Valid Mercosul plate (ValidadorPlaca: ^[A-Z]{3}\d[A-Z\d]\d{2}$). "T" + 2 letters + digit + letter + 2 digits
+     * gives ~17.6M plates, so unique-index collisions in the shared Postgres container are negligible.
+     */
     public static UUID veiculo(JdbcTemplate jdbc, UUID clienteId) {
         UUID id = UUID.randomUUID();
         var r = java.util.concurrent.ThreadLocalRandom.current();
-        String placa = "TST" + r.nextInt(10) + (char) ('A' + r.nextInt(26)) + String.format("%02d", r.nextInt(100));
+        String placa = "T" + letra(r) + letra(r) + r.nextInt(10) + letra(r) + String.format("%02d", r.nextInt(100));
         jdbc.update("INSERT INTO veiculos(id,placa,marca,modelo,ano,cliente_id) VALUES (?,?,'Teste','Teste',2025,?)",
                 id, placa, clienteId);
         return id;
     }
+
+    private static char letra(java.util.Random r) { return (char) ('A' + r.nextInt(26)); }
 
     public static UUID peca(JdbcTemplate jdbc, int estoque, String valor) {
         UUID id = UUID.randomUUID();
