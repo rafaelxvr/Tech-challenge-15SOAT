@@ -13,20 +13,22 @@ import com.oficina.support.TokenFixtures;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.access.AccessDeniedException;
-import org.springframework.test.util.ReflectionTestUtils;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import static com.oficina.dto.DecisaoOrcamentoRequest.DecisaoOrcamento.*;
 import static org.assertj.core.api.Assertions.*;
+import com.oficina.application.port.out.CicloOsPort;
+
 import static org.mockito.Mockito.*;
 
 class CustomerOrderDecisionTest {
     final OrdemServicoRepository orders = mock(OrdemServicoRepository.class);
     final NotificacaoPort notifications = mock(NotificacaoPort.class);
+    final CicloOsPort cicloOs = mock(CicloOsPort.class);
     final OrdemServicoService service = new OrdemServicoService(orders, mock(ClienteService.class),
             mock(VeiculoService.class), mock(ServicoService.class), mock(PecaService.class),
-            new RegistroTransicaoOs(orders, notifications, TokenFixtures.CLOCK, "UTC"));
+            new RegistroTransicaoOs(orders, notifications, TokenFixtures.CLOCK, "UTC"), cicloOs);
     final UUID ownerId = UUID.randomUUID();
     final IdentidadeAutenticada owner = identity(TipoPrincipal.CUSTOMER, ownerId,
             "SCOPE_orders:read:self", "SCOPE_orders:decide:self");

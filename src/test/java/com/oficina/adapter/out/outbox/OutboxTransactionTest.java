@@ -59,6 +59,7 @@ class OutboxTransactionTest extends PostgresIntegrationSupport {
     @MockBean VeiculoService veiculoService;
     @MockBean ServicoService servicoService;
     @MockBean PecaService pecaService;
+    @MockBean com.oficina.application.port.out.CicloOsPort cicloOs;
     @Autowired NotificacaoPort notifications;
     @Autowired ObjectMapper mapper;
     @Autowired com.oficina.adapter.out.mail.EmailNotificacaoAdapter localMail;
