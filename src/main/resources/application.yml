@@ -101,6 +101,8 @@ oficina:
     region: ${AWS_REGION:us-east-1}
     queue-url: ${OUTBOX_QUEUE_URL:}
   saga:
+    # Saga switch: off keeps the Phase 3 manual flow for new orders; Phase 4 Plan 4 turns it on.
+    enabled: ${SAGA_ENABLED:false}
     filial-padrao: ${SAGA_FILIAL_PADRAO:MATRIZ}
     prazos:
       diagnostico: ${SAGA_PRAZO_DIAGNOSTICO:3d}

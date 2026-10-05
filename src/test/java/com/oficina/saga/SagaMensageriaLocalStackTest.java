@@ -41,7 +41,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
 @SpringBootTest(properties = {"oficina.mail.enabled=false", "management.health.mail.enabled=false",
-        "oficina.historico.zona-compatibilidade=UTC", "oficina.saga.mensageria.enabled=true"})
+        "oficina.historico.zona-compatibilidade=UTC", "oficina.saga.enabled=true",
+        "oficina.saga.mensageria.enabled=true"})
 class SagaMensageriaLocalStackTest {
     static final TokenFixtures TOKENS = new TokenFixtures();
     static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");

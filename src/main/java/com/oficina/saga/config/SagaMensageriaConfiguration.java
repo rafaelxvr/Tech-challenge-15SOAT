@@ -21,7 +21,8 @@ import java.time.Duration;
 import java.util.Map;
 
 @Configuration(proxyBeanMethods = false)
-@ConditionalOnProperty(name = "oficina.saga.mensageria.enabled", havingValue = "true")
+/** Transport and deadlines run only with the saga switch AND the messaging switch on. */
+@ConditionalOnProperty(prefix = "oficina.saga", name = {"enabled", "mensageria.enabled"}, havingValue = "true")
 public class SagaMensageriaConfiguration {
     @Bean(destroyMethod = "close") ClientesSqsSaga clientesSqsSaga(SagaProperties propriedades,
             @Value("${AWS_ROLE_ARN:}") String roleArn, @Value("${AWS_WEB_IDENTITY_TOKEN_FILE:}") String tokenFile) {

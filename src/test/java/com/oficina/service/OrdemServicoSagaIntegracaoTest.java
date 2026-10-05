@@ -36,7 +36,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
         RegistroTransicaoOs.class, CicloOsSagaService.class, ExecutorEfeitos.class, RoteadorRespostas.class,
         OsDaSagaAdapter.class, JdbcSagaOutbox.class, MapeadorMensagens.class, SagaConfiguration.class,
         OrdemServicoSagaIntegracaoTest.Relogio.class})
-@TestPropertySource(properties = {"oficina.historico.zona-compatibilidade=UTC",
+@TestPropertySource(properties = {"oficina.historico.zona-compatibilidade=UTC", "oficina.saga.enabled=true",
         "oficina.saga.filial-padrao=MATRIZ", "oficina.saga.prazos.diagnostico=3d",
         "oficina.saga.prazos.resposta-automatica=5m", "oficina.saga.prazos.decisao=7d",
         "oficina.saga.prazos.pagamento=30m", "oficina.saga.prazos.compensacao=5m",
