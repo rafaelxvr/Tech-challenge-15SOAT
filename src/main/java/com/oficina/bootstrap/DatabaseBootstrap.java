@@ -10,6 +10,8 @@ public final class DatabaseBootstrap {
     static final List<String> TABLES = List.of("usuarios", "clientes", "veiculos", "servicos", "pecas",
             "ordens_servico", "os_servicos", "os_pecas", "os_historico", "cliente_identidade_auditoria",
             "outbox_eventos", "outbox_recuperacoes", "os_saga", "os_saga_passo", "saga_outbox", "saga_inbox");
+    /** Saga tables never delete rows at runtime (D15-R, least privilege): the app role gets no DELETE on them. */
+    static final List<String> SAGA_TABLES = List.of("os_saga", "os_saga_passo", "saga_outbox", "saga_inbox");
     static final List<String> VIEWS = List.of("auth_cliente_snapshot", "notificacao_destinatario_snapshot");
     static final List<String> TYPES = List.of("tipo_documento", "status_os", "role_usuario");
 
@@ -92,7 +94,8 @@ public final class DatabaseBootstrap {
             }
             for (String table : tables) {
                 execute(migration, "REVOKE ALL ON TABLE public." + quote(table) + " FROM PUBLIC");
-                execute(migration, "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public." + quote(table) + " TO " + quote(review.username("app")));
+                String privileges = SAGA_TABLES.contains(table) ? "SELECT, INSERT, UPDATE" : "SELECT, INSERT, UPDATE, DELETE";
+                execute(migration, "GRANT " + privileges + " ON TABLE public." + quote(table) + " TO " + quote(review.username("app")));
             }
             execute(migration, "REVOKE ALL ON TABLE public.flyway_schema_history FROM PUBLIC");
             for (String view : VIEWS) execute(migration, "REVOKE ALL ON TABLE public." + quote(view) + " FROM PUBLIC");

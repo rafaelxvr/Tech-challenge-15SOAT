@@ -113,10 +113,25 @@ class DatabaseRolesTest {
             }
             try(var connection=connect(postgres,migration)) {
                 bootstrap.grantRuntime(connection,review);
-                for(String table:java.util.List.of("os_saga","os_saga_passo","saga_outbox","saga_inbox")) {
+                for(String table:DatabaseBootstrap.SAGA_TABLES) {
+                    for(String privilege:java.util.List.of("SELECT","INSERT","UPDATE")) {
+                        try(var sql=connection.createStatement();var rows=sql.executeQuery(
+                                "SELECT has_table_privilege('"+review.username("app")+"','public."+table+"','"+privilege+"')")) {
+                            rows.next(); assertThat(rows.getBoolean(1)).as(table+" "+privilege).isTrue();
+                        }
+                    }
                     try(var sql=connection.createStatement();var rows=sql.executeQuery(
-                            "SELECT has_table_privilege('"+review.username("app")+"','public."+table+"','SELECT,INSERT,UPDATE,DELETE')")) {
-                        rows.next(); assertThat(rows.getBoolean(1)).as(table).isTrue();
+                            "SELECT has_table_privilege('"+review.username("app")+"','public."+table+"','DELETE')")) {
+                        rows.next(); assertThat(rows.getBoolean(1)).as(table+" DELETE").isFalse();
+                    }
+                }
+            }
+            var app=credentials.get("app");
+            try(var connection=connect(postgres,app)) {
+                for(String table:DatabaseBootstrap.SAGA_TABLES) {
+                    denied(connection,"DELETE FROM public."+table+" WHERE false");
+                    try(var sql=connection.createStatement()) {
+                        sql.executeQuery("SELECT * FROM public."+table+" LIMIT 0").close();
                     }
                 }
             }
