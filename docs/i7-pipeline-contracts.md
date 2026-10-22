@@ -24,7 +24,7 @@ For a deterministic local APP handoff, run `pwsh -File scripts/offline-release-h
 
 The vendored cloud-window and lock scripts preserve the platform protocol: numeric allowance evidence or explicitly approved study-staging billing acknowledgment; fresh timestamps and closed-window rejection; conditional creation of `deployment-locks/shared-foundation.json` in the existing state bucket; ownership-only release and no stealing. Tests use the offline lock implementation and never acquire a real lock. Production can never use the study-staging billing acknowledgment.
 
-`export-outputs.ps1` exports only the committed output allowlist and refuses sensitive allowlisted fields. APP's schema/bootstrap references are distinct environment/account Secrets Manager ARNs (no values); schema/view versions remain V8/V5/V7. FUN public JWK output rejects private parameters. Unknown password/state fields are dropped. Exported documents do not prove SQL privileges, key initialization or deployment success.
+`export-outputs.ps1` exports only the committed output allowlist and refuses sensitive allowlisted fields. APP's schema/bootstrap references are distinct environment/account Secrets Manager ARNs (no values); schema/view versions remain V10/V5/V7. FUN public JWK output rejects private parameters. Unknown password/state fields are dropped. Exported documents do not prove SQL privileges, key initialization or deployment success.
 
 ## External protections and activation prerequisites
 

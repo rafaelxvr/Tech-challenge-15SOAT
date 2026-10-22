@@ -47,7 +47,7 @@ public final class BootstrapMain {
                 var migration=roles.get("migration");
                 String url=jdbcUrl(review, ca);
                 Flyway.configure().dataSource(url, migration.username(), migration.password())
-                        .locations("classpath:db/migration").target("8").cleanDisabled(true)
+                        .locations("classpath:db/migration").target("10").cleanDisabled(true)
                         .baselineOnMigrate(false).outOfOrder(false).validateOnMigrate(true).load().migrate();
                 try (var connection=connect(review, ca, migration)) { bootstrap.grantRuntime(connection, review); }
                 for (String key : java.util.List.of("app", "auth", "notification")) {
@@ -80,7 +80,7 @@ public final class BootstrapMain {
     }
     static Map<String, Object> receipt(BootstrapReview review) {
         var outputs=new LinkedHashMap<String,Object>();
-        outputs.put("schemaVersion", "V8"); outputs.put("authViewVersion", "V5"); outputs.put("recipientViewVersion", "V7");
+        outputs.put("schemaVersion", "V10"); outputs.put("authViewVersion", "V5"); outputs.put("recipientViewVersion", "V7");
         for (var entry : Map.of("migration", "migrationSecret", "app", "appSecret", "auth", "authLookupSecret", "notification", "notificationLookupSecret").entrySet()) {
             var reference=review.roles().get(entry.getKey());
             outputs.put(entry.getValue()+"Arn", reference.arn());
@@ -103,7 +103,6 @@ public final class BootstrapMain {
         denied(connection, "SELECT * FROM public.flyway_schema_history LIMIT 0");
         if (!key.equals("app")) {
             for (String table : DatabaseBootstrap.TABLES) {
-                if (DatabaseBootstrap.isAbsentPostV8Table(connection, table)) continue;
                 denied(connection, "SELECT * FROM public." + table + " LIMIT 0");
                 denied(connection, "DELETE FROM public." + table + " WHERE false");
             }
