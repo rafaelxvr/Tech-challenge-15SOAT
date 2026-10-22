@@ -13,6 +13,14 @@ foreach ($name in 'AWS_PROFILE', 'AWS_DEFAULT_PROFILE', 'AWS_SESSION_TOKEN', 'AW
 }
 $env:AWS_EC2_METADATA_DISABLED = 'true'
 
+function Hide-Secret {
+    param([string]$Text)
+    $Text = $Text -replace "(?i)(PGPASSWORD|password|_pw|secret)\s*=\s*\S+", '$1=***'
+    # SQL forms such as: ALTER ROLE x PASSWORD 'literal' / PASSWORD $$literal$$ / PASSWORD E'literal'
+    $Text = $Text -replace "(?i)(password\s+)(E?'(?:[^']|'')*'|\$\$.*?\$\$)", '$1''***'''
+    $Text
+}
+
 function Invoke-Native {
     param([Parameter(Mandatory)][string]$File, [string[]]$Arguments = @(), [string]$StdIn, [switch]$AllowFailure)
     $out = if ($PSBoundParameters.ContainsKey('StdIn')) { $StdIn | & $File @Arguments 2>&1 } else { & $File @Arguments 2>&1 }
@@ -20,7 +28,9 @@ function Invoke-Native {
     $text = ($out | ForEach-Object { "$_" }) -join "`n"
     if ($code -ne 0 -and -not $AllowFailure) {
         # Defence in depth: secrets travel over stdin, but never echo a credential-looking argument or output.
-        $shown = ("$File $($Arguments -join ' ') failed ($code): $text") -replace '(?i)(PGPASSWORD|password|_pw|secret)=\S+', '$1=***'
+        $shown = Hide-Secret "$File $($Arguments -join ' ') failed ($code): $text"
+        # Input sent over stdin carries credentials (ALTER ROLE ... PASSWORD): drop every quoted literal an error may echo back.
+        if ($PSBoundParameters.ContainsKey('StdIn')) { $shown = $shown -replace "'[^']*'", "'***'" }
         throw $shown
     }
     [pscustomobject]@{ ExitCode = $code; Output = $text }
