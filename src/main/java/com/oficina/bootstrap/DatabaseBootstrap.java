@@ -10,8 +10,6 @@ public final class DatabaseBootstrap {
     static final List<String> TABLES = List.of("usuarios", "clientes", "veiculos", "servicos", "pecas",
             "ordens_servico", "os_servicos", "os_pecas", "os_historico", "cliente_identidade_auditoria",
             "outbox_eventos", "outbox_recuperacoes", "os_saga", "os_saga_passo", "saga_outbox", "saga_inbox");
-    /** Tables created by migrations after the V8 bootstrap target: the only ones allowed to be absent. */
-    static final List<String> POST_V8_TABLES = List.of("os_saga", "os_saga_passo", "saga_outbox", "saga_inbox");
     static final List<String> VIEWS = List.of("auth_cliente_snapshot", "notificacao_destinatario_snapshot");
     static final List<String> TYPES = List.of("tipo_documento", "status_os", "role_usuario");
 
@@ -69,7 +67,7 @@ public final class DatabaseBootstrap {
         });
     }
 
-    /** Invoke after V8 migration, as the migration role. Does not expose the master to runtime. */
+    /** Invoke after V10 migration, as the migration role. Does not expose the master to runtime. */
     public void grantRuntime(Connection migration, BootstrapReview review) throws SQLException {
         grantRuntime(migration, review, TABLES);
     }
@@ -81,8 +79,8 @@ public final class DatabaseBootstrap {
                 rows.next(); if (!review.username("migration").equals(rows.getString(1))) throw new SQLException("Wrong grant identity");
             }
             if (!exists(migration, "SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relname=?", "flyway_schema_history")
-                    || !exists(migration, "SELECT 1 FROM public.flyway_schema_history WHERE version=? AND success", "8")) {
-                throw new SQLException("V8 migration has not completed");
+                    || !exists(migration, "SELECT 1 FROM public.flyway_schema_history WHERE version=? AND success", "10")) {
+                throw new SQLException("V10 migration has not completed");
             }
             revokeDefaults(migration, review);
             for (String role : List.of("app", "auth", "notification")) {
@@ -93,7 +91,6 @@ public final class DatabaseBootstrap {
                 execute(migration, "REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM " + name);
             }
             for (String table : tables) {
-                if (isAbsentPostV8Table(migration, table)) continue;
                 execute(migration, "REVOKE ALL ON TABLE public." + quote(table) + " FROM PUBLIC");
                 execute(migration, "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public." + quote(table) + " TO " + quote(review.username("app")));
             }
@@ -128,7 +125,7 @@ public final class DatabaseBootstrap {
     }
     private void assertReviewedSchema(Connection connection) throws SQLException {
         var names=new java.util.ArrayList<>(TABLES);
-        names.addAll(VIEWS); names.add("flyway_schema_history"); names.add("ordens_servico_numero_seq");
+        names.addAll(VIEWS); names.add("flyway_schema_history"); names.add("ordens_servico_numero_seq"); names.add("saga_outbox_sequencia_seq");
         String allowed=names.stream().map(name -> "'"+name+"'").collect(java.util.stream.Collectors.joining(","));
         try(var statement=connection.createStatement();var rows=statement.executeQuery(
                 "SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' "
@@ -166,12 +163,6 @@ public final class DatabaseBootstrap {
         }
     }
     private static String quote(String name) { return '"' + name.replace("\"", "\"\"") + '"'; }
-    /** True only for a post-V8 table not created yet; any other missing table must keep failing loudly. */
-    static boolean isAbsentPostV8Table(Connection connection, String table) throws SQLException {
-        return POST_V8_TABLES.contains(table) && !exists(connection,
-                "SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace "
-                + "WHERE n.nspname='public' AND c.relkind IN ('r','p') AND c.relname=?", table);
-    }
     private static boolean exists(Connection connection, String sql, String argument) throws SQLException {
         try (var statement = connection.prepareStatement(sql)) {
             statement.setString(1, argument); try (var result=statement.executeQuery()) { return result.next(); }

@@ -41,7 +41,7 @@ function Reset-Fixture {
     Save @{Environment='production';Image=$image} 'platform.json'
     Save @{environment='production'} 'tfvars.json'
     Save @{windowStartUtc=[datetimeoffset]::UtcNow.AddMinutes(-5).ToString('o');windowEndUtc=[datetimeoffset]::UtcNow.AddMinutes(30).ToString('o');recordedAtUtc=[datetimeoffset]::UtcNow.ToString('o');accountEvidenceReference='synthetic-offline-fixture';projectAllowanceUsd=10;reserveUsd=1;currentEstimatedSpendUsd=0} 'window.json'
-    $script:stagingRelease=@{schemaVersion=1;environment='staging';sourceCommit=$commit;artifactSha256=(Hash 'source.zip');image=$image;runtimeArtifactDigest=('sha256:'+('b'*64));contractVersion='phase3-v2';migrationVersion='V8';databaseSchemaVersion='V8'}
+    $script:stagingRelease=@{schemaVersion=1;environment='staging';sourceCommit=$commit;artifactSha256=(Hash 'source.zip');image=$image;runtimeArtifactDigest=('sha256:'+('b'*64));contractVersion='phase3-v2';migrationVersion='V10';databaseSchemaVersion='V10'}
     $script:release=$stagingRelease.Clone()
     $release.environment='production';$release.promotedFromStaging=$true;$release.stagingArtifactSha256=Hash 'source.zip'
     $release.deployerImageDigest='sha256:'+('c'*64)

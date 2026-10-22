@@ -41,9 +41,9 @@ class DatabaseRolesTest {
             }
             var migration=credentials.get("migration");
             try(var connection=connect(postgres,migration)) {
-                assertThatThrownBy(()->bootstrap.grantRuntime(connection,review)).hasMessageContaining("V8");
+                assertThatThrownBy(()->bootstrap.grantRuntime(connection,review)).hasMessageContaining("V10");
             }
-            Flyway.configure().dataSource(postgres.getJdbcUrl(),migration.username(),migration.password()).target("8").load().migrate();
+            Flyway.configure().dataSource(postgres.getJdbcUrl(),migration.username(),migration.password()).target("10").load().migrate();
             try(var connection=connect(postgres,migration)) {
                 bootstrap.grantRuntime(connection,review);
                 bootstrap.grantRuntime(connection,review);
@@ -89,7 +89,7 @@ class DatabaseRolesTest {
             }
         }
     }
-    @Test void grantsSkipOnlyPostV8TablesAndStillFailOnAnyOtherMissingTable() throws Exception {
+    @Test void grantsSagaTablesAndFailOnAnyMissingTable() throws Exception {
         try (var postgres=new PostgreSQLContainer<>("postgres:16-alpine").withDatabaseName("oficina")) {
             postgres.start();
             var review=review();
@@ -106,20 +106,18 @@ class DatabaseRolesTest {
                 bootstrap.prepare(master,review,credentials);
             }
             var migration=credentials.get("migration");
-            Flyway.configure().dataSource(postgres.getJdbcUrl(),migration.username(),migration.password()).target("8").load().migrate();
+            Flyway.configure().dataSource(postgres.getJdbcUrl(),migration.username(),migration.password()).target("10").load().migrate();
             try(var connection=connect(postgres,migration)) {
-                for(String table:DatabaseBootstrap.POST_V8_TABLES) {
-                    assertThat(DatabaseBootstrap.isAbsentPostV8Table(connection,table)).isTrue();
-                }
-                assertThat(DatabaseBootstrap.isAbsentPostV8Table(connection,"clientes")).isFalse();
                 var withTypo=new java.util.ArrayList<>(DatabaseBootstrap.TABLES); withTypo.add("clientez");
                 assertThatThrownBy(()->bootstrap.grantRuntime(connection,review,withTypo)).isInstanceOf(java.sql.SQLException.class);
             }
             try(var connection=connect(postgres,migration)) {
                 bootstrap.grantRuntime(connection,review);
-                try(var sql=connection.createStatement();var rows=sql.executeQuery(
-                        "SELECT count(*) FROM pg_class WHERE relname IN ('os_saga','os_saga_passo','saga_outbox','saga_inbox')")) {
-                    rows.next(); assertThat(rows.getInt(1)).isZero();
+                for(String table:java.util.List.of("os_saga","os_saga_passo","saga_outbox","saga_inbox")) {
+                    try(var sql=connection.createStatement();var rows=sql.executeQuery(
+                            "SELECT has_table_privilege('"+review.username("app")+"','public."+table+"','SELECT,INSERT,UPDATE,DELETE')")) {
+                        rows.next(); assertThat(rows.getBoolean(1)).as(table).isTrue();
+                    }
                 }
             }
         }
