@@ -44,7 +44,7 @@ class BootstrapContractTest {
     @Test void receiptContainsOnlySchemaAndVersionedRuntimeReferences() throws Exception {
         var review=DatabaseRolesTest.review();
         String receipt=new ObjectMapper().writeValueAsString(BootstrapMain.receipt(review));
-        assertThat(receipt).doesNotContain(review.master().arn(),"password","username",review.databaseHost()).contains("V8","V5","V7");
+        assertThat(receipt).doesNotContain(review.master().arn(),"password","username",review.databaseHost()).contains("V10","V5","V7");
         for(var reference:review.roles().values()) assertThat(receipt).contains(reference.arn(),reference.versionId());
         assertThat(BootstrapMain.jdbcUrl(review,Path.of("/reviewed/ca.pem"))).contains("sslmode=verify-full","sslrootcert=","/oficina?").doesNotContain("password");
     }
