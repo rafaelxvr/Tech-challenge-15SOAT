@@ -112,6 +112,7 @@ INSERT INTO saga_outbox (message_id, os_id, destino, tipo, envelope)
   VALUES ('00000000-0000-0000-0000-0000000000d3', '00000000-0000-0000-0000-0000000000b1', 'EXECUCAO', 'IniciarDiagnostico', '{}'::jsonb);
 UPDATE saga_outbox SET estado = 'PUBLISHED', tentativas = tentativas + 1 WHERE message_id = '00000000-0000-0000-0000-0000000000d3';
 INSERT INTO saga_inbox (message_id, tipo) VALUES ('00000000-0000-0000-0000-0000000000d4', 'Resposta');
+UPDATE saga_inbox SET tipo = 'Resposta' WHERE message_id = '00000000-0000-0000-0000-0000000000d4';
 SELECT (SELECT count(*) FROM os_saga) + (SELECT count(*) FROM os_saga_passo) + (SELECT count(*) FROM saga_outbox) + (SELECT count(*) FROM saga_inbox);
 UPDATE clientes SET nome = nome WHERE id = '00000000-0000-0000-0000-0000000000c1';
 ROLLBACK;

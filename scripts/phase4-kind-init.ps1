@@ -18,8 +18,7 @@ foreach ($i in $instances) {
     $secretName = "postgres-$($i.Instance)-roles"
     $exists = (Invoke-Kube @('get', 'secret', $secretName, '-n', 'data') -AllowFailure).ExitCode -eq 0
     if (-not $exists) {
-        Invoke-Kube @('create', 'secret', 'generic', $secretName, '-n', 'data',
-            "--from-literal=migrator_password=$(New-RandomSecret)", "--from-literal=app_password=$(New-RandomSecret)") | Out-Null
+        Set-KubeSecret data $secretName @{ migrator_password = (New-RandomSecret); app_password = (New-RandomSecret) }
     }
     $vars = @{
         db          = $i.Database

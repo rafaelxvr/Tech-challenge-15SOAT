@@ -33,6 +33,9 @@ Assert-That 'manifests hold no literal passwords (Secrets are created at runtime
 Assert-That 'LocalStack uses dummy test/test credentials only' ((Select-String -Path (Join-Path $kind 'manifests/localstack.yaml') -Pattern 'AWS_ACCESS_KEY_ID, value: test').Count -eq 1)
 Assert-That 'init/verify scripts target only localhost:4566 endpoints' (@(Select-String -Path (Join-Path $kind 'localstack/*.sh') -Pattern 'AWS_ENDPOINT_URL=(\S+)' | Where-Object { $_.Matches[0].Groups[1].Value -ne 'http://localhost:4566' }).Count -eq 0)
 Assert-That 'scripts clear inherited AWS profile variables (fail closed)' ((Select-String -Path (Join-Path $root 'scripts/phase4-kind.common.ps1') -Pattern 'AWS_PROFILE').Count -ge 1)
+Assert-That 'postgres manifests force scram on socket and loopback (no trust)' (@($manifests | Where-Object Name -like 'postgres-*' | Where-Object { -not (Select-String -Path $_.FullName -Pattern 'auth-local=scram-sha-256 --auth-host=scram-sha-256' -Quiet) }).Count -eq 0)
+Assert-That 'secrets are never passed as --from-literal arguments' ((& $hits '--from-literal').Count -eq 0)
+Assert-That 'passwords are never passed via PGPASSWORD= process arguments' ((& $hits '"PGPASSWORD=\$').Count -eq 0)
 
 if ($failures.Count) { Write-Host "contract FAILED: $($failures -join '; ')"; exit 1 }
 Write-Host 'phase4-kind-contract=PASS'

@@ -36,6 +36,8 @@ spec:
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef: { name: postgres-os-admin, key: password }
+            # initdb defaults trust loopback/socket; force scram so a port-forward is never a passwordless superuser.
+            - { name: POSTGRES_INITDB_ARGS, value: "--auth-local=scram-sha-256 --auth-host=scram-sha-256" }
             - { name: PGDATA, value: /var/lib/postgresql/data/pgdata }
           volumeMounts:
             - { name: data, mountPath: /var/lib/postgresql/data }

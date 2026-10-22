@@ -1,7 +1,7 @@
 # Phase 4 — dependências locais efêmeras (Kind)
 
 Cluster descartável `oficina-phase4` com PostgreSQL 16 separados (OS e billing) e LocalStack (SQS FIFO + DynamoDB).
-**Nenhum recurso AWS**: sem perfis, OIDC, ECR, Terraform apply ou endpoint `amazonaws.com`.
+**Nenhum recurso AWS**: sem perfis, OIDC, ECR, Terraform apply ou endpoint de serviço AWS real.
 
 | Componente | Endereço no cluster | Notas |
 |---|---|---|
@@ -37,6 +37,6 @@ Acesso a serviços: somente `kubectl port-forward --address 127.0.0.1`. O Kind n
 
 ## Limites conhecidos
 
-- **NetworkPolicy não é usada nem alegada.** O isolamento provado é por credenciais, roles e instâncias separadas. Ausência de egress para a AWS não foi bloqueada na rede; a garantia é por configuração: os scripts só falam com `localhost:4566` dentro do pod do LocalStack, limpam variáveis de perfil AWS e o contrato estático proíbe `amazonaws.com`.
+- **NetworkPolicy não é usada nem alegada.** O isolamento provado é por credenciais, roles e instâncias separadas. Ausência de egress para a AWS não foi bloqueada na rede; a garantia é por configuração: os scripts só falam com `localhost:4566` dentro do pod do LocalStack, limpam variáveis de perfil AWS e o contrato estático proíbe endpoints de serviço AWS reais.
 - Os serviços de aplicação (os/billing/execution) ainda não são implantados aqui: isso é das tarefas de cada serviço (Task 3/5 do Plan 4).
 - Aceitação do Kind como evidência de deploy Kubernetes pelos avaliadores segue como risco aberto.

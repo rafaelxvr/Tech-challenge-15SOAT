@@ -28,7 +28,7 @@ function Invoke-Up {
     foreach ($svc in 'os', 'billing') {
         $exists = (Invoke-Kube @('get', 'secret', "postgres-$svc-admin", '-n', 'data') -AllowFailure).ExitCode -eq 0
         if (-not $exists) {
-            Invoke-Kube @('create', 'secret', 'generic', "postgres-$svc-admin", '-n', 'data', "--from-literal=password=$(New-RandomSecret)") | Out-Null
+            Set-KubeSecret data "postgres-$svc-admin" @{ password = (New-RandomSecret) }
         }
     }
     foreach ($m in 'postgres-os', 'postgres-billing', 'localstack') {
@@ -51,6 +51,11 @@ function Invoke-Verify {
     foreach ($svc in @(@('os', 'oficina'), @('billing', 'billing'))) {
         $r = Invoke-Psql -Instance $svc[0] -Database $svc[1] -Sql "SELECT current_database() || ' pg=' || current_setting('server_version')"
         Write-Host "PASS postgres-$($svc[0]) $($r.Output)"
+    }
+    foreach ($svc in 'os', 'billing') {
+        # A port-forward enters the pod over loopback: it must not reach a passwordless superuser.
+        $r = Invoke-Kube @('exec', '-n', 'data', "deploy/postgres-$svc", '--', 'env', '-u', 'PGPASSWORD', 'psql', '-w', '-h', '127.0.0.1', '-U', 'postgres', '-d', 'postgres', '-c', 'SELECT 1') -AllowFailure
+        if ($r.ExitCode -ne 0 -and $r.Output -match 'password') { Write-Host "PASS postgres-$svc rejects passwordless loopback login" } else { Write-Host "FAIL postgres-$svc passwordless loopback login not rejected"; $fail = 1 }
     }
     $health = (Invoke-Kube @('exec', '-n', 'infra', 'deploy/localstack', '--', 'curl', '-sf', 'http://localhost:4566/_localstack/health')).Output
     foreach ($s in 'sqs', 'dynamodb') {

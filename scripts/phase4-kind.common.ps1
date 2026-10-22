@@ -18,7 +18,11 @@ function Invoke-Native {
     $out = if ($PSBoundParameters.ContainsKey('StdIn')) { $StdIn | & $File @Arguments 2>&1 } else { & $File @Arguments 2>&1 }
     $code = $LASTEXITCODE
     $text = ($out | ForEach-Object { "$_" }) -join "`n"
-    if ($code -ne 0 -and -not $AllowFailure) { throw "$File $($Arguments -join ' ') failed ($code): $text" }
+    if ($code -ne 0 -and -not $AllowFailure) {
+        # Defence in depth: secrets travel over stdin, but never echo a credential-looking argument or output.
+        $shown = ("$File $($Arguments -join ' ') failed ($code): $text") -replace '(?i)(PGPASSWORD|password|_pw|secret)=\S+', '$1=***'
+        throw $shown
+    }
     [pscustomobject]@{ ExitCode = $code; Output = $text }
 }
 
@@ -41,15 +45,23 @@ function New-RandomSecret {
     ([Convert]::ToBase64String($buf) -replace '[^A-Za-z0-9]', 'x')
 }
 
+# Creates/updates a generic Secret from a manifest on stdin, so values never appear in process arguments or errors.
+function Set-KubeSecret {
+    param([string]$Namespace, [string]$Name, [Parameter(Mandatory)][hashtable]$Values)
+    $manifest = [ordered]@{ apiVersion = 'v1'; kind = 'Secret'; type = 'Opaque'; metadata = @{ name = $Name; namespace = $Namespace }; stringData = $Values }
+    Invoke-Kube @('apply', '-f', '-') -StdIn ($manifest | ConvertTo-Json -Depth 4) | Out-Null
+}
+
 function Get-KubeSecretValue {
     param([string]$Namespace, [string]$Name, [string]$Key)
     $b64 = (Invoke-Kube @('get', 'secret', $Name, '-n', $Namespace, '-o', "jsonpath={.data.$Key}")).Output
     [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($b64))
 }
 
-# Runs SQL in a Postgres pod. Without -Password: superuser over the pod's unix socket (no secret needed).
-# With -User/-Password: a real TCP login (scram) as that role, optionally against the other instance.
-# Variables are passed as \set lines on stdin (never as process arguments).
+# Runs SQL in a Postgres pod. Every login is password-authenticated (scram, including the pod's own unix socket
+# and loopback; see POSTGRES_INITDB_ARGS in the manifests), so a port-forward cannot reach a passwordless superuser.
+# Without -Password: superuser using the admin Secret. With -User/-Password: that role, optionally against the other instance.
+# The password and the \set variables travel on stdin (first line is the password), never as process arguments.
 function Invoke-Psql {
     param(
         [Parameter(Mandatory)][ValidateSet('os', 'billing')][string]$Instance,
@@ -60,12 +72,12 @@ function Invoke-Psql {
     )
     $sets = ($Variables.GetEnumerator() | ForEach-Object { "\set $($_.Key) '$($_.Value -replace "'", "''")'" }) -join "`n"
     $psql = @('-X', '-q', '-t', '-A', '-v', 'ON_ERROR_STOP=1', '-U', $User, '-d', $Database)
-    $exec = @('exec', '-i', '-n', 'data', "deploy/postgres-$Instance", '--')
-    # Service DNS name, not 127.0.0.1: the image's pg_hba trusts loopback, so only a non-loopback source
-    # proves that password authentication is really enforced.
-    if ($Password) { $exec += @('env', "PGPASSWORD=$Password", 'psql', '-h', "postgres-$ConnectInstance.data.svc.cluster.local") + $psql }
-    else { $exec += @('psql') + $psql }
-    Invoke-Kube $exec -StdIn "$sets`n$Sql`n" -AllowFailure:$AllowFailure
+    $exec = @('exec', '-i', '-n', 'data', "deploy/postgres-$Instance", '--', 'sh', '-c', 'read -r PGPASSWORD; export PGPASSWORD; exec psql "$@"', 'sh')
+    # Service DNS name for role logins: a non-loopback source proves password authentication is enforced end to end.
+    if ($Password) { $exec += @('-h', "postgres-$ConnectInstance.data.svc.cluster.local") }
+    else { $Password = Get-KubeSecretValue data "postgres-$Instance-admin" password }
+    $exec += $psql
+    Invoke-Kube $exec -StdIn "$Password`n$sets`n$Sql`n" -AllowFailure:$AllowFailure
 }
 
 function Test-LoopbackAddress {
