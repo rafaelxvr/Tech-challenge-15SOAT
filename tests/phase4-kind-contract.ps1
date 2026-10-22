@@ -44,8 +44,10 @@ Assert-That 'passwords are never passed via PGPASSWORD= process arguments' ((& $
 $echoed = Hide-Secret "LINE 1: ALTER ROLE demo PASSWORD 'DUMMYsecret123'"
 Assert-That 'Hide-Secret masks PASSWORD SQL literals' ($echoed -notmatch 'DUMMYsecret123')
 Assert-That 'Hide-Secret masks key=value credentials' ((Hide-Secret 'PGPASSWORD=DUMMYsecret123 x') -notmatch 'DUMMYsecret123')
-$threw = try { Invoke-Native pwsh @('-NoProfile', '-Command', "[Console]::In.ReadToEnd() | Out-Null; [Console]::Error.WriteLine(""near 'DUMMYsecret123'""); exit 3") -StdIn 'x'; '' } catch { $_.Exception.Message }
+$threw = try { Invoke-Native pwsh @('-NoProfile', '-Command', "[Console]::Error.WriteLine(""near '"" + [Console]::In.ReadToEnd().Trim() + ""'""); exit 3") -StdIn 'DUMMYsecret123'; '' } catch { $_.Exception.Message }
 Assert-That 'Invoke-Native errors with stdin never echo quoted literals' (($threw -ne '') -and ($threw -notmatch 'DUMMYsecret123'))
+$threwJson = try { Invoke-Native pwsh @('-NoProfile', '-Command', "[Console]::Error.WriteLine([Console]::In.ReadToEnd()); exit 3") -StdIn '{"stringData":{"POSTGRES_PASSWORD":"DUMMYjson456"}}'; '' } catch { $_.Exception.Message }
+Assert-That 'Invoke-Native errors with stdin never echo a JSON manifest value' (($threwJson -ne '') -and ($threwJson -notmatch 'DUMMYjson456'))
 
 if ($failures.Count) { Write-Host "contract FAILED: $($failures -join '; ')"; exit 1 }
 Write-Host 'phase4-kind-contract=PASS'

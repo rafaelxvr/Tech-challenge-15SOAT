@@ -27,11 +27,13 @@ function Invoke-Native {
     $code = $LASTEXITCODE
     $text = ($out | ForEach-Object { "$_" }) -join "`n"
     if ($code -ne 0 -and -not $AllowFailure) {
-        # Defence in depth: secrets travel over stdin, but never echo a credential-looking argument or output.
-        $shown = Hide-Secret "$File $($Arguments -join ' ') failed ($code): $text"
-        # Input sent over stdin carries credentials (ALTER ROLE ... PASSWORD): drop every quoted literal an error may echo back.
-        if ($PSBoundParameters.ContainsKey('StdIn')) { $shown = $shown -replace "'[^']*'", "'***'" }
-        throw $shown
+        if ($PSBoundParameters.ContainsKey('StdIn')) {
+            # Fail closed: stdin carries credentials (Secret manifests, ALTER ROLE ... PASSWORD) and the tool may echo it back
+            # in any quoting (single, double, JSON, $$). Report only the command and exit code, never its output.
+            throw "$File $($Arguments -join ' ') failed ($code); output withheld because stdin carries credentials."
+        }
+        # Defence in depth: never echo a credential-looking argument or output.
+        throw (Hide-Secret "$File $($Arguments -join ' ') failed ($code): $text")
     }
     [pscustomobject]@{ ExitCode = $code; Output = $text }
 }
