@@ -89,6 +89,9 @@ public class CicloOsSagaService implements CicloOsPort {
         }
         OsSaga saga = encontrada.get();
         if (!saga.aceita(envelope.causationId())) { registrarDescarte("saga_resposta_obsoleta"); return; }
+        if (!resposta.get().respondeA(saga.getComandoAguardado())) {
+            registrarDescarte("saga_resposta_incompativel"); return;
+        }
         roteador.aplicar(saga, resposta.get(), envelope.payload(), momento());
         efeitos.executar(saga);
     }
