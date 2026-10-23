@@ -69,7 +69,7 @@ class SnapshotSchedulerCaptureIntegrationTest extends PostgresIntegrationSupport
 
         List<Map<String, Object>> statusEvents = events.stream()
                 .filter(e -> "WorkshopStatusSnapshot".equals(e.get("eventType"))).toList();
-        assertThat(statusEvents).hasSize(6);
+        assertThat(statusEvents).hasSize(8);
         assertThat(statusEvents).allSatisfy(e -> {
             assertThat(e).containsEntry("known_age_count", 0L).containsEntry("unknown_age_count", 0L);
             assertThat(e).doesNotContainKey("max_age_seconds");
@@ -90,7 +90,7 @@ class SnapshotSchedulerCaptureIntegrationTest extends PostgresIntegrationSupport
 
         List<Map<String, Object>> statusEvents = events.stream()
                 .filter(e -> "WorkshopStatusSnapshot".equals(e.get("eventType"))).toList();
-        assertThat(statusEvents).hasSize(6);
+        assertThat(statusEvents).hasSize(8);
         // EM_EXECUCAO has one order with a known current age (the one still stuck there).
         Map<String, Object> execucao = statusEvents.stream()
                 .filter(e -> "EM_EXECUCAO".equals(e.get("status"))).findFirst().orElseThrow();

@@ -35,7 +35,7 @@ public class OutboxPublisher {
     private final TransactionTemplate transaction;
     private final PublicadorFila queue;
     private final Clock clock;
-    private final LongUnaryOperator jitter;
+    private final BackoffPublicacao backoff;
     private final ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
     private Instant databaseRetryAt = Instant.MIN;
 
@@ -52,7 +52,7 @@ public class OutboxPublisher {
         this.transaction.setTimeout(4);
         this.queue = queue;
         this.clock = clock;
-        this.jitter = jitter;
+        this.backoff = new BackoffPublicacao(jitter);
     }
 
     /** True when one row was processed; false on no work or a rolled-back DB failure. */
@@ -112,14 +112,12 @@ public class OutboxPublisher {
     private static void restoreMdc(String key, String value) { if (value == null) MDC.remove(key); else MDC.put(key, value); }
 
     private void fail(Pending event, String code) {
-        int attempt = Math.min(12, event.attempts() + 1);
-        long cap = Math.min(300_000L, 5_000L << (attempt - 1));
-        long offset = Math.max(0, Math.min(cap - 5_000L, jitter.applyAsLong(cap - 5_000L + 1)));
+        var tentativa = backoff.proxima(event.attempts(), clock.instant());
         jdbc.update("""
                 UPDATE outbox_eventos SET tentativas=?, estado=?, disponivel_em=?, ultimo_erro_codigo=?
                 WHERE event_id=?
-                """, attempt, attempt == 12 ? "BLOCKED" : "PENDING",
-                Timestamp.from(clock.instant().plusMillis(5_000L + offset)), code, event.id());
+                """, tentativa.numero(), tentativa.bloqueada() ? "BLOCKED" : "PENDING",
+                Timestamp.from(tentativa.disponivelEm()), code, event.id());
     }
 
     private record Pending(UUID id, String payload, int attempts) {}

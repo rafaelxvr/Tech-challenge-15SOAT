@@ -1,0 +1,7 @@
+# Disposable Phase 4 cluster. No extraPortMappings on purpose: workloads are reached
+# only through `kubectl port-forward --address 127.0.0.1` (see scripts/phase4-kind.ps1).
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: oficina-phase4
+nodes:
+  - role: control-plane

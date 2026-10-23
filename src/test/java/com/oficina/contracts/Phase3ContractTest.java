@@ -75,7 +75,13 @@ class Phase3ContractTest {
     private static final Map<String, String> RETIRED_BINDINGS = Map.of(
             "POST /api/ordens-servico/email/atualizar-status", "OrdemServicoController.atualizarStatusViaEmail");
 
-    private static final Set<Grant> ANONYMOUS = Set.of(new Grant("anonymous", Set.of(), Set.of()));
+    // Staff-only (ADMIN/MECANICO) controller mappings that belong to the Phase 4 route extension
+    // (contracts/phase4-v1/routes.json, Phase 4 Plan 4 Task 1), so they are absent from the frozen phase3-v2
+    // matrix. The extension must move each entry into its contract; until then this list keeps them explicit.
+    private static final Map<String, String> PHASE4_PENDING_BINDINGS = Map.of(
+            "GET /api/ordens-servico/{id}/saga", "SagaController.detalhar");
+
+    private static final Set<Grant> ANONYMOUS =Set.of(new Grant("anonymous", Set.of(), Set.of()));
     private static final Set<Grant> STAFF = Set.of(new Grant("staff", Set.of("ADMIN", "MECANICO"), Set.of()));
     private static final Set<Grant> ADMIN = Set.of(new Grant("staff", Set.of("ADMIN"), Set.of()));
     private static final Set<Grant> CUSTOMER_DECIDE = Set.of(new Grant("customer", Set.of(), Set.of("orders:decide:self")));
@@ -219,6 +225,8 @@ class Phase3ContractTest {
         assertThat(root.path("routes").isArray()).isTrue();
 
         Map<String, String> controllerBindings = controllerBindings();
+        assertThat(controllerBindings).containsAllEntriesOf(PHASE4_PENDING_BINDINGS);
+        PHASE4_PENDING_BINDINGS.keySet().forEach(controllerBindings::remove);
         assertThat(controllerBindings.keySet()).doesNotContainAnyElementsOf(PLANNED_BINDINGS.keySet());
         assertThat(controllerBindings.keySet()).doesNotContainAnyElementsOf(RETIRED_BINDINGS.keySet());
         assertThat(controllerBindings).containsEntry("POST /api/ordens-servico/{numero}/orcamento/decisao",
@@ -241,6 +249,15 @@ class Phase3ContractTest {
             assertRoute(routesByKey.get(routeKey), routeKey, policy.owner(), operation,
                     policy.decision(), policy.grants());
         });
+    }
+
+    @Test
+    void phase4PendingSagaRouteIsStaffOnly() throws Exception {
+        Method detalhar = com.oficina.saga.adapter.in.rest.SagaController.class.getMethod("detalhar", java.util.UUID.class);
+        assertThat(AnnotatedElementUtils.findMergedAnnotation(detalhar,
+                org.springframework.security.access.prepost.PreAuthorize.class))
+                .extracting(org.springframework.security.access.prepost.PreAuthorize::value)
+                .isEqualTo("hasAnyRole('ADMIN','MECANICO')");
     }
 
     private static void assertEnvironment(JsonNode environment, String name) {
@@ -276,9 +293,12 @@ class Phase3ContractTest {
         ClassPathScanningCandidateComponentProvider scanner =
                 new ClassPathScanningCandidateComponentProvider(false);
         scanner.addIncludeFilter(new AnnotationTypeFilter(Controller.class, true, true));
+        // Whole application package (adapter controllers such as the saga's live outside com.oficina.controller),
+        // but only production classes: test probe controllers are not part of the gateway surface.
+        scanner.addExcludeFilter((reader, factory) -> reader.getResource().getURL().toString().contains("/test-classes/"));
 
         Map<String, String> bindings = new LinkedHashMap<>();
-        Set<BeanDefinition> candidates = scanner.findCandidateComponents("com.oficina.controller");
+        Set<BeanDefinition> candidates = scanner.findCandidateComponents("com.oficina");
         assertThat(candidates).as("discovered Spring controllers").isNotEmpty();
         for (BeanDefinition candidate : candidates) {
             String className = candidate.getBeanClassName();

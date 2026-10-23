@@ -57,6 +57,20 @@ class StructuredLoggingTest {
         assertThat(line).contains("\"events_exported_count\":\"11\"");
     }
 
+    @Test
+    void emitsSagaContextKeysFromMdc() throws Exception {
+        String line = logThroughRealConfig(context -> {
+            context.getMDCAdapter().put("event_name", "poller_falhou");
+            context.getMDCAdapter().put("poller", "saga-prazos");
+            context.getMDCAdapter().put("saga_id", "00000000-0000-0000-0000-000000000501");
+            context.getMDCAdapter().put("os_id", "00000000-0000-0000-0000-000000000201");
+        });
+
+        assertThat(line).contains("\"poller\":\"saga-prazos\"");
+        assertThat(line).contains("\"saga_id\":\"00000000-0000-0000-0000-000000000501\"");
+        assertThat(line).contains("\"os_id\":\"00000000-0000-0000-0000-000000000201\"");
+    }
+
     /**
      * Configures a fresh {@link LoggerContext} straight from the real {@code logback-spring.xml},
      * lets {@code mdcSetup} populate its MDC, emits one log line through it and returns the captured

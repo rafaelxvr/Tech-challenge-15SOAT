@@ -40,7 +40,7 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
 
-@Import({OrdemServicoService.class, OutboxNotificacaoAdapter.class, com.oficina.adapter.out.mail.EmailNotificacaoAdapter.class,
+@Import({OrdemServicoService.class, com.oficina.service.RegistroTransicaoOs.class, OutboxNotificacaoAdapter.class, com.oficina.adapter.out.mail.EmailNotificacaoAdapter.class,
         OutboxTransactionTest.Configuration.class})
 @org.springframework.test.context.ActiveProfiles("local-mailhog")
 @TestPropertySource(properties = "oficina.historico.zona-compatibilidade=UTC")
@@ -59,6 +59,7 @@ class OutboxTransactionTest extends PostgresIntegrationSupport {
     @MockBean VeiculoService veiculoService;
     @MockBean ServicoService servicoService;
     @MockBean PecaService pecaService;
+    @MockBean com.oficina.application.port.out.CicloOsPort cicloOs;
     @Autowired NotificacaoPort notifications;
     @Autowired ObjectMapper mapper;
     @Autowired com.oficina.adapter.out.mail.EmailNotificacaoAdapter localMail;

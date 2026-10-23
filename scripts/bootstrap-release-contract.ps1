@@ -87,10 +87,10 @@ function Read-BootstrapReceipt([string]$ReceiptJson, [object]$Release, [string]$
         throw 'Bootstrap receipt outputs do not match the V2 contract.'
     }
     foreach ($field in $expectedOutput) { Assert-BootstrapScalarString $receipt.outputs.$field "receipt.outputs.$field" }
-    if ($receipt.outputs.schemaVersion -cne 'V8' -or
+    if ($receipt.outputs.schemaVersion -cne 'V10' -or
         $receipt.outputs.authViewVersion -cne 'V5' -or
         $receipt.outputs.recipientViewVersion -cne 'V7') {
-        throw 'Bootstrap receipt does not prove the reviewed V8/V5/V7 schema contract.'
+        throw 'Bootstrap receipt does not prove the reviewed V10/V5/V7 schema contract.'
     }
     $review = Read-BootstrapReview $Release $Account
     foreach ($role in @('app','auth','migration','notification')) {

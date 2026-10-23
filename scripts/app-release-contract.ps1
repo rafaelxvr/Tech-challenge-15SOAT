@@ -6,7 +6,7 @@ function Get-AppFileHash([string]$Path) {
 function Get-AppMigrationDigest {
     $directory = Join-Path $PSScriptRoot '../src/main/resources/db/migration'
     $entries = @(Get-ChildItem -LiteralPath $directory -Filter '*.sql' -File | Sort-Object Name)
-    if ($entries.Count -ne 8) { throw 'Review the migration contract before changing the V1-V8 bundle.' }
+    if ($entries.Count -ne 10) { throw 'Review the migration contract before changing the V1-V10 bundle.' }
     $index = ($entries | ForEach-Object { $_.Name + ':' + (Get-AppFileHash $_.FullName) + "`n" }) -join ''
     [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($index))).ToLowerInvariant()
 }
@@ -15,7 +15,7 @@ function Read-AppRelease([string]$ReleaseFile, [string]$ExpectedSha256, [string]
     $release = Get-Content -LiteralPath $ReleaseFile -Raw | ConvertFrom-Json
     $platform = Get-Content -LiteralPath $PlatformInputsFile -Raw | ConvertFrom-Json
     if ($release.schemaVersion -ne 1 -or $release.environment -cnotin @('staging','production') -or $release.mode -cnotin @('FirstWriter','Compatible','Rollback')) { throw 'Invalid APP release schema/environment/mode.' }
-    if ($release.sourceCommit -cnotmatch '\A[a-f0-9]{40}\z' -or $release.contractVersion -cne 'phase3-v2' -or $release.databaseSchemaVersion -cne 'V8') { throw 'Unreviewed source, schema or security contract.' }
+    if ($release.sourceCommit -cnotmatch '\A[a-f0-9]{40}\z' -or $release.contractVersion -cne 'phase3-v2' -or $release.databaseSchemaVersion -cne 'V10') { throw 'Unreviewed source, schema or security contract.' }
     if ((Get-AppFileHash $PlatformInputsFile) -cne $release.platformInputsSha256 -or $platform.Environment -cne $release.environment -or $platform.Image -cne $release.image) { throw 'K8S renderer inputs are not bound to this APP release.' }
     $imagePattern = '\A([0-9]{12})\.dkr\.ecr\.us-east-1\.amazonaws\.com/[a-z0-9][a-z0-9/_.-]*@sha256:[a-f0-9]{64}\z'
     if ($release.image -cnotmatch $imagePattern) { throw 'APP image must be an immutable us-east-1 ECR digest.' }
