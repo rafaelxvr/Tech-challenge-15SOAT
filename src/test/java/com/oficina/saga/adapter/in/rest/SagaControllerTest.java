@@ -3,7 +3,9 @@ package com.oficina.saga.adapter.in.rest;
 import com.oficina.config.JwtService;
 import com.oficina.saga.application.CicloOsSagaService;
 import com.oficina.saga.application.SagaDetalhe;
+import com.oficina.saga.config.SagaProperties;
 import com.oficina.support.MethodSecurityTestConfig;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
@@ -28,8 +30,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class SagaControllerTest {
     @Autowired MockMvc mockMvc;
     @MockBean CicloOsSagaService ciclo;
+    @MockBean SagaProperties propriedades;
     @MockBean JwtService jwtService;
     @MockBean UserDetailsService userDetailsService;
+
+    @BeforeEach void ligarSaga() { when(propriedades.enabled()).thenReturn(true); }
 
     @Test @WithMockUser(roles = "MECANICO")
     void devolveEstadoETrilha() throws Exception {

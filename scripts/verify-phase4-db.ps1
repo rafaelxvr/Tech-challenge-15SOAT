@@ -123,7 +123,8 @@ ROLLBACK;
 
 function Test-NegativeGrants {
     param([string]$Database)
-    foreach ($t in 'os_saga', 'os_saga_passo', 'saga_outbox', 'saga_inbox') {
+    foreach ($t in 'os_saga', 'os_saga_passo', 'saga_outbox', 'saga_inbox', 'clientes', 'veiculos', 'servicos', 'pecas',
+                   'ordens_servico', 'os_servicos', 'os_pecas', 'os_historico', 'usuarios') {
         Assert-Denied "app DELETE on $t denied" (Invoke-AsApp $Database "DELETE FROM $t;" -AllowFailure) 'permission denied for table'
     }
     Assert-Denied 'app TRUNCATE os_saga denied' (Invoke-AsApp $Database 'TRUNCATE os_saga CASCADE;' -AllowFailure) 'permission denied'

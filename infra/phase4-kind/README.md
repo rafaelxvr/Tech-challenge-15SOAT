@@ -33,7 +33,7 @@ Acesso a serviços: somente `kubectl port-forward --address 127.0.0.1`. O Kind n
 
 ## Grants (D15/D16)
 
-`postgres/grants-os.sql` roda como `oficina_migrator` depois de cada migration. Tabelas saga (`os_saga`, `os_saga_passo`, `saga_outbox`, `saga_inbox`) recebem apenas `SELECT/INSERT/UPDATE` (auditoria no código: nenhum DELETE). As demais tabelas seguem a paridade do `DatabaseBootstrap` (`SELECT/INSERT/UPDATE/DELETE`).
+`postgres/grants-os.sql` roda como `oficina_migrator` depois de cada migration. Todas as tabelas (exceto `flyway_schema_history`) recebem apenas `SELECT/INSERT/UPDATE` (D15-R; auditoria no código: nenhum DELETE em runtime, as exclusões da API são desativações). `DELETE` só entra por tabela com evidência. O `DatabaseBootstrap` (caminho não Kind) ainda concede `DELETE` fora das tabelas saga; alinhar fica como follow-up.
 
 ## Limites conhecidos
 

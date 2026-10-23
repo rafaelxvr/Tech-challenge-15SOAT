@@ -74,6 +74,20 @@ class CicloOsSagaServiceTest extends PostgresIntegrationSupport {
         assertThat(ciclo.resumo(os)).get().extracting(r -> r.estado()).isEqualTo("AGUARDANDO_DIAGNOSTICO");
     }
 
+    @Test void respostaConhecidaMasIncompativelComOComandoAguardadoEDescartada() {
+        UUID os = ordemRecebida();
+        transaction.executeWithoutResult(st -> ciclo.iniciar(os));
+        var saga = jdbc.queryForMap("SELECT id, comando_aguardado_id FROM os_saga WHERE os_id=?", os);
+        var incompativel = new com.oficina.saga.application.mensagem.Envelope(UUID.randomUUID(),
+                com.oficina.saga.application.mensagem.Envelope.Kind.REPLY, "ReparoRecusado", 1, (UUID) saga.get("id"), os,
+                1, (UUID) saga.get("comando_aguardado_id"), Instant.parse("2026-09-15T12:00:01Z"), UUID.randomUUID().toString(),
+                null, new com.fasterxml.jackson.databind.ObjectMapper().createObjectNode());
+        transaction.executeWithoutResult(st -> ciclo.aplicarResposta(incompativel));
+        assertThat(ciclo.resumo(os)).get().extracting(r -> r.estado()).isEqualTo("AGUARDANDO_DIAGNOSTICO");
+        assertThat(jdbc.queryForObject("SELECT comando_aguardado_id FROM os_saga WHERE os_id=?", UUID.class, os))
+                .isEqualTo(saga.get("comando_aguardado_id"));
+    }
+
     @Test void iniciarDuasVezesERecusado() {
         UUID os = ordemRecebida();
         transaction.executeWithoutResult(st -> ciclo.iniciar(os));
