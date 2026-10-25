@@ -33,7 +33,8 @@ FROM eclipse-temurin:17-jre-alpine@sha256:27cc0849148c0fd32ee8e95988917becf9bc96
 
 # Criar usu√°rio n√£o-root por seguran√ßa. Keep the UID/GID explicit so Kubernetes
 # can verify runAsNonRoot before starting the container.
-RUN addgroup -S -g 10001 oficina && adduser -S -D -u 10001 -G oficina oficina
+# CVE-2026-111497 (HIGH): brotli-libs 1.2.0-r1 da base; corrigido na 1.2.1-r0. Remover quando o digest da base j· trouxer a correÁ„o.
+RUN apk upgrade --no-cache brotli-libs     && addgroup -S -g 10001 oficina && adduser -S -D -u 10001 -G oficina oficina
 
 WORKDIR /app
 
