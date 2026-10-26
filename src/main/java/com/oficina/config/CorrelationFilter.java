@@ -40,11 +40,15 @@ public final class CorrelationFilter extends OncePerRequestFilter {
         try { chain.doFilter(request, response); }
         finally { MDC.remove(CORRELATION_ID); MDC.remove(TRACEPARENT); MDC.remove(GATEWAY_ID); }
     }
-    public static String correlationId() {
-        String id = MDC.get(CORRELATION_ID); return validCorrelation(id) ? id : UUID.randomUUID().toString();
+    public static String correlationId() { return correlationIdOrNew(MDC.get(CORRELATION_ID)); }
+    public static String traceparent() { return validTraceparent(MDC.get(TRACEPARENT)); }
+    /** The same boundary rule for ids that arrive outside HTTP (queue replies): a UUID, otherwise a new one. */
+    public static String correlationIdOrNew(String candidate) {
+        return validCorrelation(candidate) ? candidate : UUID.randomUUID().toString();
     }
-    public static String traceparent() {
-        String trace = MDC.get(TRACEPARENT); return trace != null && trace.matches(TRACE_PATTERN) ? trace : null;
+    /** A W3C traceparent, or null when the candidate is absent or malformed. */
+    public static String validTraceparent(String candidate) {
+        return candidate != null && candidate.matches(TRACE_PATTERN) ? candidate : null;
     }
     private static boolean validCorrelation(String value) { return value != null && value.matches(CORRELATION_PATTERN); }
     private static void putIfValid(String key, String value, String pattern) { if (value != null && value.matches(pattern)) MDC.put(key, value); }

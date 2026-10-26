@@ -15,7 +15,9 @@ public record AcompanhamentoOsResponse(
         LocalDateTime ultimaAtualizacaoStatusEm,
         List<LinhaOrcamento> servicos,
         List<LinhaOrcamento> pecas,
-        List<HistoricoCliente> historico
+        List<HistoricoCliente> historico,
+        String estadoSaga,
+        String checkoutUrl
 ) {
     public record LinhaOrcamento(String descricao, Integer quantidade,
                                 BigDecimal valorUnitario, BigDecimal valorTotal) {}

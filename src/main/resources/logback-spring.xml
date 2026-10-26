@@ -19,6 +19,9 @@
                     <includeMdcKeyName>diagnostic_id</includeMdcKeyName>
                     <includeMdcKeyName>events_captured_count</includeMdcKeyName>
                     <includeMdcKeyName>events_exported_count</includeMdcKeyName>
+                    <includeMdcKeyName>poller</includeMdcKeyName>
+                    <includeMdcKeyName>saga_id</includeMdcKeyName>
+                    <includeMdcKeyName>os_id</includeMdcKeyName>
                 </mdc>
             </providers>
         </encoder>

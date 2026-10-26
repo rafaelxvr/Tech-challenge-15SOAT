@@ -1,0 +1,52 @@
+# Disposable PostgreSQL 16 for os (oficina). Data lives in emptyDir and dies with the cluster.
+# The superuser password comes from Secret postgres-os-admin, created by scripts/phase4-kind.ps1
+# at runtime (random per cluster). Nothing secret is versioned.
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-os
+  namespace: data
+spec:
+  selector: { app: postgres-os }
+  ports:
+    - { name: postgres, port: 5432, targetPort: 5432 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-os
+  namespace: data
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app: postgres-os }
+  template:
+    metadata:
+      labels: { app: postgres-os }
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16.6-alpine@sha256:1d04b9ba1d4996401f2552b51beda8187f175c0645c091e4781134fc9c9a3eef
+          ports:
+            - { name: postgres, containerPort: 5432 }
+          env:
+            - { name: POSTGRES_DB, value: oficina }
+            - { name: POSTGRES_USER, value: postgres }
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: postgres-os-admin, key: password }
+            # initdb defaults trust loopback/socket; force scram so a port-forward is never a passwordless superuser.
+            - { name: POSTGRES_INITDB_ARGS, value: "--auth-local=scram-sha-256 --auth-host=scram-sha-256" }
+            - { name: PGDATA, value: /var/lib/postgresql/data/pgdata }
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/postgresql/data }
+          readinessProbe:
+            exec: { command: ["pg_isready", "-U", "postgres", "-d", "oficina"] }
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 512Mi }
+      volumes:
+        - { name: data, emptyDir: {} }

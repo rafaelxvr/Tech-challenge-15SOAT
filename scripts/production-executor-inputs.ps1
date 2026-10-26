@@ -16,7 +16,7 @@ function Read-ProductionExecutorInputs {
     }
     $mode=$review.Release.PSObject.Properties['mode']
     if ($null -eq $mode -or $mode.Value -isnot [string] -or $mode.Value -cne 'Compatible') {
-        throw 'APP_PRODUCTION_EXISTING_WORKLOAD_REQUIRED: only Compatible V8 rollout is reviewed.'
+        throw 'APP_PRODUCTION_EXISTING_WORKLOAD_REQUIRED: only Compatible V10 rollout is reviewed.'
     }
     foreach ($field in @('bootstrapImage','migrationImage','migrationSqlSha256')) {
         $target=$review.Release.PSObject.Properties[$field]

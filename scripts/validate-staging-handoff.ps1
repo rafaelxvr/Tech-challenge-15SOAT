@@ -77,7 +77,7 @@ Require-ExactProperties $database @('schemaVersion','environment','sourceCommit'
 if ($database.schemaVersion -ne 2 -or $database.environment -cne 'staging' -or $database.sourceCommit -cne $SourceCommit) { throw 'DB bootstrap receipt is not the reviewed staging V2 receipt.' }
 $databaseFields = @('schemaVersion','authViewVersion','recipientViewVersion','migrationSecretArn','migrationSecretVersionId','appSecretArn','appSecretVersionId','authLookupSecretArn','authLookupSecretVersionId','notificationLookupSecretArn','notificationLookupSecretVersionId')
 Require-ExactProperties $database.outputs $databaseFields 'DB bootstrap receipt outputs'
-if ($database.outputs.schemaVersion -cne 'V8' -or $database.outputs.authViewVersion -cne 'V5' -or $database.outputs.recipientViewVersion -cne 'V7') { throw 'DB schema/view versions are not the reviewed V8/V5/V7 contract.' }
+if ($database.outputs.schemaVersion -cne 'V10' -or $database.outputs.authViewVersion -cne 'V5' -or $database.outputs.recipientViewVersion -cne 'V7') { throw 'DB schema/view versions are not the reviewed V10/V5/V7 contract.' }
 $roles = @(@{Name='migration'; Arn=$database.outputs.migrationSecretArn; Version=$database.outputs.migrationSecretVersionId}, @{
     Name='app'; Arn=$database.outputs.appSecretArn; Version=$database.outputs.appSecretVersionId}, @{Name='auth'; Arn=$database.outputs.authLookupSecretArn; Version=$database.outputs.authLookupSecretVersionId}, @{
     Name='notification'; Arn=$database.outputs.notificationLookupSecretArn; Version=$database.outputs.notificationLookupSecretVersionId})
