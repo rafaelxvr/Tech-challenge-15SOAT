@@ -33,7 +33,8 @@ FROM eclipse-temurin:17-jre-alpine@sha256:27cc0849148c0fd32ee8e95988917becf9bc96
 
 # Criar usuário não-root por segurança. Keep the UID/GID explicit so Kubernetes
 # can verify runAsNonRoot before starting the container.
-RUN addgroup -S -g 10001 oficina && adduser -S -D -u 10001 -G oficina oficina
+# CVEs HIGH do Alpine (brotli-libs, openssl, libexpat) presentes no digest da base; apk upgrade completo traz as correções. Revisar quando o digest da base já as incluir.
+RUN apk upgrade --no-cache     && addgroup -S -g 10001 oficina && adduser -S -D -u 10001 -G oficina oficina
 
 WORKDIR /app
 
