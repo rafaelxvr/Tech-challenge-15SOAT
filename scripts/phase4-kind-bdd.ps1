@@ -73,14 +73,19 @@ function Invoke-Run {
     New-Item -ItemType Directory -Force -Path $dir | Out-Null
     $resultados = @()
     try {
+        Write-Host 'harness: chave de cliente e port-forwards'
         Set-HarnessCustomerKey   # reinicia o os-service: antes do port-forward
         Start-Forwards
+        Write-Host 'harness: pronto'
         foreach ($c in $oraculos.cenarios) {
             if ($Scenario -and $c.id -notin $Scenario) { continue }
             if ($c.modo -eq 'coberto-por-unitario') {
                 $resultados += [pscustomobject]@{ id = $c.id; status = 'COBERTO_POR_UNITARIO'; detalhe = ($c.referenciaUnitaria -join ', ') }
             } elseif ($Handlers.ContainsKey($c.id)) {
+                Write-Host "RUN  $($c.id)"
+                $t0 = Get-Date
                 try { $o = & $Handlers[$c.id] $c $oraculos } catch { $o = @{ Status = 'FAIL'; Detalhe = (Hide-Secret "$_") } }
+                Write-Host ("{0,-5}{1} ({2:N0}s)" -f $o.Status, $c.id, ((Get-Date) - $t0).TotalSeconds)
                 $resultados += [pscustomobject]@{ id = $c.id; status = $o.Status; detalhe = $o.Detalhe }
             } else {
                 $resultados += [pscustomobject]@{ id = $c.id; status = 'NAO_EXECUTADO'; detalhe = 'handler pendente (UNR-69)' }

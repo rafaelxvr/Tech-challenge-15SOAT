@@ -104,6 +104,7 @@ jobs:
           -BillingRepo "$env:GITHUB_WORKSPACE/billing" -ExecutionRepo "$env:GITHUB_WORKSPACE/execution"
 
       - name: Matriz BDD
+        timeout-minutes: 40
         shell: pwsh
         working-directory: os
         run: |
@@ -111,12 +112,14 @@ jobs:
           ./scripts/phase4-kind-bdd.ps1 -Action Run -OsSha $env:OS_SHA -BillingSha $env:BILLING_SHA -ExecutionSha $env:EXECUTION_SHA -OutputDir $env:RESULTS_DIR
 
       - name: Diagnóstico do cluster (só em falha, sem segredos)
-        if: failure()
+        if: failure() || cancelled()
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path $env:RESULTS_DIR | Out-Null
           $ctx = "kind-$env:PHASE4_KIND_CLUSTER"
           $out = Join-Path $env:RESULTS_DIR 'diagnostico.txt'
+          "== processos ==" | Add-Content $out
+          (& ps -eo pid,etime,args 2>&1 | Select-String 'kubectl|pwsh') | ForEach-Object { $_.Line } | Add-Content $out
           foreach ($ns in 'oficina', 'oficina-billing', 'oficina-execution', 'data', 'infra') {
             "== pods $ns ==" | Add-Content $out
             (& kubectl --context $ctx -n $ns get pods -o wide 2>&1) | Add-Content $out
