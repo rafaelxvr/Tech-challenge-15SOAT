@@ -29,13 +29,15 @@ param(
 
 $kindTests = Join-Path $script:RepoRoot 'tests/phase4-kind'
 $services = @(
-    @{ Nome = 'os'; Namespace = 'oficina'; Deployment = 'oficina-app' },
+    @{ Nome = 'os'; Namespace = 'oficina'; Deployment = 'oficina-os-service' },
     @{ Nome = 'billing'; Namespace = 'oficina-billing'; Deployment = 'oficina-billing' },
     @{ Nome = 'execution'; Namespace = 'oficina-execution'; Deployment = 'oficina-execution' }
 )
 
 # id => scriptblock returning @{ Status = 'PASS'|'FAIL'; Detalhe = '...' }. Intentionally empty in this skeleton.
 $Handlers = @{}
+. (Join-Path $PSScriptRoot 'phase4-kind-bdd.support.ps1')
+. (Join-Path $PSScriptRoot 'phase4-kind-bdd.handlers.ps1')
 
 function Get-Oraculos { Get-Content -Raw (Join-Path $kindTests 'oraculos.json') | ConvertFrom-Json }
 
@@ -49,10 +51,8 @@ function Invoke-Preflight {
         if ($r.ExitCode -ne 0 -or [int]('0' + $r.Output) -lt 1) { throw "Serviço '$($s.Nome)' não está pronto ($($s.Namespace)/$($s.Deployment))" }
         Write-Host "PASS pronto: $($s.Nome)"
     }
-    $variaveis = (Invoke-Kube @('-n', 'oficina', 'get', 'deploy', 'oficina-app', '-o', 'jsonpath={.spec.template.spec.containers[0].env[*].name}') -AllowFailure).Output
-    foreach ($flag in 'SAGA_ENABLED', 'SAGA_MENSAGERIA_ENABLED') {
-        if ($variaveis -notmatch $flag) { throw "$flag não está configurado no os-service do Kind (D17-R: ligar só no perfil Kind)" }
-    }
+    $cfg = (Invoke-Kube @('-n', 'oficina', 'get', 'configmap', 'oficina-os-service-config', '-o', 'jsonpath={.data.SAGA_ENABLED}/{.data.SAGA_MENSAGERIA_ENABLED}') -AllowFailure).Output
+    if ($cfg -ne 'true/true') { throw "SAGA_ENABLED/SAGA_MENSAGERIA_ENABLED devem ser true/true no perfil Kind (observado: $cfg)" }
     Write-Host 'PASS preflight'
 }
 
@@ -65,17 +65,23 @@ function Invoke-Run {
     if ($faltam) { throw "Informe $($faltam -join ', '): resultados só valem vinculados ao SHA real que foi implantado." }
     $dir = if ($OutputDir) { $OutputDir } else { Join-Path ([IO.Path]::GetTempPath()) ("phase4-bdd-" + [guid]::NewGuid().ToString('N')) }
     New-Item -ItemType Directory -Force -Path $dir | Out-Null
-    $resultados = foreach ($c in $oraculos.cenarios) {
-        if ($Scenario -and $c.id -notin $Scenario) { continue }
-        if ($c.modo -eq 'coberto-por-unitario') {
-            [pscustomobject]@{ id = $c.id; status = 'COBERTO_POR_UNITARIO'; detalhe = ($c.referenciaUnitaria -join ', ') }
-        } elseif ($Handlers.ContainsKey($c.id)) {
-            try { $o = & $Handlers[$c.id] $c $oraculos } catch { $o = @{ Status = 'FAIL'; Detalhe = (Hide-Secret "$_") } }
-            [pscustomobject]@{ id = $c.id; status = $o.Status; detalhe = $o.Detalhe }
-        } else {
-            [pscustomobject]@{ id = $c.id; status = 'NAO_EXECUTADO'; detalhe = 'handler pendente (UNR-69)' }
+    $resultados = @()
+    try {
+        Set-HarnessCustomerKey   # reinicia o os-service: antes do port-forward
+        Start-Forwards
+        foreach ($c in $oraculos.cenarios) {
+            if ($Scenario -and $c.id -notin $Scenario) { continue }
+            if ($c.modo -eq 'coberto-por-unitario') {
+                $resultados += [pscustomobject]@{ id = $c.id; status = 'COBERTO_POR_UNITARIO'; detalhe = ($c.referenciaUnitaria -join ', ') }
+            } elseif ($Handlers.ContainsKey($c.id)) {
+                try { $o = & $Handlers[$c.id] $c $oraculos } catch { $o = @{ Status = 'FAIL'; Detalhe = (Hide-Secret "$_") } }
+                $resultados += [pscustomobject]@{ id = $c.id; status = $o.Status; detalhe = $o.Detalhe }
+            } else {
+                $resultados += [pscustomobject]@{ id = $c.id; status = 'NAO_EXECUTADO'; detalhe = 'handler pendente (UNR-69)' }
+            }
         }
     }
+    finally { Stop-Forwards }
     $resumo = $resultados | Group-Object status | ForEach-Object { [pscustomobject]@{ status = $_.Name; total = $_.Count } }
     $saida = [ordered]@{
         executadoEm = (Get-Date).ToUniversalTime().ToString('o')

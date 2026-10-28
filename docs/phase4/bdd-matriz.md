@@ -66,3 +66,18 @@ pwsh -NoProfile -File scripts/phase4-kind-bdd.ps1 -Action Run -BillingSha <sha> 
 - Executado: `tests/phase4-bdd-contract.ps1` → `OK: 36 cenários, 9 features, 6 filas verificadas`; mutação de um estado no oráculo faz o contrato falhar; `tests/phase4-kind-contract.ps1` sem falhas; parse do runner sem erros.
 - **Não executado:** nenhum cenário em Kind (os handlers do runner ainda não existem e o os-service não está implantado no cluster); sem `mvn`, sem cobertura, sem Sonar. Resultados por SHA só existem quando UNR-69 rodar o `Run`.
 - Sem credenciais, PII, chamadas AWS ou alteração de infraestrutura remota; o runner só usa o contexto `kind-oficina-phase4`.
+
+## Execução em Kind (UNR-69) — primeira rodada
+
+Runner: handlers em `scripts/phase4-kind-bdd.handlers.ps1`, suporte (port-forward em loopback, JWT sintético de staff HS256 e de cliente RS256 com par gerado em memória, SQL via `Invoke-Psql`) em `scripts/phase4-kind-bdd.support.ps1`. `Run` troca a chave pública de cliente do os-service pela do runner (a privada nunca sai do processo) e reinicia o deployment antes dos cenários.
+
+| Cenário | Status | Observação |
+|---|---|---|
+| BDD-01a | PASS | estados, comandos, pilha vazia, `FINALIZADA`, `saga_outbox`=4, `saga_inbox`=6, execuções, orçamento, pagamento e estoque conferem. SHAs: os `cf34717`, billing `96c811a`, execution `1bf1e6c` |
+| demais 35 | NAO_EXECUTADO ou COBERTO_POR_UNITARIO | handlers ainda não escritos |
+
+Achados que a rodada expôs (todos com tarefa própria):
+
+- **UNR-279 (os-service):** `POST /api/ordens-servico` com placa não cadastrada devolve 500 (`UnexpectedRollbackException`: `VeiculoService.obterAtivoPorPlaca` marca a transação como rollback-only e `resolverVeiculo` engole a exceção). O harness pré-cadastra o veículo; a rota de placa nova fica sem cobertura até a correção.
+- **UNR-280 (infra Kind):** `billing_app` sem DML no bring-up (`permission denied for table outbox/pagamento`); o `GerarOrcamento` não é processado. Na rodada, o contorno foi um `GRANT` manual no cluster de ensaio, não versionado.
+- O nome do deployment do os-service no preflight era `oficina-app`; o real é `oficina-os-service`. Corrigido.
