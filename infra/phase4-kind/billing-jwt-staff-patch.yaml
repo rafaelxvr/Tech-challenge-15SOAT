@@ -1,0 +1,10 @@
+# Alinha o JWT de staff do billing ao contrato do os-service/execution (mesmo emissor, audiência e kid),
+# para um único token de staff valer nos três serviços. Aplicado por scripts/phase4-kind-stack.ps1.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oficina-billing-config
+data:
+  JWT_STAFF_ISSUER: oficina-os-service
+  JWT_STAFF_AUDIENCE: oficina-staff
+  JWT_STAFF_KEY_ID: staff-local-1
