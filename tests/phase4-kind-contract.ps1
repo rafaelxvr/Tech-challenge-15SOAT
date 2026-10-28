@@ -59,5 +59,12 @@ Assert-That 'Invoke-Native errors with stdin never echo quoted literals' (($thre
 $threwJson = try { Invoke-Native pwsh @('-NoProfile', '-Command', "[Console]::Error.WriteLine([Console]::In.ReadToEnd()); exit 3") -StdIn '{"stringData":{"POSTGRES_PASSWORD":"DUMMYjson456"}}'; '' } catch { $_.Exception.Message }
 Assert-That 'Invoke-Native errors with stdin never echo a JSON manifest value' (($threwJson -ne '') -and ($threwJson -notmatch 'DUMMYjson456'))
 
+$billingGrants = Get-Content -Raw (Join-Path $kind 'postgres/grants-billing.sql')
+Assert-That 'billing grants: default privileges FOR ROLE migrator give app SELECT, INSERT, UPDATE on tables' ($billingGrants -match "ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public GRANT SELECT, INSERT, UPDATE ON TABLES TO %I")
+Assert-That 'billing grants: default privileges give app USAGE, SELECT on sequences' ($billingGrants -match "GRANT USAGE, SELECT ON SEQUENCES TO %I")
+Assert-That 'billing grants: runtime role never gets DELETE/ALL or superuser-wide grants' ($billingGrants -notmatch '(?i)DELETE|GRANT ALL')
+Assert-That 'init applies grants-billing.sql to the billing instance with migrator/app variables' ((Select-String -Path (Join-Path $root 'scripts/phase4-kind-init.ps1') -Pattern 'grants-billing\.sql' -Quiet) -and (Select-String -Path (Join-Path $root 'scripts/phase4-kind-init.ps1') -Pattern 'migrator = \$i\.Migrator; app = \$i\.App' -Quiet))
+Assert-That 'stack Verify checks billing_app privileges on outbox and pagamento' ((Select-String -Path (Join-Path $root 'scripts/phase4-kind-stack.ps1') -Pattern "has_table_privilege\('billing_app'" -Quiet) -and (Select-String -Path (Join-Path $root 'scripts/phase4-kind-stack.ps1') -Pattern "'outbox', 'pagamento'" -Quiet))
+
 if ($failures.Count) { Write-Host "contract FAILED: $($failures -join '; ')"; exit 1 }
 Write-Host 'phase4-kind-contract=PASS'

@@ -240,6 +240,13 @@ function Invoke-Verify {
         if ($ready -eq '1' -and $img -eq $s.Image -and $h.Output -match '"status"\s*:\s*"UP"') { Write-Host "PASS $($s.Key) readyReplicas=1 image=$img readiness=UP" }
         else { Write-Host "FAIL $($s.Key) readyReplicas=$ready image=$img readiness=$($h.Output)"; $fail = 1 }
     }
+    # billing_app precisa de DML nas tabelas que o Flyway do billing criou (default privileges de grants-billing.sql).
+    foreach ($t in 'outbox', 'pagamento') {
+        $sql = "SELECT CASE WHEN to_regclass('public.$t') IS NULL THEN 'missing' ELSE has_table_privilege('billing_app', 'public.$t', 'SELECT,INSERT,UPDATE')::text END"
+        $g = Invoke-Psql -Instance billing -Database billing -Sql $sql -AllowFailure
+        if ($g.Output.Trim() -eq 'true') { Write-Host "PASS billing_app tem SELECT/INSERT/UPDATE em $t" }
+        else { Write-Host "FAIL billing_app sem DML em $t ($($g.Output.Trim())); rode phase4-kind-init.ps1 (grants-billing.sql) e reinicie o billing"; $fail = 1 }
+    }
     if ($fail) { throw 'Verify FAILED' }
     Write-Host 'Verify: OK'
 }
