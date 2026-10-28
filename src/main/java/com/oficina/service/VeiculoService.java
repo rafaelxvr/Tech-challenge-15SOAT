@@ -120,7 +120,9 @@ public class VeiculoService {
         veiculo.setAtivo(false);
     }
 
-    @Transactional(readOnly = true)
+    // noRollbackFor: OrdemServicoService trata a ausência como "cadastrar automaticamente" dentro da própria
+    // transação; sem isso o proxy marca a transação externa como rollback-only (UNR-279).
+    @Transactional(readOnly = true, noRollbackFor = EntityNotFoundException.class)
     public Veiculo obterAtivoPorPlaca(String placa) {
         String p = ValidadorPlaca.normalizar(placa);
         ValidadorPlaca.validar(p);
