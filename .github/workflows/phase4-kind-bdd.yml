@@ -9,13 +9,13 @@ on:
     inputs:
       os_sha:
         description: 'SHA do os-service (este repositório) que vira imagem'
-        default: 'cf34717'
+        default: 'cf3471713188f2c975dc09360c5a9829f3647e84'
       billing_sha:
         description: 'SHA do billing (Tech-challenge-15SOAT-billing)'
-        default: '96c811a'
+        default: '96c811aec94832607605e2cba88adf8d14a099e1'
       execution_sha:
         description: 'SHA do execution (Tech-challenge-15SOAT-execution)'
-        default: '1bf1e6c'
+        default: '1bf1e6ca057957edd022a63a58c78fc8e0ffccb7'
   pull_request:
     paths:
       - '.github/workflows/phase4-kind-bdd.yml'
@@ -33,11 +33,11 @@ concurrency:
 env:
   KIND_VERSION: v0.24.0
   PHASE4_KIND_CLUSTER: oficina-phase4-ci
-  # SHAs pinados: inputs do workflow_dispatch ou estes padrões. Nunca branches móveis.
-  OS_SHA: ${{ inputs.os_sha || 'cf34717' }}
-  BILLING_SHA: ${{ inputs.billing_sha || '96c811a' }}
-  EXECUTION_SHA: ${{ inputs.execution_sha || '1bf1e6c' }}
-  RESULTS_DIR: ${{ github.workspace }}/../phase4-results
+  # SHAs pinados (40 caracteres: actions/checkout não resolve SHA abreviado): inputs do workflow_dispatch ou estes padrões. Nunca branches móveis.
+  OS_SHA: ${{ inputs.os_sha || 'cf3471713188f2c975dc09360c5a9829f3647e84' }}
+  BILLING_SHA: ${{ inputs.billing_sha || '96c811aec94832607605e2cba88adf8d14a099e1' }}
+  EXECUTION_SHA: ${{ inputs.execution_sha || '1bf1e6ca057957edd022a63a58c78fc8e0ffccb7' }}
+  RESULTS_DIR: ${{ github.workspace }}/phase4-results
 
 jobs:
   kind-bdd:
