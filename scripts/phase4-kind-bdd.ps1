@@ -43,6 +43,7 @@ $Handlers = @{}
 . (Join-Path $PSScriptRoot 'phase4-kind-bdd.handlers.scheduler-parado.ps1')
 . (Join-Path $PSScriptRoot 'phase4-kind-bdd.handlers.falhas.ps1')
 . (Join-Path $PSScriptRoot 'phase4-kind-bdd.handlers.injecao.ps1')
+. (Join-Path $PSScriptRoot 'phase4-kind-bdd.handlers.dlq.ps1')
 
 function Get-Oraculos { Get-Content -Raw (Join-Path $kindTests 'oraculos.json') | ConvertFrom-Json }
 
