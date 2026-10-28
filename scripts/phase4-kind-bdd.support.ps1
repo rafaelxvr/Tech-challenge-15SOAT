@@ -9,7 +9,9 @@ $script:CustomerKey = $null
 function Start-Forward {
     param([string]$Namespace, [string]$Service, [int]$LocalPort)
     $log = Join-Path $script:WorkDir "pf-$Service.log"
-    $p = Start-Process kubectl -PassThru -WindowStyle Hidden -RedirectStandardOutput $log -RedirectStandardError "$log.err" `
+    # -WindowStyle só existe no Windows; no runner Linux do CI o parâmetro é omitido.
+    $hidden = if ($IsWindows) { @{ WindowStyle = 'Hidden' } } else { @{} }
+    $p = Start-Process kubectl -PassThru @hidden -RedirectStandardOutput $log -RedirectStandardError "$log.err" `
         -ArgumentList @('--context', $script:KubeContext, '-n', $Namespace, 'port-forward', '--address', '127.0.0.1', "svc/$Service", "${LocalPort}:8080")
     $script:Forwards += $p
     $script:ForwardMap[$Service] = @{ Namespace = $Namespace; Port = $LocalPort; Process = $p }
