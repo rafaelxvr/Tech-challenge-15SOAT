@@ -162,7 +162,7 @@ function Send-SimulacaoPagamento {
 }
 
 function Compare-EstadosEComandos {
-    param($Cenario, $Saga, [System.Collections.Generic.List[string]]$Falhas, [switch]$Sufixo)
+    param($Cenario, $Saga, [System.Collections.Generic.List[string]]$Falhas, [switch]$Sufixo, [switch]$SomenteEstados)
     $o = Get-Observado $Saga
     $prop = $Cenario.PSObject.Properties['estadosTransitorios']
     $transitorios = if ($prop) { @($prop.Value) } else { @() }
@@ -171,10 +171,10 @@ function Compare-EstadosEComandos {
     # Cenários pós-pagamento (BDD-03x) descrevem só o trecho final: o oráculo é comparado com o sufixo observado.
     if ($Sufixo) {
         $estados = @($estados | Select-Object -Last @($Cenario.estadosSaga).Count)
-        $comandos = @($comandos | Select-Object -Last @($Cenario.comandos).Count)
+        if (-not $SomenteEstados) { $comandos = @($comandos | Select-Object -Last @($Cenario.comandos).Count) }
     }
     Compare-Lista 'estados da saga' $Cenario.estadosSaga $estados $Falhas
-    Compare-Lista 'comandos' $Cenario.comandos $comandos $Falhas
+    if (-not $SomenteEstados) { Compare-Lista 'comandos' $Cenario.comandos $comandos $Falhas }
 }
 
 $Handlers['BDD-02a'] = {
