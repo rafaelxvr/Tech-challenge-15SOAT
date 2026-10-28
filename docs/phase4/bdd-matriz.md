@@ -74,10 +74,15 @@ Runner: handlers em `scripts/phase4-kind-bdd.handlers.ps1`, suporte (port-forwar
 | Cenário | Status | Observação |
 |---|---|---|
 | BDD-01a | PASS | estados, comandos, pilha vazia, `FINALIZADA`, `saga_outbox`=4, `saga_inbox`=6, execuções, orçamento, pagamento e estoque conferem. SHAs: os `cf34717`, billing `96c811a`, execution `1bf1e6c` |
-| demais 35 | NAO_EXECUTADO ou COBERTO_POR_UNITARIO | handlers ainda não escritos |
+| BDD-02a | PASS | recusa de pagamento: `COMPENSANDO` → `CANCELADA`, motivo `PAGAMENTO_RECUSADO`, orçamento `CANCELADO`, pagamento `RECUSADO`, estoque intacto, OS `CANCELADA` |
+| BDD-02b | PASS | cliente recusa: saga volta a `AGUARDANDO_DIAGNOSTICO` com `versaoOrcamento` 2, novo `IniciarDiagnostico`, 2 execuções de diagnóstico, orçamento `RECUSADO`, OS `EM_DIAGNOSTICO` |
+| BDD-03a | PASS | estoque insuficiente: `EstornarPagamento` e `CancelarOrcamento` nessa ordem, `ESTOQUE_INSUFICIENTE`, pagamento `ESTORNADO`, orçamento `CANCELADO`, estoque intacto. O oráculo descreve só o trecho pós-pagamento: comparado com o sufixo observado |
+| demais 32 | NAO_EXECUTADO ou COBERTO_POR_UNITARIO | handlers ainda não escritos |
+
+Rodada 2 (SHAs os `cf34717`, billing `96c811a`, execution `1bf1e6c`): 01a, 02a, 02b e 03a passam juntos em cluster novo (`oficina-p4-unr69`) subido por `phase4-kind-stack.ps1` com os grants do UNR-280 (branch #74 mesclado aqui), sem contorno manual. O runner usa o cluster de `PHASE4_KIND_CLUSTER`.
 
 Achados que a rodada expôs (todos com tarefa própria):
 
 - **UNR-279 (os-service):** `POST /api/ordens-servico` com placa não cadastrada devolve 500 (`UnexpectedRollbackException`: `VeiculoService.obterAtivoPorPlaca` marca a transação como rollback-only e `resolverVeiculo` engole a exceção). O harness pré-cadastra o veículo; a rota de placa nova fica sem cobertura até a correção.
-- **UNR-280 (infra Kind):** `billing_app` sem DML no bring-up (`permission denied for table outbox/pagamento`); o `GerarOrcamento` não é processado. Na rodada, o contorno foi um `GRANT` manual no cluster de ensaio, não versionado.
+- **UNR-280 (infra Kind, corrigido no PR #74; mesclado neste branch para a rodada 2):** `billing_app` sem DML no bring-up (`permission denied for table outbox/pagamento`); o `GerarOrcamento` não é processado. Na rodada, o contorno foi um `GRANT` manual no cluster de ensaio, não versionado.
 - O nome do deployment do os-service no preflight era `oficina-app`; o real é `oficina-os-service`. Corrigido.

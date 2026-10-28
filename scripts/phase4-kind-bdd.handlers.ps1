@@ -123,3 +123,109 @@ $Handlers['BDD-01a'] = {
     Compare-Valor 'estoque da peça (5 - 2)' 3 (Get-OsSql "select quantidade_estoque from pecas where id='$($ctx.PecaId)'") $falhas
     New-Resultado $falhas "estados e contagens conferem (OS $($os.Numero))"
 }
+
+# Leva a OS até a saga aguardar a decisão do cliente (diagnóstico concluído, orçamento gerado).
+function Step-AteDecisao {
+    param($Ctx, $Os)
+    Wait-Saga $Ctx $Os.Id 'AGUARDANDO_DIAGNOSTICO' | Out-Null
+    Complete-Execucao $Ctx (Get-Execucao $Ctx $Os.Id 'DIAGNOSTICO')
+    Wait-Saga $Ctx $Os.Id 'AGUARDANDO_DECISAO' | Out-Null
+}
+
+function Send-DecisaoCliente {
+    param($Ctx, $Os, [string]$Decisao)
+    $cliente = New-CustomerToken -ClienteId $Ctx.ClienteId -IdentityVersion $Ctx.Versao
+    $d = Invoke-Api os POST "/api/ordens-servico/$($Os.Numero)/orcamento/decisao" -Token $cliente -Body @{ decisao = $Decisao }
+    if ($d.Status -ne 200) { throw "decisão $Decisao devolveu $($d.Status)" }
+}
+
+# Aprova o orçamento e devolve o id do pagamento PENDENTE no billing.
+function Step-AteAguardandoPagamento {
+    param($Ctx, $Os)
+    Step-AteDecisao $Ctx $Os
+    Send-DecisaoCliente $Ctx $Os 'APROVADO'
+    Wait-Saga $Ctx $Os.Id 'AGUARDANDO_PAGAMENTO' | Out-Null
+    Wait-Until -What 'pagamento PENDENTE no billing' -Condition { Get-BillingSql "select id from pagamento where os_id='$($Os.Id)' and estado='PENDENTE'" }
+}
+
+function Send-SimulacaoPagamento {
+    param($Ctx, [string]$PagamentoId, [string]$Status)
+    $s = Invoke-Api billing POST "/billing/simulacoes/pagamentos/$PagamentoId" -Token $Ctx.Staff -Body @{ status = $Status }
+    if ($s.Status -ne 200) { throw "simulação de pagamento $Status devolveu $($s.Status)" }
+}
+
+function Compare-EstadosEComandos {
+    param($Cenario, $Saga, [System.Collections.Generic.List[string]]$Falhas, [switch]$Sufixo)
+    $o = Get-Observado $Saga
+    $prop = $Cenario.PSObject.Properties['estadosTransitorios']
+    $transitorios = if ($prop) { @($prop.Value) } else { @() }
+    $estados = @($o.Estados | Where-Object { $_ -notin $transitorios })
+    $comandos = @($o.Comandos)
+    # Cenários pós-pagamento (BDD-03x) descrevem só o trecho final: o oráculo é comparado com o sufixo observado.
+    if ($Sufixo) {
+        $estados = @($estados | Select-Object -Last @($Cenario.estadosSaga).Count)
+        $comandos = @($comandos | Select-Object -Last @($Cenario.comandos).Count)
+    }
+    Compare-Lista 'estados da saga' $Cenario.estadosSaga $estados $Falhas
+    Compare-Lista 'comandos' $Cenario.comandos $comandos $Falhas
+}
+
+$Handlers['BDD-02a'] = {
+    param($Cenario, $Oraculos)
+    $falhas = [System.Collections.Generic.List[string]]::new()
+    $ctx = Initialize-Cenario -Estoque 5
+    $os = New-OsSintetica $ctx -QtdPeca 2
+    $pag = Step-AteAguardandoPagamento $ctx $os
+    Send-SimulacaoPagamento $ctx $pag 'rejected'
+    $final = Wait-Saga $ctx $os.Id 'CANCELADA'
+    Compare-EstadosEComandos $Cenario $final $falhas
+    Compare-Valor 'motivo da falha' $Cenario.motivoFalha $final.motivoFalha $falhas
+    Compare-Lista 'pilha de compensação final' @($Cenario.pilhaCompensacaoFinal) @($final.compensacoesPendentes) $falhas
+    Compare-Valor 'status final da OS' $Cenario.statusOsFinal (Get-OsSql "select status from ordens_servico where id='$($os.Id)'") $falhas
+    Compare-Valor 'orçamento CANCELADO' $Cenario.contagens.orcamentos.CANCELADO (Get-BillingSql "select count(*) from orcamento where os_id='$($os.Id)' and estado='CANCELADO'") $falhas
+    Compare-Valor 'pagamento RECUSADO' $Cenario.contagens.pagamentos.RECUSADO (Get-BillingSql "select count(*) from pagamento where os_id='$($os.Id)' and estado='RECUSADO'") $falhas
+    Compare-Valor 'estoque intacto (5)' 5 (Get-OsSql "select quantidade_estoque from pecas where id='$($ctx.PecaId)'") $falhas
+    New-Resultado $falhas "pagamento recusado compensa e cancela (OS $($os.Numero))"
+}
+
+$Handlers['BDD-02b'] = {
+    param($Cenario, $Oraculos)
+    $falhas = [System.Collections.Generic.List[string]]::new()
+    $ctx = Initialize-Cenario -Estoque 5
+    $os = New-OsSintetica $ctx -QtdPeca 2
+    Step-AteDecisao $ctx $os
+    Send-DecisaoCliente $ctx $os 'RECUSADO'
+    $segunda = Wait-Until -What 'segunda execução de DIAGNOSTICO' -Condition {
+        $l = @((Invoke-Api execution GET "/execucao/execucoes?osId=$($os.Id)" -Token $ctx.Staff).Json | Where-Object tipo -eq 'DIAGNOSTICO')
+        if ($l.Count -ge 2) { $l }
+    }
+    $final = Wait-Until -What 'saga de volta a AGUARDANDO_DIAGNOSTICO v2' -Condition {
+        $s = Get-Saga $ctx $os.Id
+        if ($s -and $s.estado -eq 'AGUARDANDO_DIAGNOSTICO' -and @((Get-Observado $s).Comandos).Count -ge 4) { $s }
+    }
+    Compare-EstadosEComandos $Cenario $final $falhas
+    Compare-Valor 'versaoOrcamento' $Cenario.versaoOrcamentoFinal $final.versaoOrcamento $falhas
+    Compare-Lista 'pilha de compensação' @($Cenario.pilhaCompensacaoFinal) @($final.compensacoesPendentes) $falhas
+    Compare-Valor 'status da OS' $Cenario.statusOsFinal (Get-OsSql "select status from ordens_servico where id='$($os.Id)'") $falhas
+    Compare-Valor 'orçamento RECUSADO' $Cenario.contagens.orcamentos.RECUSADO (Get-BillingSql "select count(*) from orcamento where os_id='$($os.Id)' and estado='RECUSADO'") $falhas
+    Compare-Valor 'execuções DIAGNOSTICO' $Cenario.contagens.execucoes.DIAGNOSTICO @($segunda).Count $falhas
+    New-Resultado $falhas "recusa do cliente volta ao diagnóstico v2 (OS $($os.Numero))"
+}
+
+$Handlers['BDD-03a'] = {
+    param($Cenario, $Oraculos)
+    $falhas = [System.Collections.Generic.List[string]]::new()
+    $ctx = Initialize-Cenario -Estoque 1
+    $os = New-OsSintetica $ctx -QtdPeca 2
+    $pag = Step-AteAguardandoPagamento $ctx $os
+    Send-SimulacaoPagamento $ctx $pag 'approved'
+    $final = Wait-Saga $ctx $os.Id 'CANCELADA'
+    Compare-EstadosEComandos $Cenario $final $falhas -Sufixo
+    Compare-Valor 'motivo da falha' $Cenario.motivoFalha $final.motivoFalha $falhas
+    Compare-Lista 'pilha de compensação final' @($Cenario.pilhaCompensacaoFinal) @($final.compensacoesPendentes) $falhas
+    Compare-Valor 'status final da OS' $Cenario.statusOsFinal (Get-OsSql "select status from ordens_servico where id='$($os.Id)'") $falhas
+    Compare-Valor 'pagamento ESTORNADO' $Cenario.contagens.pagamentos.ESTORNADO (Get-BillingSql "select count(*) from pagamento where os_id='$($os.Id)' and estado='ESTORNADO'") $falhas
+    Compare-Valor 'orçamento CANCELADO' $Cenario.contagens.orcamentos.CANCELADO (Get-BillingSql "select count(*) from orcamento where os_id='$($os.Id)' and estado='CANCELADO'") $falhas
+    Compare-Valor 'estoque intacto (1)' 1 (Get-OsSql "select quantidade_estoque from pecas where id='$($ctx.PecaId)'") $falhas
+    New-Resultado $falhas "estoque insuficiente estorna e cancela (OS $($os.Numero))"
+}
