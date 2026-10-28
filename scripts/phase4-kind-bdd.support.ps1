@@ -97,7 +97,9 @@ function Invoke-Api {
 
 function Wait-Until {
     param([scriptblock]$Condition, [int]$TimeoutSec = 60, [string]$What = 'condição')
-    $fim = (Get-Date).AddSeconds($TimeoutSec)
+    # Runner de CI (2 vCPU) é mais lento que a máquina local: PHASE4_TIMEOUT_FACTOR amplia todos os prazos de espera.
+    $fator = if ($env:PHASE4_TIMEOUT_FACTOR -match '^[1-9]\d?$') { [int]$env:PHASE4_TIMEOUT_FACTOR } else { 1 }
+    $fim = (Get-Date).AddSeconds($TimeoutSec * $fator)
     while ((Get-Date) -lt $fim) { $v = & $Condition; if ($v) { return $v }; Start-Sleep -Seconds 1 }
     throw "Timeout aguardando $What"
 }

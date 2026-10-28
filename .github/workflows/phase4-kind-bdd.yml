@@ -33,6 +33,7 @@ concurrency:
 env:
   KIND_VERSION: v0.24.0
   PHASE4_KIND_CLUSTER: oficina-phase4-ci
+  PHASE4_TIMEOUT_FACTOR: '2'
   # SHAs pinados (40 caracteres: actions/checkout não resolve SHA abreviado): inputs do workflow_dispatch ou estes padrões. Nunca branches móveis.
   OS_SHA: ${{ inputs.os_sha || 'cf3471713188f2c975dc09360c5a9829f3647e84' }}
   BILLING_SHA: ${{ inputs.billing_sha || '96c811aec94832607605e2cba88adf8d14a099e1' }}
@@ -42,7 +43,7 @@ env:
 jobs:
   kind-bdd:
     runs-on: ubuntu-latest
-    timeout-minutes: 100
+    timeout-minutes: 150
     steps:
       - name: Checkout os-service (histórico completo para git archive do SHA pinado)
         uses: actions/checkout@v4
@@ -104,7 +105,7 @@ jobs:
           -BillingRepo "$env:GITHUB_WORKSPACE/billing" -ExecutionRepo "$env:GITHUB_WORKSPACE/execution"
 
       - name: Matriz BDD
-        timeout-minutes: 80
+        timeout-minutes: 120
         shell: pwsh
         working-directory: os
         run: |
