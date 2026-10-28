@@ -12,6 +12,14 @@ function New-Placa {
     "T$($l[[int]($n / 676) % 26])$($l[[int]($n / 26) % 26])$([int]($n % 10))$($l[$n % 26])$('{0:D2}' -f ($script:Seq % 100))"
 }
 
+# Contorno de UNR-279: a rota de placa nova devolve 500 (rollback-only), então o veículo é pré-cadastrado.
+function Add-Veiculo {
+    param([string]$ClienteId)
+    $placa = New-Placa
+    Get-OsSql "insert into veiculos(placa,marca,modelo,ano,cliente_id) values('$placa','Teste','Teste',2025,'$ClienteId')" | Out-Null
+    $placa
+}
+
 # Garante cliente sintético, peça com estoque definido e devolve o contexto base do cenário.
 function Initialize-Cenario {
     param([int]$Estoque = 5)
@@ -21,9 +29,7 @@ function Initialize-Cenario {
     $peca = Get-OsSql "select id from pecas where codigo='OL-5W30-1L'"
     Get-OsSql "update pecas set quantidade_estoque=$Estoque where id='$peca'" | Out-Null
     $servico = Get-OsSql "select id from servicos order by nome limit 1"
-    $placa = New-Placa
-    # Contorno de UNR-279: a rota de placa nova devolve 500 (rollback-only), então o veículo é pré-cadastrado.
-    Get-OsSql "insert into veiculos(placa,marca,modelo,ano,cliente_id) values('$placa','Teste','Teste',2025,'$clienteId')" | Out-Null
+    $placa = Add-Veiculo $clienteId
     [pscustomobject]@{ ClienteId = $clienteId; Versao = [long]$versao; PecaId = $peca; ServicoId = $servico; Placa = $placa; Staff = (New-StaffToken) }
 }
 
@@ -56,9 +62,10 @@ function Get-Execucao {
 
 function Complete-Execucao {
     param($Ctx, $Execucao)
-    foreach ($passo in @(@{ P = "/execucao/$($Execucao.id)/iniciar"; B = $null }, @{ P = "/execucao/$($Execucao.id)/tarefas"; B = @{ descricao = 'Tarefa sintética' } }, @{ P = "/execucao/$($Execucao.id)/concluir"; B = $null })) {
+    $passos = @(@{ P = "/execucao/$($Execucao.id)/iniciar"; B = $null }, @{ P = "/execucao/$($Execucao.id)/tarefas"; B = @{ descricao = 'Tarefa sintética' } }, @{ P = "/execucao/$($Execucao.id)/concluir"; B = $null })
+    foreach ($passo in $passos) {
         $r = Invoke-Api execution POST $passo.P -Token $Ctx.Staff -Body $passo.B
-        if ($r.Status -ge 300) { throw "execução $($passo.P) devolveu $($r.Status)" }
+        if ($r.Status -ge 300) { throw "execução $($passo.P) devolveu $($r.Status): $(Hide-Secret ([string]$r.Raw).Substring(0, [Math]::Min(200, ([string]$r.Raw).Length)))" }
     }
 }
 
@@ -102,7 +109,7 @@ $Handlers['BDD-01a'] = {
     $pag = Wait-Until -What 'pagamento PENDENTE no billing' -Condition { Get-BillingSql "select id from pagamento where os_id='$($os.Id)' and estado='PENDENTE'" }
     $s = Invoke-Api billing POST "/billing/simulacoes/pagamentos/$pag" -Token $ctx.Staff -Body @{ status = 'approved' }
     if ($s.Status -ne 200) { throw "simulação de pagamento devolveu $($s.Status)" }
-    Wait-Saga $ctx $os.Id 'AGUARDANDO_REPARO' | Out-Null
+    Wait-Saga $ctx $os.Id 'EM_EXECUCAO' | Out-Null
     Complete-Execucao $ctx (Get-Execucao $ctx $os.Id 'REPARO')
     $final = Wait-Saga $ctx $os.Id 'CONCLUIDA'
     $o = Get-Observado $final
@@ -127,9 +134,9 @@ $Handlers['BDD-01a'] = {
 # Leva a OS até a saga aguardar a decisão do cliente (diagnóstico concluído, orçamento gerado).
 function Step-AteDecisao {
     param($Ctx, $Os)
-    Wait-Saga $Ctx $Os.Id 'AGUARDANDO_DIAGNOSTICO' | Out-Null
-    Complete-Execucao $Ctx (Get-Execucao $Ctx $Os.Id 'DIAGNOSTICO')
-    Wait-Saga $Ctx $Os.Id 'AGUARDANDO_DECISAO' | Out-Null
+    Wait-Saga $Ctx $Os.Id 'AGUARDANDO_DIAGNOSTICO' -TimeoutSec 120 | Out-Null
+    Complete-Execucao $Ctx (Get-Execucao $Ctx $Os.Id 'DIAGNOSTICO' -TimeoutSec 120)
+    Wait-Saga $Ctx $Os.Id 'AGUARDANDO_DECISAO' -TimeoutSec 120 | Out-Null
 }
 
 function Send-DecisaoCliente {

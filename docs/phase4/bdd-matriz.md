@@ -77,7 +77,21 @@ Runner: handlers em `scripts/phase4-kind-bdd.handlers.ps1`, suporte (port-forwar
 | BDD-02a | PASS | recusa de pagamento: `COMPENSANDO` → `CANCELADA`, motivo `PAGAMENTO_RECUSADO`, orçamento `CANCELADO`, pagamento `RECUSADO`, estoque intacto, OS `CANCELADA` |
 | BDD-02b | PASS | cliente recusa: saga volta a `AGUARDANDO_DIAGNOSTICO` com `versaoOrcamento` 2, novo `IniciarDiagnostico`, 2 execuções de diagnóstico, orçamento `RECUSADO`, OS `EM_DIAGNOSTICO` |
 | BDD-03a | PASS | estoque insuficiente: `EstornarPagamento` e `CancelarOrcamento` nessa ordem, `ESTOQUE_INSUFICIENTE`, pagamento `ESTORNADO`, orçamento `CANCELADO`, estoque intacto. O oráculo descreve só o trecho pós-pagamento: comparado com o sufixo observado |
-| demais 32 | NAO_EXECUTADO ou COBERTO_POR_UNITARIO | handlers ainda não escritos |
+| BDD-03b | PASS | capacidade esgotada (`EXECUCAO_CAPACIDADE_REPAROS=1` só no cenário, restaurada no `finally`): a OS A ocupa a vaga; a OS B recebe `ReparoRecusado`, passa por `COMPENSANDO` e `CancelarExecucao`, `EstornarPagamento`, `CancelarOrcamento` saem nessa ordem; `CANCELADA`, motivo `REPARO_RECUSADO`, pilha vazia, execução `RECUSADA`, pagamento `ESTORNADO`, orçamento `CANCELADO`, estoque da OS B sem decremento líquido (`REPOR_ESTOQUE` local). A OS A é concluída ao final (libera a vaga). Pré-condição verificada no DynamoDB: 0 vagas ocupadas |
+| BDD-03d | PASS | pivô: `ReparoIniciado` leva a saga a `EM_EXECUCAO` com pilha vazia e sem `prazo`; depois de um ciclo inteiro do poller de prazos (20 s) continua `EM_EXECUCAO`, sem passo `COMPENSANDO`, OS `EM_EXECUCAO` |
+| BDD-04d | PASS | segunda simulação `approved` (HTTP 200): uma única `PagamentoConfirmado` na outbox do billing, uma linha correspondente no `saga_inbox`, pagamento `CONFIRMADO`=1, um `IniciarReparo` e estoque decrementado uma vez |
+| BDD-04e | PASS | com a execution em 0 réplicas, `IniciarDiagnostico` fica na fila; a linha da outbox volta a `PENDING` e é republicada com o mesmo `messageId`: o SQS devolve o mesmo `MessageId` (dedup FIFO), a fila retém 1 mensagem antes e depois, e ao religar a execution há 1 execução `DIAGNOSTICO` |
+| demais 28 | NAO_EXECUTADO ou COBERTO_POR_UNITARIO | handlers ainda não escritos (03c e 04a–04c dependem de injeção no LocalStack; 05–09 em fatias seguintes) |
+
+Fatia 1 (UNR-283): cluster efêmero `oficina-p4-unr283` (nome distinto para não colidir com a rodada do UNR-69), SHAs os `cf34717`, billing `96c811a`, execution `1bf1e6c`, sem egress AWS (LocalStack, credenciais fictícias). Os quatro cenários passaram em cluster limpo; em execuções separadas do mesmo cluster 01a, 03d, 04d (rodada 1) e 03b, 04e (rodada 2). Handlers em `scripts/phase4-kind-bdd.handlers.pos-pagamento.ps1`.
+
+Achados da fatia 1:
+
+- **`AGUARDANDO_REPARO` dura ~0,5 s.** A execution responde `ReparoIniciado` assim que aceita `IniciarReparo` (a execução fica `NA_FILA` e a vaga de capacidade é ocupada nesse momento); o `iniciar` do mecânico não é o gatilho. Esperar por `AGUARDANDO_REPARO` por polling de 1 s é corrida: o ponto estável é `EM_EXECUCAO`. O handler do 01a tinha essa espera e foi corrigido; o `ReparoIniciado` observado em 03d é, portanto, o aceite da execution.
+- **A vaga de capacidade vaza se o cenário falha depois de `IniciarReparo`** (item `CAPACIDADE#MATRIZ`, `reparosAtivos`): o 03b falha com pré-condição clara em vez de falso negativo, e a solução é cluster limpo. Cenários que aceitam reparo concluem a execução ao final para devolver a vaga.
+- **Latência de ~60 s na primeira mensagem depois de reiniciar um deployment**, vista 2 vezes (resposta `DiagnosticoConcluido` do 01a depois do restart do os-service; `IniciarDiagnostico` do 03b depois do restart da execution). Coincide com o `visibilidadePadraoSegundos` de 60 s; a causa (pod antigo consumindo durante a troca) é hipótese, não medida. Mitigação: esperas do primeiro trecho do fluxo com 120 s.
+- `kubectl set env NAME=` com valor vazio (em vez de `NAME-`) deixa a execution em `CrashLoopBackOff`; o helper usa a remoção.
+
 
 Rodada 2 (SHAs os `cf34717`, billing `96c811a`, execution `1bf1e6c`): 01a, 02a, 02b e 03a passam juntos em cluster novo (`oficina-p4-unr69`) subido por `phase4-kind-stack.ps1` com os grants do UNR-280 (branch #74 mesclado aqui), sem contorno manual. O runner usa o cluster de `PHASE4_KIND_CLUSTER`.
 
