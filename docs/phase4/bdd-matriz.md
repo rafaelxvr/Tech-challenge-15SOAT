@@ -81,7 +81,11 @@ Runner: handlers em `scripts/phase4-kind-bdd.handlers.ps1`, suporte (port-forwar
 | BDD-03d | PASS | pivô: `ReparoIniciado` leva a saga a `EM_EXECUCAO` com pilha vazia e sem `prazo`; depois de um ciclo inteiro do poller de prazos (20 s) continua `EM_EXECUCAO`, sem passo `COMPENSANDO`, OS `EM_EXECUCAO` |
 | BDD-04d | PASS | segunda simulação `approved` (HTTP 200): uma única `PagamentoConfirmado` na outbox do billing, uma linha correspondente no `saga_inbox`, pagamento `CONFIRMADO`=1, um `IniciarReparo` e estoque decrementado uma vez |
 | BDD-04e | PASS | com a execution em 0 réplicas, `IniciarDiagnostico` fica na fila; a linha da outbox volta a `PENDING` e é republicada com o mesmo `messageId`: o SQS devolve o mesmo `MessageId` (dedup FIFO), a fila retém 1 mensagem antes e depois, e ao religar a execution há 1 execução `DIAGNOSTICO` |
-| demais 28 | NAO_EXECUTADO ou COBERTO_POR_UNITARIO | handlers ainda não escritos (03c e 04a–04c dependem de injeção no LocalStack; 05–09 em fatias seguintes) |
+| BDD-05a | PASS | aprovação após `CANCELADA` (saga cancelada por `SAGA_PRAZO_PAGAMENTO=30s`): pagamento `ESTORNADO`, orçamento `CANCELADO`, zero respostas novas do billing e zero mensagens novas no `saga_inbox`, OS `CANCELADA`. SHAs: os `cf34717`, billing `96c811a`, execution `1bf1e6c`. |
+| BDD-06a | PASS | `SAGA_PRAZO_DIAGNOSTICO=30s`: `AGUARDANDO_DIAGNOSTICO` → `COMPENSANDO` → `CANCELADA`, `DIAGNOSTICO_SEM_RESPOSTA`, `CancelarExecucao`, execução de diagnóstico `CANCELADA`. |
+| BDD-06b | PASS | `SAGA_PRAZO_DECISAO=30s`: `DECISAO_EXPIRADA`, `CancelarOrcamento`, orçamento `CANCELADO`, OS `CANCELADA`. |
+| BDD-06d | PASS | `SAGA_PRAZO_PAGAMENTO=30s`: `PAGAMENTO_EXPIRADO`, pagamento `CANCELADO`; aprovação tardia (HTTP 200) vira `ESTORNADO` e a saga permanece `CANCELADA`. |
+| demais 23 | NAO_EXECUTADO ou COBERTO_POR_UNITARIO | handlers ainda não escritos (03c, 04a–04c, 05b–05c dependem de injeção no LocalStack; 06c, 06e–06g, 07–09 em fatias seguintes) |
 
 Fatia 1 (UNR-283): cluster efêmero `oficina-p4-unr283` (nome distinto para não colidir com a rodada do UNR-69), SHAs os `cf34717`, billing `96c811a`, execution `1bf1e6c`, sem egress AWS (LocalStack, credenciais fictícias). Os quatro cenários passaram em cluster limpo; em execuções separadas do mesmo cluster 01a, 03d, 04d (rodada 1) e 03b, 04e (rodada 2). Handlers em `scripts/phase4-kind-bdd.handlers.pos-pagamento.ps1`.
 
@@ -100,3 +104,5 @@ Achados que a rodada expôs (todos com tarefa própria):
 - **UNR-279 (os-service):** `POST /api/ordens-servico` com placa não cadastrada devolve 500 (`UnexpectedRollbackException`: `VeiculoService.obterAtivoPorPlaca` marca a transação como rollback-only e `resolverVeiculo` engole a exceção). O harness pré-cadastra o veículo; a rota de placa nova fica sem cobertura até a correção.
 - **UNR-280 (infra Kind, corrigido no PR #74; mesclado neste branch para a rodada 2):** `billing_app` sem DML no bring-up (`permission denied for table outbox/pagamento`); o `GerarOrcamento` não é processado. Na rodada, o contorno foi um `GRANT` manual no cluster de ensaio, não versionado.
 - O nome do deployment do os-service no preflight era `oficina-app`; o real é `oficina-os-service`. Corrigido.
+
+Rodada 3 (cluster `oficina-p4-unr69b`, SHAs os `cf34717`, billing `96c811a`, execution `1bf1e6c`): 05a, 06a, 06b e 06d passam. Os prazos da saga são encurtados por `kubectl set env` no os-service só durante o cenário e removidos no `finally`; o poller de prazos roda a cada ~15 s. Handlers em `scripts/phase4-kind-bdd.handlers.scheduler.ps1`. Passar vários ids a `-Scenario` exige `pwsh -Command`; com `-File` a lista chega como uma única string e nenhum cenário roda.
