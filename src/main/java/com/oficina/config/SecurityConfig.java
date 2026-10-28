@@ -44,11 +44,18 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .exceptionHandling(errors -> errors.authenticationEntryPoint((request, response, exception) -> {
-                    response.setStatus(401);
-                    response.setContentType("application/json");
-                    response.getWriter().write("{\"error\":\"UNAUTHORIZED\"}");
-                }))
+                .exceptionHandling(errors -> errors
+                        .authenticationEntryPoint((request, response, exception) -> {
+                            response.setStatus(401);
+                            response.setContentType("application/json");
+                            response.getWriter().write("{\"error\":\"UNAUTHORIZED\"}");
+                        })
+                        // setStatus direto: sendError() redespacha para /error sem credencial e viraria 401.
+                        .accessDeniedHandler((request, response, negado) -> {
+                            response.setStatus(403);
+                            response.setContentType("application/json");
+                            response.getWriter().write("{\"error\":\"FORBIDDEN\"}");
+                        }))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, "/auth/login").permitAll()
                         .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/liveness",
