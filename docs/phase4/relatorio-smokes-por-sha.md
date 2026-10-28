@@ -16,9 +16,30 @@ Scripts: `scripts/phase4-kind-stack.ps1` (Build/Up/Down) e `scripts/phase4-kind-
 
 Estados e contagens esperados x observados, por verificação, na tabela de resultados abaixo. Resumo: 53 verificações, 51 PASS, 2 FAIL (mesmo achado F-1). A matriz BDD (34 PASS; 06h e 07c cobertos por teste unitário) está em [bdd-matriz.md](bdd-matriz.md) e não foi reexecutada nesta fatia.
 
+## Reexecução após a correção do F-1 (UNR-299, 28/10)
+
+Cluster Kind efêmero `oficina-p4-unr299` (removido ao final; o `oficina-phase4` do runner BDD não foi tocado). SHAs de `develop` após o merge dos PRs da UNR-299 (os #79, billing #6):
+
+| Serviço | SHA | Imagem |
+|---|---|---|
+| os-service | `7a8ea6c` | `oficina-phase4/os-service:7a8ea6c` |
+| billing | `17a37b9` | `oficina-phase4/billing-service:17a37b9` |
+| execution | `1bf1e6c` (inalterado) | `oficina-phase4/execution-service:1bf1e6c` |
+
+Resultado: **53 verificações, 53 PASS, 0 FAIL** (egress 8, fail-closed 6, isolamento 14, jwt 25). Verificações que antes falhavam:
+
+| Id | Esperado | Antes (`cf34717` / `96c811a`) | Agora (`7a8ea6c` / `17a37b9`) |
+|---|---|---|---|
+| JWT-os-papel-errado | 403 | 401 | 403 PASS |
+| JWT-billing-papel-errado | 403 | 401 | 403 PASS |
+
+`JWT-execution-papel-errado` segue fixado em 401 (N-1, por desenho). A matriz BDD não foi reexecutada.
+
+Ajuste no smoke: a verificação `FC-*-restaurado` tinha os SHAs antigos fixos no padrão da imagem e falhava com SHAs novos (falso FAIL na primeira tentativa desta reexecução, 51 PASS e 2 FAIL); agora usa `-OsSha`, `-BillingSha` e `-ExecutionSha`. Os defaults dos parâmetros continuam nos SHAs da fatia 7; passe os SHAs novos explicitamente.
+
 ## Achados
 
-- **F-1 (os e billing): papel insuficiente devolve 401 em vez de 403.** MECANICO com token válido em rota só-ADMIN (`/api/admin/metricas/tempo-execucao-servicos` no os; `/billing/orcamentos` no billing) recebe 401. O mesmo token com ADMIN recebe 2xx, logo a assinatura, a validade e o papel do banco estão corretos; o que falha é o status da negação. Hipótese não confirmada: a negação vira `sendError(403)` e o redespacho para `/error` volta sem credencial (stateless) e cai no `authenticationEntryPoint`. O comportamento é visível só com HTTP real; testes MockMvc não o pegam. Cada serviço precisa de uma subtarefa com correção e teste de integração HTTP.
+- **F-1 (os e billing): papel insuficiente devolve 401 em vez de 403. CORRIGIDO na UNR-299 (os #79, billing #6); smoke verde em `7a8ea6c`/`17a37b9`, ver a seção acima.** Registro original: MECANICO com token válido em rota só-ADMIN (`/api/admin/metricas/tempo-execucao-servicos` no os; `/billing/orcamentos` no billing) recebe 401. O mesmo token com ADMIN recebe 2xx, logo a assinatura, a validade e o papel do banco estão corretos; o que falha é o status da negação. Hipótese não confirmada: a negação vira `sendError(403)` e o redespacho para `/error` volta sem credencial (stateless) e cai no `authenticationEntryPoint`. O comportamento é visível só com HTTP real; testes MockMvc não o pegam. Cada serviço precisa de uma subtarefa com correção e teste de integração HTTP.
 - **N-1 (execution): 403 por papel não é observável.** Todas as rotas aceitam ADMIN e MECANICO, e papel fora da lista é tratado como token inválido (401, por desenho). O smoke fixa 401 e registra a diferença do critério "papel errado → 403".
 - **N-2: ausência de `JWT_SECRET` no execution.** O serviço não sobe, mas por `WeakKeyException` (chave padrão de 104 bits), não por validação explícita de segredo ausente. Resultado equivalente (fail-closed); o motivo é acidental.
 

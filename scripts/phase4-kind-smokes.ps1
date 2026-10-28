@@ -172,12 +172,13 @@ function Test-SemSegredo {
 }
 
 function Test-FailClosed {
+    $shaPorServico = @{ os = $OsSha; billing = $BillingSha; execution = $ExecutionSha }
     foreach ($s in $script:Servicos) {
         $variavel = 'JWT_SECRET'
         Test-SemSegredo $s $variavel
         $img = (Invoke-Kube @('-n', $s.Namespace, 'get', 'deploy', $s.Deployment, '-o', 'jsonpath={.spec.template.spec.containers[0].image}')).Output
         $env = (Invoke-Kube @('-n', $s.Namespace, 'get', 'deploy', $s.Deployment, '-o', 'jsonpath={.spec.template.spec.containers[0].env[*].name}')).Output
-        Add-Resultado "FC-$($s.Nome)-restaurado" 'fail-closed' "$($s.Nome) restaurado após o teste: JWT_SECRET de volta e imagem pinada" 'sim' $(if ($env -match 'JWT_SECRET' -and $img -match ':(cf34717|96c811a|1bf1e6c)$') { 'sim' } else { "nao ($img)" })
+        Add-Resultado "FC-$($s.Nome)-restaurado" 'fail-closed' "$($s.Nome) restaurado após o teste: JWT_SECRET de volta e imagem pinada" 'sim' $(if ($env -match 'JWT_SECRET' -and $img -match "(?:^|:)$([regex]::Escape($shaPorServico[$s.Nome]))$") { 'sim' } else { "nao ($img)" })
     }
 }
 
