@@ -14,7 +14,7 @@ Scripts: `scripts/phase4-kind-stack.ps1` (Build/Up/Down) e `scripts/phase4-kind-
 
 ## Resultado
 
-Estados e contagens esperados x observados, por verificação, na tabela de resultados abaixo. Resumo: 53 verificações, 51 PASS, 2 FAIL (mesmo achado F-1). A matriz BDD (34 PASS; 06h e 07c cobertos por teste unitário) está em [bdd-matriz.md](bdd-matriz.md) e não foi reexecutada nesta fatia.
+Estados e contagens esperados x observados, por verificação, na tabela de resultados abaixo. Resumo atual (SHAs `7a8ea6c`/`17a37b9`/`1bf1e6c`, após a UNR-299): **53 verificações, 53 PASS, 0 FAIL** (JWT 25: 25 PASS). A primeira execução (`cf34717`/`96c811a`) teve 51 PASS e 2 FAIL (F-1, JWT papel errado 401 em vez de 403); a tabela detalhada abaixo é dessa primeira execução (JWT 23/2), mantida como evidência histórica; a reexecução está na seção seguinte. A matriz BDD (34 PASS; 06h e 07c cobertos por teste unitário) está em [bdd-matriz.md](bdd-matriz.md) e não foi reexecutada nesta fatia. Limites mantidos: egress provado por configuração e logs, sem NetworkPolicy; execution sem rota só-ADMIN; segredo HS256 compartilhado; cobertura e Sonar não medidos.
 
 ## Reexecução após a correção do F-1 (UNR-299, 28/10)
 
