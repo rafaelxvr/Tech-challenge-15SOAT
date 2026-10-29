@@ -131,8 +131,12 @@ $Handlers['BDD-08c'] = {
     Set-PrazoSaga SAGA_PRAZO_RESPOSTA $script:PrazoCurto
     try {
         Send-DecisaoCliente $ctx $os 'APROVADO'
-        $final = Wait-Saga $ctx $os.Id 'COMPENSANDO' -TimeoutSec 150
+        # COMPENSANDO é transitório aqui: o billing responde OrcamentoCancelado de imediato para a versão desconhecida e a saga fecha
+        # em CANCELADA em ~1 s, mais rápido que o polling. Espera-se o estado terminal e confere-se o histórico de passos.
+        $final = Wait-Saga $ctx $os.Id 'CANCELADA' -TimeoutSec 150
         Compare-Valor 'motivo da falha' $Cenario.motivoFalha $final.motivoFalha $falhas
+        $estados = @((Get-Observado $final).Estados)
+        if ($estados -notcontains 'COMPENSANDO') { $falhas.Add("saga não passou por COMPENSANDO (estados: $($estados -join ','))") }
         Wait-Until -What 'RegistrarDecisao na DLQ do billing' -TimeoutSec 120 -Condition { (Get-QueueTotal $dlq) -ge 1 } | Out-Null
         $tipos = @(Get-MensagensDlq $dlq | ForEach-Object { ($_.Body | ConvertFrom-Json).type } | Sort-Object -Unique)
         if ($tipos -notcontains 'RegistrarDecisao') { $falhas.Add("DLQ sem RegistrarDecisao (tipos: $($tipos -join ','))") }
@@ -142,7 +146,7 @@ $Handlers['BDD-08c'] = {
         $dlqTotal = Get-QueueTotal $dlq
     }
     finally { Set-PrazoSaga SAGA_PRAZO_RESPOSTA $null; Restore-Fila $fila $dlq }
-    New-Resultado $falhas "RegistrarDecisao de orçamento inexistente: sem reply, DLQ com [$($tipos -join ',')] ($dlqTotal msg), saga COMPENSANDO por $($final.motivoFalha) (OS $($os.Numero))"
+    New-Resultado $falhas "RegistrarDecisao de orçamento inexistente: sem reply, DLQ com [$($tipos -join ',')] ($dlqTotal msg), saga COMPENSANDO e CANCELADA por $($final.motivoFalha) (OS $($os.Numero))"
 }
 
 $Handlers['BDD-08d'] = {
