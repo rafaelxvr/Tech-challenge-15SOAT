@@ -87,7 +87,8 @@ function New-CustomerToken {
 
 function Invoke-Api {
     param([ValidateSet('os', 'billing', 'execution')][string]$Service, [string]$Method = 'GET', [string]$Path, [string]$Token, $Body)
-    $args = @{ Uri = "http://127.0.0.1:$($script:Ports[$Service])$Path"; Method = $Method; SkipHttpErrorCheck = $true; Headers = @{ Authorization = "Bearer $Token" }; TimeoutSec = 30 }
+    $args = @{ Uri = "http://127.0.0.1:$($script:Ports[$Service])$Path"; Method = $Method; SkipHttpErrorCheck = $true; Headers = @{}; TimeoutSec = 30 }
+    if ($Token) { $args.Headers.Authorization = "Bearer $Token" }
     if ($null -ne $Body) { $args.Body = ($Body | ConvertTo-Json -Depth 8); $args.ContentType = 'application/json' }
     $r = Invoke-WebRequest @args
     [pscustomobject]@{ Status = [int]$r.StatusCode; Json = $(if ($r.Content) { try { $r.Content | ConvertFrom-Json } catch { $null } }); Raw = $r.Content }
