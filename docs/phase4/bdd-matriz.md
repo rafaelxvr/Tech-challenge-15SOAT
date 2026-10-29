@@ -98,7 +98,8 @@ Runner: handlers em `scripts/phase4-kind-bdd.handlers.ps1`, suporte (port-forwar
 | BDD-09b | PASS | seis OS em `AGUARDANDO_PAGAMENTO`, seis simulações `approved` em paralelo (`ForEach-Object -Parallel`, 6 x HTTP 200): 2 aceitos, 4 recusados, `reparosAtivos`=2. |
 | BDD-09c | PASS | capacidade esgotada (`reparosAtivos`=2); concluir um reparo leva a 1; o próximo `IniciarReparo` é aceito. Confirma a inferência do item 7 das divergências para a liberação por conclusão. |
 | BDD-09d | PASS | 09a+09b+09c duas vezes seguidas: resultados iguais (`A[2/1] B[2/4] C[1]` nas duas), 0 execuções REPARO ativas e `reparosAtivos`=0 depois de cada limpeza. |
-| demais 12 | NAO_EXECUTADO ou COBERTO_POR_UNITARIO | handlers ainda não escritos (03c, 04a–04c, 05b–05c, 08a–08e dependem de injeção no LocalStack) |
+| 03c, 04a–04c, 05b, 05c | PASS | ver Fatia 5 (UNR-295) |
+| demais 6 | NAO_EXECUTADO ou COBERTO_POR_UNITARIO | 08a–08e dependem de injeção no LocalStack (fatia 6); 06h é UNIT; 07c é UNIT |
 
 Fatia 1 (UNR-283): cluster efêmero `oficina-p4-unr283` (nome distinto para não colidir com a rodada do UNR-69), SHAs os `cf34717`, billing `96c811a`, execution `1bf1e6c`, sem egress AWS (LocalStack, credenciais fictícias). Os quatro cenários passaram em cluster limpo; em execuções separadas do mesmo cluster 01a, 03d, 04d (rodada 1) e 03b, 04e (rodada 2). Handlers em `scripts/phase4-kind-bdd.handlers.pos-pagamento.ps1`.
 
@@ -132,3 +133,22 @@ Achados da fatia 4:
 - **09b usa o fluxo real dos três serviços, não injeção de comandos** (a matriz previa INJ-C): as seis aprovações de pagamento em paralelo levam seis `IniciarReparo` de OS distintas à execution. Prova o limite de 2 sob concorrência no nível de REST do billing; a concorrência de consumo depende do paralelismo dos grupos FIFO reais.
 - **Oráculo 09c confirmado:** a conclusão do reparo libera a vaga (`reparosAtivos` 2 → 1). A liberação por cancelamento não foi exercitada.
 - Custo: ~12 s por OS em Kind; 09d (24 OS) leva ~5 min.
+
+Fatia 5 (UNR-295): cluster efêmero `oficina-p4-unr69e` (bring-up por `phase4-kind-stack.ps1`, imagens locais, sem egress AWS), SHAs os `cf34717`, billing `96c811a`, execution `1bf1e6c`; 03c, 04a, 04b, 04c, 05b e 05c passam, cada um em execução própria (`pwsh -Command`) no mesmo cluster; 04b foi a segunda tentativa (a primeira falhou por bug do próprio handler no `split` das linhas lidas do banco, corrigido). Handlers em `scripts/phase4-kind-bdd.handlers.injecao.ps1`. Cleanup: `-Action Down` removeu o cluster, 0 containers, 0 port-forwards e as 3 imagens; o cluster `oficina-phase4` de outra rodada ficou intocado.
+
+| Cenário | Status | Observação |
+|---|---|---|
+| BDD-03c | PASS | billing parado (0 réplicas) com a OS em `AGUARDANDO_PAGAMENTO`; `PagamentoConfirmado` injetada (estoque 1 < 2) leva a `COMPENSANDO` com `EstornarPagamento` pendente; `CompensacaoFalhou` injetada com o `causationId` do comando leva a `FALHA_COMPENSACAO`, pilha `CANCELAR_ORCAMENTO, ESTORNAR_PAGAMENTO` preservada, OS não `CANCELADA`, estado inalterado depois de um ciclo do poller (20 s). A fila do billing é esvaziada (`purge-queue`) antes de religá-lo. |
+| BDD-04a | PASS | `DiagnosticoConcluido` injetada duas vezes com o mesmo `messageId` e `MessageDeduplicationId` distintos: 1 passo `RESPOSTA:DiagnosticoConcluido`, 1 linha no `saga_inbox`, 1 log `saga_resposta_duplicada`, fila drenada, saga segue até `AGUARDANDO_DECISAO`. |
+| BDD-04b | PASS | com o orçamento GERADO, dois `CancelarOrcamento` injetados com `messageId` diferentes: 2 `OrcamentoCancelado` na outbox do billing com o mesmo `orcamentoId`, orçamento `CANCELADO` uma vez, 2 linhas no inbox do billing, fila e DLQ vazias. |
+| BDD-04c | PASS | execution parada; `IniciarDiagnostico` real + 2 cópias injetadas (mesmo `messageId`): 3 mensagens na fila; ao religar, 1 execução `DIAGNOSTICO`, fila drenada, DLQ vazia. |
+| BDD-05b | PASS | `SAGA_PRAZO_DIAGNOSTICO=30s` leva a `CANCELADA` (`DIAGNOSTICO_SEM_RESPOSTA`); `DiagnosticoConcluido` injetada com o `causationId` do `IniciarDiagnostico` antigo: log `saga_resposta_obsoleta`, 0 passos novos, OS `CANCELADA`. |
+| BDD-05c | PASS | saga em `AGUARDANDO_DIAGNOSTICO`; três replies injetadas (`PagamentoConfirmado` com o `causationId` certo = incompatível; `DiagnosticoConcluido` de saga inexistente; tipo `ReplyInventada`): um log de cada evento (`saga_resposta_incompativel`, `saga_resposta_sem_saga`, `saga_resposta_desconhecida`), 0 passos novos, comando aguardado inalterado, fila e DLQ de respostas vazias. |
+
+Achados da fatia 5:
+
+- **A duplicata injetada precisa de `MessageDeduplicationId` novo.** Com o mesmo id, a deduplicação FIFO do SQS a filtra antes de chegar ao serviço e o teste provaria o SQS, não o inbox.
+- **03c exige o billing parado**: com ele ativo, `EstornarPagamento` é respondido em milissegundos e a saga não fica em `COMPENSANDO`. O `PagamentoConfirmado` é injetado no lugar do billing; o pagamento no billing continua `PENDENTE` (a injeção não passa por ele).
+- Os cenários 05b/05c verificam o descarte por log do pod do os-service (`kubectl logs`, `event_name` no JSON) além do estado: o log só vale para o pod atual, por isso a checagem acontece antes de restaurar o prazo (rollout).
+- Nenhuma falha de serviço encontrada; nenhuma subtarefa para Backend.
+- Restam 08a–08e (fatia 6).
