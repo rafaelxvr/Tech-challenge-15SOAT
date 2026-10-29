@@ -9,7 +9,9 @@ $script:CustomerKey = $null
 function Start-Forward {
     param([string]$Namespace, [string]$Service, [int]$LocalPort)
     $log = Join-Path $script:WorkDir "pf-$Service.log"
-    $p = Start-Process kubectl -PassThru -WindowStyle Hidden -RedirectStandardOutput $log -RedirectStandardError "$log.err" `
+    # -WindowStyle só existe no Windows; no runner Linux do CI o parâmetro é omitido.
+    $hidden = if ($IsWindows) { @{ WindowStyle = 'Hidden' } } else { @{} }
+    $p = Start-Process kubectl -PassThru @hidden -RedirectStandardOutput $log -RedirectStandardError "$log.err" `
         -ArgumentList @('--context', $script:KubeContext, '-n', $Namespace, 'port-forward', '--address', '127.0.0.1', "svc/$Service", "${LocalPort}:8080")
     $script:Forwards += $p
     $script:ForwardMap[$Service] = @{ Namespace = $Namespace; Port = $LocalPort; Process = $p }
@@ -95,7 +97,9 @@ function Invoke-Api {
 
 function Wait-Until {
     param([scriptblock]$Condition, [int]$TimeoutSec = 60, [string]$What = 'condição')
-    $fim = (Get-Date).AddSeconds($TimeoutSec)
+    # Runner de CI (2 vCPU) é mais lento que a máquina local: PHASE4_TIMEOUT_FACTOR amplia todos os prazos de espera.
+    $fator = if ($env:PHASE4_TIMEOUT_FACTOR -match '^[1-9]\d?$') { [int]$env:PHASE4_TIMEOUT_FACTOR } else { 1 }
+    $fim = (Get-Date).AddSeconds($TimeoutSec * $fator)
     while ((Get-Date) -lt $fim) { $v = & $Condition; if ($v) { return $v }; Start-Sleep -Seconds 1 }
     throw "Timeout aguardando $What"
 }

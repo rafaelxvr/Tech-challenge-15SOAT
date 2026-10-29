@@ -251,16 +251,26 @@ function Invoke-Verify {
     Write-Host 'Verify: OK'
 }
 
+# Processos `kubectl port-forward` ainda ligados ao contexto do cluster (Windows via CIM, Linux/macOS via ps).
+function Get-ClusterPortForwards {
+    $ctx = "kind-$([regex]::Escape($script:ClusterName))\b.*port-forward"
+    if ($IsWindows) {
+        return @(Get-CimInstance Win32_Process -Filter "Name='kubectl.exe'" | Where-Object { $_.CommandLine -match $ctx } | ForEach-Object { [int]$_.ProcessId })
+    }
+    @((Invoke-Native ps @('-eo', 'pid=,args=') -AllowFailure).Output -split "`n" |
+        Where-Object { $_ -match '\bkubectl\b' -and $_ -match $ctx } | ForEach-Object { [int](($_.Trim() -split '\s+')[0]) })
+}
+
 # Cleanup comprovado: apaga só o cluster nomeado e confirma que não sobrou nada dele.
 function Invoke-Down {
     Invoke-Native kind @('delete', 'cluster', '--name', $script:ClusterName) | Out-Null
     $clusters = (Invoke-Native kind @('get', 'clusters') -AllowFailure).Output -split "`n"
     $containers = (Invoke-Native docker @('ps', '-a', '--filter', "name=^$($script:ClusterName)-", '--format', '{{.Names}}')).Output.Trim()
-    $pf = @(Get-CimInstance Win32_Process -Filter "Name='kubectl.exe'" | Where-Object { $_.CommandLine -match "kind-$([regex]::Escape($script:ClusterName))\b.*port-forward" })
+    $pf = @(Get-ClusterPortForwards)
     $problems = @()
     if ($clusters -contains $script:ClusterName) { $problems += 'cluster ainda existe' }
     if ($containers) { $problems += "containers: $containers" }
-    if ($pf.Count) { $problems += "port-forward residual: $($pf.ProcessId -join ',')" }
+    if ($pf.Count) { $problems += "port-forward residual: $($pf -join ',')" }
     foreach ($s in $script:Services) { Invoke-Native docker @('rmi', $s.Image) -AllowFailure | Out-Null }
     $imagesLeft = @($script:Services | Where-Object { Test-ImagePresent $_.Image })
     if ($imagesLeft) { $problems += "imagens: $($imagesLeft.Image -join ',')" }

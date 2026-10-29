@@ -128,6 +128,8 @@ $Handlers['BDD-08c'] = {
     Step-AteDecisao $ctx $os
     Initialize-FilaVenenosa $fila $dlq
     Get-BillingSql "update orcamento set versao=99 where os_id='$($os.Id)'" | Out-Null   # o RegistrarDecisao real (versão 1) aponta para um orçamento que não existe
+    # inbox não tem os_id e acumula os RegistrarDecisao dos cenários anteriores: o rollback se prova pelo delta.
+    $inboxAntes = [int](Get-BillingSql "select count(*) from inbox where tipo='RegistrarDecisao'")
     Set-PrazoSaga SAGA_PRAZO_RESPOSTA $script:PrazoCurto
     try {
         Send-DecisaoCliente $ctx $os 'APROVADO'
@@ -142,7 +144,7 @@ $Handlers['BDD-08c'] = {
         if ($tipos -notcontains 'RegistrarDecisao') { $falhas.Add("DLQ sem RegistrarDecisao (tipos: $($tipos -join ','))") }
         Compare-Valor 'respostas à decisão no billing' $Cenario.contagens.respostas (Get-BillingSql "select count(*) from outbox where os_id='$($os.Id)' and tipo in ('OrcamentoAprovado','OrcamentoRecusado')") $falhas
         Compare-Valor 'pagamentos criados' 0 (Get-BillingSql "select count(*) from pagamento where os_id='$($os.Id)'") $falhas
-        Compare-Valor 'registros do RegistrarDecisao no inbox do billing (rollback)' 0 (Get-BillingSql "select count(*) from inbox where tipo='RegistrarDecisao'") $falhas
+        Compare-Valor 'novos registros do RegistrarDecisao no inbox do billing (rollback)' 0 ([int](Get-BillingSql "select count(*) from inbox where tipo='RegistrarDecisao'") - $inboxAntes) $falhas
         $dlqTotal = Get-QueueTotal $dlq
     }
     finally { Set-PrazoSaga SAGA_PRAZO_RESPOSTA $null; Restore-Fila $fila $dlq }

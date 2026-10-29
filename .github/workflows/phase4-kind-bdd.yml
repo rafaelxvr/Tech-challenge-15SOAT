@@ -1,0 +1,165 @@
+name: Phase 4 Kind BDD
+
+# Sobe os 3 serviços da Fase 4 (os-service, billing, execution) em UM cluster Kind efêmero, roda a matriz BDD
+# e prova o cleanup. Sem AWS: imagens locais (`kind load`) e LocalStack com credenciais fictícias.
+# Independente do workflow "APP staging rollout" (AWS), que não é tocado aqui.
+
+on:
+  workflow_dispatch:
+    inputs:
+      os_sha:
+        description: 'SHA do os-service (este repositório) que vira imagem'
+        default: 'cf3471713188f2c975dc09360c5a9829f3647e84'
+      billing_sha:
+        description: 'SHA do billing (Tech-challenge-15SOAT-billing)'
+        default: '96c811aec94832607605e2cba88adf8d14a099e1'
+      execution_sha:
+        description: 'SHA do execution (Tech-challenge-15SOAT-execution)'
+        default: '1bf1e6ca057957edd022a63a58c78fc8e0ffccb7'
+  pull_request:
+    paths:
+      - '.github/workflows/phase4-kind-bdd.yml'
+      - 'scripts/phase4-kind*.ps1'
+      - 'infra/phase4-kind/**'
+      - 'tests/phase4-kind/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase4-kind-bdd-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  KIND_VERSION: v0.24.0
+  PHASE4_KIND_CLUSTER: oficina-phase4-ci
+  PHASE4_TIMEOUT_FACTOR: '2'
+  # SHAs pinados (40 caracteres: actions/checkout não resolve SHA abreviado): inputs do workflow_dispatch ou estes padrões. Nunca branches móveis.
+  OS_SHA: ${{ inputs.os_sha || 'cf3471713188f2c975dc09360c5a9829f3647e84' }}
+  BILLING_SHA: ${{ inputs.billing_sha || '96c811aec94832607605e2cba88adf8d14a099e1' }}
+  EXECUTION_SHA: ${{ inputs.execution_sha || '1bf1e6ca057957edd022a63a58c78fc8e0ffccb7' }}
+  RESULTS_DIR: ${{ github.workspace }}/phase4-results
+
+jobs:
+  kind-bdd:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - name: Checkout os-service (histórico completo para git archive do SHA pinado)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          path: os
+
+      - name: Checkout billing no SHA pinado
+        uses: actions/checkout@v4
+        with:
+          repository: rafaelxvr/Tech-challenge-15SOAT-billing
+          ref: ${{ env.BILLING_SHA }}
+          fetch-depth: 1
+          path: billing
+
+      - name: Checkout execution no SHA pinado
+        uses: actions/checkout@v4
+        with:
+          repository: rafaelxvr/Tech-challenge-15SOAT-execution
+          ref: ${{ env.EXECUTION_SHA }}
+          fetch-depth: 1
+          path: execution
+
+      - name: Instalar kind (binário com checksum do release)
+        run: |
+          set -euo pipefail
+          base="https://github.com/kubernetes-sigs/kind/releases/download/${KIND_VERSION}"
+          curl -fsSLo kind "${base}/kind-linux-amd64"
+          curl -fsSLo kind.sha256sum "${base}/kind-linux-amd64.sha256sum"
+          echo "$(cut -d' ' -f1 kind.sha256sum)  kind" | sha256sum -c -
+          sudo install -m 0755 kind /usr/local/bin/kind
+          rm -f kind kind.sha256sum
+          kind version
+
+      - name: Garantir que os SHAs pinados existem nos checkouts
+        shell: pwsh
+        run: |
+          $pins = @{ os = $env:OS_SHA; billing = $env:BILLING_SHA; execution = $env:EXECUTION_SHA }
+          foreach ($k in $pins.Keys) {
+            $full = (& git -C $k rev-parse --verify "$($pins[$k])^{commit}").Trim()
+            if ($LASTEXITCODE -ne 0) { throw "SHA $($pins[$k]) ausente no checkout de $k" }
+            Write-Host "$k = $full"
+          }
+
+      - name: Up (build das imagens, cluster, dependências, 3 serviços)
+        shell: pwsh
+        working-directory: os
+        run: >
+          ./scripts/phase4-kind-stack.ps1 -Action Up
+          -OsSha $env:OS_SHA -BillingSha $env:BILLING_SHA -ExecutionSha $env:EXECUTION_SHA
+          -BillingRepo "$env:GITHUB_WORKSPACE/billing" -ExecutionRepo "$env:GITHUB_WORKSPACE/execution"
+
+      - name: Readiness explícita dos 3 serviços
+        shell: pwsh
+        working-directory: os
+        run: >
+          ./scripts/phase4-kind-stack.ps1 -Action Verify
+          -OsSha $env:OS_SHA -BillingSha $env:BILLING_SHA -ExecutionSha $env:EXECUTION_SHA
+          -BillingRepo "$env:GITHUB_WORKSPACE/billing" -ExecutionRepo "$env:GITHUB_WORKSPACE/execution"
+
+      - name: Matriz BDD
+        timeout-minutes: 120
+        shell: pwsh
+        working-directory: os
+        run: |
+          New-Item -ItemType Directory -Force -Path $env:RESULTS_DIR | Out-Null
+          ./scripts/phase4-kind-bdd.ps1 -Action Run -OsSha $env:OS_SHA -BillingSha $env:BILLING_SHA -ExecutionSha $env:EXECUTION_SHA -OutputDir $env:RESULTS_DIR
+
+      - name: Diagnóstico do cluster (só em falha, sem segredos)
+        if: failure() || cancelled()
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path $env:RESULTS_DIR | Out-Null
+          $ctx = "kind-$env:PHASE4_KIND_CLUSTER"
+          $out = Join-Path $env:RESULTS_DIR 'diagnostico.txt'
+          "== processos ==" | Add-Content $out
+          (& ps -eo pid,etime,args 2>&1 | Select-String 'kubectl|pwsh') | ForEach-Object { $_.Line } | Add-Content $out
+          foreach ($ns in 'oficina', 'oficina-billing', 'oficina-execution', 'data', 'infra') {
+            "== pods $ns ==" | Add-Content $out
+            (& kubectl --context $ctx -n $ns get pods -o wide 2>&1) | Add-Content $out
+          }
+          foreach ($d in @(@('oficina', 'oficina-os-service'), @('oficina-billing', 'oficina-billing'), @('oficina-execution', 'oficina-execution'))) {
+            "== logs $($d[1]) ==" | Add-Content $out
+            (& kubectl --context $ctx -n $d[0] logs "deploy/$($d[1])" --tail=200 2>&1) | Add-Content $out
+          }
+          # Nunca publicar valores de credencial que eventualmente apareçam nos logs.
+          $text = (Get-Content -Raw $out) -replace '(?i)(password|secret|token|authorization|api[_-]?key)(["\x27:=\s]+)\S+', '$1$2***'
+          Set-Content -Path $out -Value $text
+
+      - name: Publicar artefatos sanitizados
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase4-kind-bdd-${{ github.run_id }}
+          path: |
+            ${{ env.RESULTS_DIR }}/bdd-results.json
+            ${{ env.RESULTS_DIR }}/diagnostico.txt
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Down e prova de cleanup (cluster, containers, port-forwards, imagens)
+        if: always()
+        shell: pwsh
+        working-directory: os
+        run: |
+          ./scripts/phase4-kind-stack.ps1 -Action Down `
+            -OsSha $env:OS_SHA -BillingSha $env:BILLING_SHA -ExecutionSha $env:EXECUTION_SHA `
+            -BillingRepo "$env:GITHUB_WORKSPACE/billing" -ExecutionRepo "$env:GITHUB_WORKSPACE/execution"
+          # Verificação independente do próprio script de Down.
+          $problems = @()
+          if ((& kind get clusters 2>&1) -split "`n" -contains $env:PHASE4_KIND_CLUSTER) { $problems += 'cluster ainda existe' }
+          $c = (& docker ps -a --filter "name=^$env:PHASE4_KIND_CLUSTER-" --format '{{.Names}}')
+          if ($c) { $problems += "containers: $c" }
+          $pf = (& ps -eo args=) | Where-Object { $_ -match 'kubectl' -and $_ -match "kind-$env:PHASE4_KIND_CLUSTER" -and $_ -match 'port-forward' }
+          if ($pf) { $problems += 'port-forward residual' }
+          $img = (& docker images --format '{{.Repository}}:{{.Tag}}') | Where-Object { $_ -like 'oficina-phase4/*' }
+          if ($img) { $problems += "imagens: $($img -join ',')" }
+          if ($problems) { throw "cleanup incompleto: $($problems -join '; ')" }
+          Write-Host 'cleanup verificado: cluster=0 containers=0 port-forwards=0 imagens=0'
