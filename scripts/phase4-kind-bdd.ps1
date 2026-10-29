@@ -86,7 +86,8 @@ function Get-KubeRefValue {
 function Assert-DeployedRevision {
     param($Service, [string]$Sha)
     $d = (Invoke-Kube @('-n', $Service.Namespace, 'get', 'deploy', $Service.Deployment, '-o', 'json')).Output | ConvertFrom-Json
-    $anotacao = $d.spec.template.metadata.annotations.'phase4.oficina/source-sha'
+    $anotacoes = $d.spec.template.metadata.PSObject.Properties['annotations']
+    $anotacao = if ($anotacoes -and $anotacoes.Value.PSObject.Properties['phase4.oficina/source-sha']) { $anotacoes.Value.'phase4.oficina/source-sha' } else { '' }
     $imagem = "$($d.spec.template.spec.containers[0].image)"
     $porImagem = $imagem -match ":$Sha(@|$)"
     if ("$anotacao" -ne $Sha -and -not $porImagem) {
