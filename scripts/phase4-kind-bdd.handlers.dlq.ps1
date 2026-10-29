@@ -171,6 +171,8 @@ $Handlers['BDD-08d'] = {
         Compare-Valor 'estado da saga' 'AGUARDANDO_DIAGNOSTICO' $depois.estado $falhas
         Compare-Valor 'transições após a venenosa' $Cenario.contagens.transicoes ($depois.passos.Count - $antes.passos.Count) $falhas
         Compare-Valor 'comando aguardado inalterado' $aguardado (Get-SagaIds $os.Id).Aguardado $falhas
+        # A DLQ já ter a mensagem não garante que a 5ª linha de log do último recebimento já apareceu: espera a contagem antes de comparar.
+        try { Wait-Until -What 'saga_resposta_falhou registrado 5 vezes' -TimeoutSec 30 -Condition { ((Get-LinhasLogServico oficina oficina-os-service 'saga_resposta_falhou') - $base) -ge 5 } | Out-Null } catch { }
         $tentativas = (Get-LinhasLogServico oficina oficina-os-service 'saga_resposta_falhou') - $base
         if ($tentativas -lt 5) { $falhas.Add("recebimentos com falha: esperado >= 5, observado $tentativas") }
         Compare-Valor 'fila de respostas drenada' 0 (Get-QueueTotal $fila) $falhas
