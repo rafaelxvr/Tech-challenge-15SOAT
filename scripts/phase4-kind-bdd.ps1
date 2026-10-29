@@ -123,7 +123,7 @@ function Invoke-Preflight {
         Write-Host "PASS pronto: $($s.Nome)"
     }
     foreach ($flag in 'SAGA_ENABLED', 'SAGA_MENSAGERIA_ENABLED') {
-        $valor = Get-EffectiveEnvValue -Deployment 'oficina-app' -Namespace 'oficina' -Name $flag
+        $valor = Get-EffectiveEnvValue -Deployment 'oficina-os-service' -Namespace 'oficina' -Name $flag
         if ($valor -ne 'true') { throw "$flag deve valer 'true' no os-service do Kind (D17-R: ligar só no perfil Kind); valor efetivo: '$valor'" }
         Write-Host "PASS $flag=true"
     }
