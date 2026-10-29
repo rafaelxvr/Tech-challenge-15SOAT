@@ -59,6 +59,8 @@ pwsh -NoProfile -File scripts/phase4-kind-bdd.ps1 -Action Preflight
 pwsh -NoProfile -File scripts/phase4-kind-bdd.ps1 -Action Run -BillingSha <sha> -ExecutionSha <sha> -OutputDir <dir>
 ```
 
+Os SHAs devem ser completos (40 hex minúsculos) e são conferidos contra cada deployment (anotação `phase4.oficina/source-sha` no pod template ou tag da imagem igual ao SHA); divergência aborta, e o digest da imagem em execução vai para `bdd-results.json`. `-Scenario` com id desconhecido ou vazio aborta com exit != 0. O preflight exige `SAGA_ENABLED` e `SAGA_MENSAGERIA_ENABLED` com valor efetivo `true`.
+
 `Run` sai com 2 enquanto houver cenário `NAO_EXECUTADO` e com 1 se algum falhar. Nada é marcado como aprovado sem handler.
 
 ## Evidência desta entrega
