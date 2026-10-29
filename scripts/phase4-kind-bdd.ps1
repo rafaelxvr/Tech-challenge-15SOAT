@@ -10,9 +10,11 @@
 .PARAMETER Action
   Preflight | Run | Report
 .PARAMETER OsSha, BillingSha, ExecutionSha
-  Revisions that were built and deployed. OsSha defaults to this checkout's HEAD; the other two must be passed.
+  Full 40-hex revisions that were built and deployed. OsSha defaults to this checkout's HEAD; the other two must be passed.
+  Each one is verified against its deployment (pod template annotation phase4.oficina/source-sha or image tag equal to the
+  SHA); a mismatch aborts the run. The running image digests are recorded in bdd-results.json.
 .PARAMETER Scenario
-  Optional list of ids (BDD-01a ...). Default: all.
+  Optional list of ids (BDD-01a ...). Default: all. An unknown id or an empty selection aborts with a non-zero exit code.
 .PARAMETER OutputDir
   Directory for bdd-results.json. Default: a new directory under the system temp folder (never the repository).
 #>
@@ -45,7 +47,70 @@ $Handlers = @{}
 . (Join-Path $PSScriptRoot 'phase4-kind-bdd.handlers.injecao.ps1')
 . (Join-Path $PSScriptRoot 'phase4-kind-bdd.handlers.dlq.ps1')
 
+$script:ResolvedOsSha = if ($OsSha) { $OsSha } else { (Invoke-Native git @('-C', $script:RepoRoot, 'rev-parse', 'HEAD')).Output.Trim() }
+
 function Get-Oraculos { Get-Content -Raw (Join-Path $kindTests 'oraculos.json') | ConvertFrom-Json }
+
+# Effective value of an env var in the first container: literal value or, for valueFrom, the referenced ConfigMap/Secret key
+# (Secret values are only compared, never printed). Empty string when absent or unresolved.
+function Get-EffectiveEnvValue {
+    param([string]$Deployment, [string]$Namespace, [string]$Name)
+    $json = (Invoke-Kube @('-n', $Namespace, 'get', 'deploy', $Deployment, '-o', 'json')).Output | ConvertFrom-Json
+    $container = $json.spec.template.spec.containers[0]
+    $entry = @($container.env | Where-Object { $_.name -eq $Name }) | Select-Object -Last 1
+    if ($entry) {
+        if ($entry.PSObject.Properties['value']) { return "$($entry.value)".Trim().ToLowerInvariant() }
+        $ref = $entry.valueFrom
+        if ($ref.configMapKeyRef) { return Get-KubeRefValue 'configmap' $Namespace $ref.configMapKeyRef.name $ref.configMapKeyRef.key }
+        if ($ref.secretKeyRef) { return Get-KubeRefValue 'secret' $Namespace $ref.secretKeyRef.name $ref.secretKeyRef.key }
+        return ''
+    }
+    foreach ($from in @($container.envFrom)) {
+        if (-not $from) { continue }
+        $kind = if ($from.configMapRef) { 'configmap' } elseif ($from.secretRef) { 'secret' } else { continue }
+        $refName = if ($from.configMapRef) { $from.configMapRef.name } else { $from.secretRef.name }
+        $v = Get-KubeRefValue $kind $Namespace $refName $Name
+        if ($v) { return $v }
+    }
+    ''
+}
+
+function Get-KubeRefValue {
+    param([string]$Kind, [string]$Namespace, [string]$Name, [string]$Key)
+    $r = Invoke-Kube @('-n', $Namespace, 'get', $Kind, $Name, '-o', "jsonpath={.data.$($Key -replace '\.', '\.')}") -AllowFailure
+    if ($r.ExitCode -ne 0 -or -not $r.Output) { return '' }
+    $text = if ($Kind -eq 'secret') { try { [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($r.Output)) } catch { '' } } else { $r.Output }
+    $text.Trim().ToLowerInvariant()
+}
+
+# The SHA must be the full 40-hex commit and must match what the deployment actually runs: the pod template annotation
+# phase4.oficina/source-sha or an image tag equal to the SHA. The running image digest is returned for the evidence.
+function Assert-DeployedRevision {
+    param($Service, [string]$Sha)
+    $d = (Invoke-Kube @('-n', $Service.Namespace, 'get', 'deploy', $Service.Deployment, '-o', 'json')).Output | ConvertFrom-Json
+    $anotacao = $d.spec.template.metadata.annotations.'phase4.oficina/source-sha'
+    $imagem = "$($d.spec.template.spec.containers[0].image)"
+    $porImagem = $imagem -match ":$Sha(@|$)"
+    if ("$anotacao" -ne $Sha -and -not $porImagem) {
+        throw "SHA informado para '$($Service.Nome)' ($Sha) não corresponde ao implantado (anotação phase4.oficina/source-sha='$anotacao', imagem='$imagem')."
+    }
+    $imageId = (Invoke-Kube @('-n', $Service.Namespace, 'get', 'pods', '-l', "app=$($Service.Deployment)", '-o', 'jsonpath={.items[0].status.containerStatuses[0].imageID}') -AllowFailure).Output
+    "$imageId"
+}
+
+function Assert-RunArguments {
+    param($Oraculos)
+    $shas = [ordered]@{ OsSha = $script:ResolvedOsSha; BillingSha = $BillingSha; ExecutionSha = $ExecutionSha }
+    foreach ($k in $shas.Keys) {
+        if (-not $shas[$k]) { throw "Informe -$k`: resultados só valem vinculados ao SHA real que foi implantado." }
+        if ($shas[$k] -cnotmatch '^[0-9a-f]{40}$') { throw "-$k deve ser o SHA completo (40 hex minúsculos)." }
+    }
+    if ($null -ne $Scenario) {
+        $ids = @($Oraculos.cenarios | ForEach-Object { $_.id })
+        $invalidos = @($Scenario | Where-Object { $_ -cnotin $ids })
+        if ($invalidos.Count -gt 0 -or @($Scenario).Count -eq 0) { throw "Cenário(s) desconhecido(s): $($invalidos -join ', '). Ids válidos: $($ids -join ', ')" }
+    }
+}
 
 function Invoke-Preflight {
     foreach ($tool in 'kind', 'kubectl', 'docker') {
@@ -57,18 +122,22 @@ function Invoke-Preflight {
         if ($r.ExitCode -ne 0 -or [int]('0' + $r.Output) -lt 1) { throw "Serviço '$($s.Nome)' não está pronto ($($s.Namespace)/$($s.Deployment))" }
         Write-Host "PASS pronto: $($s.Nome)"
     }
-    $cfg = (Invoke-Kube @('-n', 'oficina', 'get', 'configmap', 'oficina-os-service-config', '-o', 'jsonpath={.data.SAGA_ENABLED}/{.data.SAGA_MENSAGERIA_ENABLED}') -AllowFailure).Output
-    if ($cfg -ne 'true/true') { throw "SAGA_ENABLED/SAGA_MENSAGERIA_ENABLED devem ser true/true no perfil Kind (observado: $cfg)" }
+    foreach ($flag in 'SAGA_ENABLED', 'SAGA_MENSAGERIA_ENABLED') {
+        $valor = Get-EffectiveEnvValue -Deployment 'oficina-app' -Namespace 'oficina' -Name $flag
+        if ($valor -ne 'true') { throw "$flag deve valer 'true' no os-service do Kind (D17-R: ligar só no perfil Kind); valor efetivo: '$valor'" }
+        Write-Host "PASS $flag=true"
+    }
     Write-Host 'PASS preflight'
 }
 
 function Invoke-Run {
     $oraculos = Get-Oraculos
-    $osSha = if ($OsSha) { $OsSha } else { (Invoke-Native git @('-C', $script:RepoRoot, 'rev-parse', 'HEAD')).Output.Trim() }
-    $faltam = @()
-    if (-not $BillingSha) { $faltam += 'BillingSha' }
-    if (-not $ExecutionSha) { $faltam += 'ExecutionSha' }
-    if ($faltam) { throw "Informe $($faltam -join ', '): resultados só valem vinculados ao SHA real que foi implantado." }
+    $osSha = $script:ResolvedOsSha
+    $digests = [ordered]@{}
+    foreach ($s in $services) {
+        $sha = switch ($s.Nome) { 'os' { $osSha } 'billing' { $BillingSha } 'execution' { $ExecutionSha } }
+        $digests[$s.Nome] = Assert-DeployedRevision $s $sha
+    }
     $dir = if ($OutputDir) { $OutputDir } else { Join-Path ([IO.Path]::GetTempPath()) ("phase4-bdd-" + [guid]::NewGuid().ToString('N')) }
     New-Item -ItemType Directory -Force -Path $dir | Out-Null
     $resultados = @()
@@ -88,11 +157,13 @@ function Invoke-Run {
         }
     }
     finally { Stop-Forwards }
+    if (@($resultados).Count -eq 0) { throw 'Nenhum cenário selecionado: nada foi executado.' }
     $resumo = $resultados | Group-Object status | ForEach-Object { [pscustomobject]@{ status = $_.Name; total = $_.Count } }
     $saida = [ordered]@{
         executadoEm = (Get-Date).ToUniversalTime().ToString('o')
         cluster = $script:ClusterName
         revisoes = [ordered]@{ os = $osSha; billing = $BillingSha; execution = $ExecutionSha }
+        imagensImplantadas = $digests
         resumo = $resumo
         resultados = $resultados
     }
@@ -106,7 +177,7 @@ function Invoke-Run {
 
 switch ($Action) {
     'Preflight' { Invoke-Preflight }
-    'Run' { Invoke-Preflight; Invoke-Run }
+    'Run' { Assert-RunArguments (Get-Oraculos); Invoke-Preflight; Invoke-Run }
     'Report' {
         if (-not $OutputDir) { throw 'Informe -OutputDir com o diretório do bdd-results.json' }
         Get-Content -Raw (Join-Path $OutputDir 'bdd-results.json')

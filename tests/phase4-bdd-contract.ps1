@@ -99,5 +99,21 @@ Assert-That 'sem JWT, e-mail ou token literal nas fixtures' ((Find-Padrao 'eyJ[A
 
 Assert-That 'runner existe e não usa --from-literal nem PGPASSWORD em argumento' ((Test-Path (Join-Path $root 'scripts/phase4-kind-bdd.ps1')) -and (Find-Padrao '--from-literal|"PGPASSWORD=').Count -eq 0)
 
+# Argumentos do runner são validados antes de tocar no cluster: seleção inválida/vazia e SHA incompleto devem falhar (exit != 0).
+$runner = Join-Path $root 'scripts/phase4-kind-bdd.ps1'
+$shaOk = 'a' * 40
+function Invoke-Runner { param([string[]]$Arguments) $out = & pwsh -NoProfile -File $runner @Arguments 2>&1; [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = ($out | ForEach-Object { "$_" }) -join "`n" } }
+$base = @('-Action', 'Run', '-OsSha', $shaOk, '-BillingSha', $shaOk, '-ExecutionSha', $shaOk)
+$r = Invoke-Runner ($base + @('-Scenario', 'BDD-ZZ'))
+Assert-That 'runner rejeita -Scenario desconhecido com exit != 0' ($r.ExitCode -ne 0 -and $r.Output -match 'desconhecido')
+$r = Invoke-Runner ($base + @('-Scenario', ''))
+Assert-That 'runner rejeita -Scenario vazio com exit != 0' ($r.ExitCode -ne 0)
+$r = Invoke-Runner @('-Action', 'Run', '-OsSha', $shaOk, '-BillingSha', 'abc123', '-ExecutionSha', $shaOk)
+Assert-That 'runner rejeita SHA abreviado com exit != 0' ($r.ExitCode -ne 0 -and $r.Output -match 'SHA completo')
+$r = Invoke-Runner @('-Action', 'Run', '-OsSha', $shaOk, '-BillingSha', $shaOk, '-ExecutionSha', ('A' * 40))
+Assert-That 'runner rejeita SHA em maiúsculas com exit != 0' ($r.ExitCode -ne 0 -and $r.Output -match 'SHA completo')
+$fonteRunner = Get-Content -Raw $runner
+Assert-That 'preflight exige valor efetivo true nas flags da saga e Run confere SHA contra o deployment' ($fonteRunner -match "-ne 'true'" -and $fonteRunner -match 'Assert-DeployedRevision' -and $fonteRunner -match 'phase4\.oficina/source-sha')
+
 if ($failures.Count -gt 0) { Write-Host "`n$($failures.Count) falha(s)"; exit 1 }
 Write-Host "`nOK: $($cenarios.Count) cenários, $($features.Count) features, $($filas.Count) filas verificadas"
