@@ -99,7 +99,8 @@ Runner: handlers em `scripts/phase4-kind-bdd.handlers.ps1`, suporte (port-forwar
 | BDD-09c | PASS | capacidade esgotada (`reparosAtivos`=2); concluir um reparo leva a 1; o próximo `IniciarReparo` é aceito. Confirma a inferência do item 7 das divergências para a liberação por conclusão. |
 | BDD-09d | PASS | 09a+09b+09c duas vezes seguidas: resultados iguais (`A[2/1] B[2/4] C[1]` nas duas), 0 execuções REPARO ativas e `reparosAtivos`=0 depois de cada limpeza. |
 | 03c, 04a–04c, 05b, 05c | PASS | ver Fatia 5 (UNR-295) |
-| demais 6 | NAO_EXECUTADO ou COBERTO_POR_UNITARIO | 08a–08e dependem de injeção no LocalStack (fatia 6); 06h é UNIT; 07c é UNIT |
+| 08a–08e | PASS | ver Fatia 6 (UNR-296) |
+| demais 2 | COBERTO_POR_UNITARIO | 06h é UNIT; 07c é UNIT |
 
 Fatia 1 (UNR-283): cluster efêmero `oficina-p4-unr283` (nome distinto para não colidir com a rodada do UNR-69), SHAs os `cf34717`, billing `96c811a`, execution `1bf1e6c`, sem egress AWS (LocalStack, credenciais fictícias). Os quatro cenários passaram em cluster limpo; em execuções separadas do mesmo cluster 01a, 03d, 04d (rodada 1) e 03b, 04e (rodada 2). Handlers em `scripts/phase4-kind-bdd.handlers.pos-pagamento.ps1`.
 
@@ -151,4 +152,21 @@ Achados da fatia 5:
 - **03c exige o billing parado**: com ele ativo, `EstornarPagamento` é respondido em milissegundos e a saga não fica em `COMPENSANDO`. O `PagamentoConfirmado` é injetado no lugar do billing; o pagamento no billing continua `PENDENTE` (a injeção não passa por ele).
 - Os cenários 05b/05c verificam o descarte por log do pod do os-service (`kubectl logs`, `event_name` no JSON) além do estado: o log só vale para o pod atual, por isso a checagem acontece antes de restaurar o prazo (rollout).
 - Nenhuma falha de serviço encontrada; nenhuma subtarefa para Backend.
-- Restam 08a–08e (fatia 6).
+
+Fatia 6 (UNR-296): cluster efêmero `oficina-p4-unr69f` (bring-up por `phase4-kind-stack.ps1`, imagens locais, sem egress AWS), SHAs os `cf34717`, billing `96c811a`, execution `1bf1e6c`; 08a–08e passam, cada um em execução própria (`pwsh -Command`) no mesmo cluster; 08a foi a segunda tentativa (a primeira falhou por `` final no corpo lido da DLQ, bug do handler, corrigido). Handlers em `scripts/phase4-kind-bdd.handlers.dlq.ps1`. Cleanup: `-Action Down` removeu o cluster (containers=0, port-forwards=0, 3 imagens removidas); o cluster `oficina-phase4` de outra rodada ficou intocado. Com isso os 36 cenários têm resultado: 34 PASS e 2 COBERTO_POR_UNITARIO (06h, 07c).
+
+| Cenário | Status | Observação |
+|---|---|---|
+| BDD-08a | PASS | `billing-commands.fifo` com visibilidade 5 s (restaurada para 60 s no `finally`): corpo `{ isto nao e json` num grupo próprio vai à DLQ depois de 5 recebimentos com falha (5 linhas `billing_comando_falhou`), com corpo e grupo preservados; a OS de outro grupo gera o orçamento (`GERADO`) normalmente e a fila esvazia. |
+| BDD-08b | PASS | venenosa e `CancelarOrcamento` válido no mesmo grupo (osId): o válido só é processado depois de 5 falhas da venenosa; a venenosa termina na DLQ (1), orçamento `CANCELADO`, fila vazia. Confirma o hold-back FIFO do item 7 das divergências. |
+| BDD-08c | PASS | orçamento do billing deslocado para a versão 99 (o `RegistrarDecisao` real aponta para a versão 1, inexistente), `SAGA_PRAZO_RESPOSTA=30s`: o billing lança `RecursoNaoEncontrado`, a transação desfaz o registro no inbox e a mensagem vai à DLQ (tipo `RegistrarDecisao`); sem `OrcamentoAprovado`/`Recusado` na outbox, 0 pagamentos, saga passa por `COMPENSANDO` e fecha em `CANCELADA` com `DECISAO_SEM_RESPOSTA` (o estado transitório é conferido no histórico de passos, não por polling). |
+| BDD-08d | PASS | reply inválida em `os-saga-replies.fifo`: 5 falhas `saga_resposta_falhou`, 1 mensagem em `os-saga-replies-dlq.fifo`, saga continua em `AGUARDANDO_DIAGNOSTICO` com 0 transições e o mesmo comando aguardado. |
+| BDD-08e | PASS | `RegistrarDecisao` válido vai à DLQ (versão do orçamento deslocada), causa corrigida, redrive manual (receive na DLQ + send na fila original com o mesmo grupo e deduplication id novo + delete): 1 `OrcamentoAprovado`, orçamento `APROVADO`, 1 pagamento `PENDENTE`, 1 linha no inbox, DLQ e fila vazias. `StartMessageMoveTask` continua não verificado. |
+
+Achados da fatia 6:
+
+- A DLQ é preenchida pelo SQS do LocalStack, não pelo serviço: o consumidor só não apaga a mensagem; com visibilidade 5 s o `maxReceiveCount=5` fecha em ~30 s (com os 60 s padrão levaria ~5 min).
+- O `RegistrarDecisao` que falha reverte o inbox junto (mesma transação), por isso o redrive reprocessa de verdade em vez de ser descartado como duplicata.
+- Em 08c a compensação `CancelarOrcamento` aponta para a versão inexistente, mas o billing a trata de forma idempotente (responde `OrcamentoCancelado` sem erro): `COMPENSANDO` dura cerca de 1 s e a saga fecha em `CANCELADA`. Esperar `COMPENSANDO` por polling era a causa da intermitência (UNR-319); o cenário espera `CANCELADA` e confere `COMPENSANDO` nos passos.
+- Nenhuma falha de serviço encontrada; nenhuma subtarefa para o Backend.
+- Sem cobertura, Sonar nem `mvn` medidos nesta fatia.
