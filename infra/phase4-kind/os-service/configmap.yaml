@@ -1,0 +1,31 @@
+# Configuração não sensível. Segredos (JWT_SECRET, DB_PASSWORD) ficam no Secret `oficina-os-secrets`,
+# criado por scripts/phase4-kind-stack.ps1 a partir de valores aleatórios por cluster.
+# JWT_STAFF_* seguem o contrato do execution (mesmo emissor/audiência/kid do token de staff).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oficina-os-service-config
+data:
+  DEPLOYMENT_ENVIRONMENT: kind
+  SERVER_PORT: "8080"
+  DB_URL: jdbc:postgresql://postgres-os.data.svc.cluster.local:5432/oficina
+  DB_USERNAME: oficina_app
+  # O schema é migrado pelo Job Flyway (oficina_migrator) antes do deploy; o runtime só tem DML.
+  SPRING_FLYWAY_ENABLED: "false"
+  HISTORICO_ZONA_COMPATIBILIDADE: UTC
+  JWT_STAFF_ISSUER: oficina-os-service
+  JWT_STAFF_AUDIENCE: oficina-staff
+  JWT_STAFF_KEY_ID: staff-local-1
+  JWT_CUSTOMER_ISSUER: oficina-customer-kind
+  JWT_CUSTOMER_AUDIENCE: oficina-customer-kind
+  MAIL_ENABLED: "false"
+  NEW_RELIC_AGENT_ENABLED: "false"
+  AWS_REGION: us-east-1
+  AWS_ACCESS_KEY_ID: test
+  AWS_SECRET_ACCESS_KEY: test
+  SAGA_ENABLED: "true"
+  SAGA_MENSAGERIA_ENABLED: "true"
+  SAGA_SQS_ENDPOINT: http://localstack.infra.svc.cluster.local:4566
+  SAGA_FILA_BILLING: http://localstack.infra.svc.cluster.local:4566/000000000000/billing-commands.fifo
+  SAGA_FILA_EXECUCAO: http://localstack.infra.svc.cluster.local:4566/000000000000/execution-commands.fifo
+  SAGA_FILA_RESPOSTAS: http://localstack.infra.svc.cluster.local:4566/000000000000/os-saga-replies.fifo
