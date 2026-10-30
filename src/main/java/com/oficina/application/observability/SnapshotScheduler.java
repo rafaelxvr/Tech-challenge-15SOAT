@@ -7,6 +7,7 @@ import com.oficina.application.relatorio.StatusAtual;
 import com.oficina.entity.StatusOrdemServico;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -26,8 +27,6 @@ import java.util.Objects;
  */
 public final class SnapshotScheduler {
     private static final Logger LOG = LoggerFactory.getLogger(SnapshotScheduler.class);
-    private static final List<StatusOrdemServico> DURATION_STATUSES = List.of(
-            StatusOrdemServico.EM_DIAGNOSTICO, StatusOrdemServico.EM_EXECUCAO, StatusOrdemServico.FINALIZADA);
 
     private final RelatoriosPort reports;
     private final SnapshotExporter exporter;
@@ -50,13 +49,104 @@ public final class SnapshotScheduler {
         this.droppedExports = Objects.requireNonNull(droppedExports);
     }
 
-    /** Runs one safe capture. Failures are explicitly contained outside domain transactions. */
+    /**
+     * Runs one safe capture and export. The two phases are contained separately so a database
+     * failure while capturing and a failure while exporting to New Relic surface as distinct error
+     * codes; both are still explicitly contained outside domain transactions. The outer containment
+     * is a plain {@code catch (Throwable ...)} that reports and swallows anything the two inner
+     * {@code catch (RuntimeException ...)} blocks do not, such as an {@link Error}, with no
+     * exception: {@code scheduleWithFixedDelay} permanently cancels a repeating task whose run
+     * throws, and that cancellation is invisible - no {@code UncaughtExceptionHandler} runs, nothing
+     * is printed, and both the poller and its liveness probe keep reporting healthy while telemetry
+     * stays dead forever. That is strictly worse than continuing, including for a
+     * {@link VirtualMachineError} (e.g. {@code OutOfMemoryError}, {@code StackOverflowError}): the
+     * JVM usually survives one, so this method never re-throws. The genuinely unrecoverable case is
+     * instead handled at the process level, by {@code -XX:+ExitOnOutOfMemoryError} in the
+     * container's {@code JAVA_OPTS}, which exits the JVM so Kubernetes can restart the pod - the
+     * crash signal a re-thrown {@link Error} here could never reliably deliver.
+     */
     public void exportarAgora() {
         try {
-            exporter.exportar(capturar());
-        } catch (RuntimeException ignored) {
-            // Structured logging policy supplies correlation/version; never include provider response or report data.
-            LOG.warn("event_name=snapshot_export_failed error_code=SNAPSHOT_EXPORT_FAILED");
+            List<Map<String, Object>> eventos;
+            try {
+                eventos = capturar();
+                validarEventos(eventos);
+            } catch (RuntimeException failure) {
+                registrarFalha("SNAPSHOT_CAPTURE_FAILED", failure);
+                return;
+            }
+            int capturedCount = eventos.size();
+            try {
+                exporter.exportar(eventos);
+            } catch (RuntimeException failure) {
+                registrarFalha("SNAPSHOT_EXPORT_FAILED", failure);
+                return;
+            }
+            registrarSucesso(capturedCount, capturedCount);
+        } catch (Throwable failure) {
+            registrarFalhaNaoTratada(failure);
+        }
+    }
+
+    /**
+     * Re-checks the shape {@link #base(String, Instant)} promises (non-blank {@code eventType}, a
+     * known {@code environment}, a numeric {@code timestamp}) before any event crosses into the
+     * exporter. A violation here is a capture-side defect - {@code capturar()} produced it - so it
+     * must fail as {@code SNAPSHOT_CAPTURE_FAILED}, not surface later as an export failure once it
+     * is inside {@link SnapshotExporter#exportar(List)}.
+     */
+    private static void validarEventos(List<Map<String, Object>> eventos) {
+        for (Map<String, Object> evento : eventos) {
+            if (evento == null || !(evento.get("eventType") instanceof String type) || type.isBlank()
+                    || !(evento.get("environment") instanceof String environment)
+                    || !List.of("staging", "production").contains(environment)
+                    || !(evento.get("timestamp") instanceof Number)) {
+                throw new IllegalStateException("Captured snapshot event is missing required fields");
+            }
+        }
+    }
+
+    private void registrarFalha(String errorCode, Throwable failure) {
+        // Structured logging policy supplies correlation/version; never include provider response or report data.
+        MDC.put("event_name", "snapshot_tick_failed");
+        MDC.put("error_code", errorCode);
+        MDC.put("failure_type", failure.getClass().getName());
+        try {
+            LOG.warn("");
+        } finally {
+            MDC.remove("event_name");
+            MDC.remove("error_code");
+            MDC.remove("failure_type");
+        }
+    }
+
+    private void registrarSucesso(int capturedCount, int exportedCount) {
+        // Per-tick signal that lets an operator distinguish "runs and posts" from a dead repeating
+        // task; counts only, never event payloads.
+        MDC.put("event_name", "snapshot_tick_completed");
+        MDC.put("events_captured_count", Integer.toString(capturedCount));
+        MDC.put("events_exported_count", Integer.toString(exportedCount));
+        try {
+            LOG.info("");
+        } finally {
+            MDC.remove("event_name");
+            MDC.remove("events_captured_count");
+            MDC.remove("events_exported_count");
+        }
+    }
+
+    private void registrarFalhaNaoTratada(Throwable failure) {
+        // Anything neither inner catch handles (e.g. an Error, including a VirtualMachineError) must
+        // still be contained here so the scheduleWithFixedDelay task never dies silently.
+        MDC.put("event_name", "snapshot_tick_crashed");
+        MDC.put("error_code", "SNAPSHOT_TICK_UNHANDLED");
+        MDC.put("failure_type", failure.getClass().getName());
+        try {
+            LOG.error("");
+        } finally {
+            MDC.remove("event_name");
+            MDC.remove("error_code");
+            MDC.remove("failure_type");
         }
     }
 
@@ -113,7 +203,12 @@ public final class SnapshotScheduler {
         event.put("current_count", status.quantidade());
         event.put("known_age_count", status.amostrasIdade());
         event.put("unknown_age_count", status.idadesDesconhecidas());
-        event.put("max_age_seconds", status.idadeMaximaSegundos());
+        // A null maximum means no order is currently in this status with a known age (see
+        // StatusAtual's javadoc); Map.copyOf/Map.ofEntries reject null values, and the Event API
+        // has no notion of a null attribute either, so the key is omitted rather than sent as null.
+        if (status.idadeMaximaSegundos() != null) {
+            event.put("max_age_seconds", status.idadeMaximaSegundos());
+        }
         event.put("snapshot_id", environment + ":status:" + status.status() + ":" + capturedAt.toEpochMilli());
         return Map.copyOf(event);
     }

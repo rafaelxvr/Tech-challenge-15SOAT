@@ -10,7 +10,7 @@ import com.oficina.repository.OrdemServicoRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
+import com.oficina.application.port.out.CicloOsPort;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
@@ -18,7 +18,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -48,6 +47,9 @@ class OrdemServicoServiceTest {
     private OrdemServicoRepository ordemServicoRepository;
 
     @Mock
+    private CicloOsPort cicloOs;
+
+    @Mock
     private ClienteService clienteService;
 
     @Mock
@@ -68,7 +70,6 @@ class OrdemServicoServiceTest {
     @org.mockito.Spy
     private Clock clock = Clock.fixed(Instant.parse("2026-09-15T12:00:00Z"), ZoneOffset.UTC);
 
-    @InjectMocks
     private OrdemServicoService ordemServicoService;
 
     @AfterEach
@@ -78,7 +79,8 @@ class OrdemServicoServiceTest {
 
     @org.junit.jupiter.api.BeforeEach
     void setToken() {
-        ReflectionTestUtils.setField(ordemServicoService, "zonaCompatibilidade", "UTC");
+        ordemServicoService = new OrdemServicoService(ordemServicoRepository, clienteService, veiculoService,
+                servicoService, pecaService, new RegistroTransicaoOs(ordemServicoRepository, notificacaoPort, clock, "UTC"), cicloOs);
         ordemServicoService.setTelemetry(telemetry);
     }
 

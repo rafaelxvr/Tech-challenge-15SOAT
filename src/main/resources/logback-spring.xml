@@ -11,10 +11,17 @@
                 </pattern>
                 <mdc>
                     <includeMdcKeyName>event_name</includeMdcKeyName>
+                    <includeMdcKeyName>error_code</includeMdcKeyName>
+                    <includeMdcKeyName>failure_type</includeMdcKeyName>
                     <includeMdcKeyName>correlation_id</includeMdcKeyName>
                     <includeMdcKeyName>api_gateway_request_id</includeMdcKeyName>
                     <includeMdcKeyName>traceparent</includeMdcKeyName>
                     <includeMdcKeyName>diagnostic_id</includeMdcKeyName>
+                    <includeMdcKeyName>events_captured_count</includeMdcKeyName>
+                    <includeMdcKeyName>events_exported_count</includeMdcKeyName>
+                    <includeMdcKeyName>poller</includeMdcKeyName>
+                    <includeMdcKeyName>saga_id</includeMdcKeyName>
+                    <includeMdcKeyName>os_id</includeMdcKeyName>
                 </mdc>
             </providers>
         </encoder>

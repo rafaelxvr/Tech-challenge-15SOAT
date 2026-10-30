@@ -28,6 +28,24 @@ class ObservabilityContractTest {
         assertThat(MDC.get("correlation_id")).isNull(); assertThat(MDC.get("traceparent")).isNull();
     }
 
+    @Test void gateway_request_id_is_read_from_the_real_api_gateway_header_and_cleared_after_the_request() throws Exception {
+        // The deployed HTTP API integration injects "$context.requestId" under this header name, not x-amzn-requestid.
+        var request = new MockHttpServletRequest(); request.addHeader("X-Gateway-Request-Id", "EEFW1hBXoAMESEQ=");
+        var response = new MockHttpServletResponse();
+        FilterChain chain = (req, ignored) -> assertThat(MDC.get("api_gateway_request_id")).isEqualTo("EEFW1hBXoAMESEQ=");
+        new CorrelationFilter().doFilter(request, response, chain);
+        assertThat(MDC.get("api_gateway_request_id")).isNull();
+    }
+
+    @Test void a_hostile_gateway_request_id_is_rejected_and_never_reaches_mdc() throws Exception {
+        var request = new MockHttpServletRequest();
+        request.addHeader("X-Gateway-Request-Id", "\"} malicious \"injected_field\":\"x");
+        var response = new MockHttpServletResponse();
+        FilterChain chain = (req, ignored) -> assertThat(MDC.get("api_gateway_request_id")).isNull();
+        new CorrelationFilter().doFilter(request, response, chain);
+        assertThat(MDC.get("api_gateway_request_id")).isNull();
+    }
+
     @Test void configured_encoder_is_json_and_cannot_include_untrusted_messages_or_exceptions() throws Exception {
         URL resource = getClass().getResource("/logback-spring.xml");
         String config = Files.readString(java.nio.file.Path.of(resource.toURI()));

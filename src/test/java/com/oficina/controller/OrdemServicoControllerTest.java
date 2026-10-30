@@ -139,7 +139,7 @@ class OrdemServicoControllerTest {
     @WithMockUser(authorities = "SCOPE_orders:read:self")
     void acompanhamentoDelegatesCustomerProjection() throws Exception {
         var ac = new AcompanhamentoOsResponse(100L, StatusOrdemServico.RECEBIDA,
-                BigDecimal.TEN, LocalDateTime.now(), LocalDateTime.now(), List.of(), List.of(), List.of());
+                BigDecimal.TEN, LocalDateTime.now(), LocalDateTime.now(), List.of(), List.of(), List.of(), null, null);
         when(ordemServicoService.acompanhamentoDoCliente(eq(100L), isNull())).thenReturn(ac);
         // Controller-only MockMvc deliberately omits the /api servlet context.
         mockMvc.perform(get("/ordens-servico/{numero}/acompanhamento", 100L))

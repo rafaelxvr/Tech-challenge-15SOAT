@@ -1,0 +1,31 @@
+# Allowlist auditável do Gitleaks (UNR-373). Somente achados históricos triados em UNR-364 e UNR-370
+# e aceitos explicitamente por Rafael (interação e82a2ae8-1f3e-413d-8b02-9bd96513785d).
+# Formato: commit:arquivo:regra:linha. Nenhum valor detectado é registrado aqui.
+# Não adicione entradas sem nova triagem e aceite explícito.
+
+# UNR-370: texto de fixture de teste (rehearsal-contract.ps1), classificado como falso positivo; aceito por Rafael (interação e82a2ae8)
+440b4fc251d6c8e41c2596021f968f903fdcd485:tests/rehearsal-contract.ps1:aws-access-token:28
+d396a13222a201bce1711226407dcc97631fba09:tests/rehearsal-contract.ps1:aws-access-token:28
+
+# UNR-370: identificadores/hashes de fixture de teste e plano, falsos positivos; aceitos por Rafael (interação e82a2ae8)
+440b4fc251d6c8e41c2596021f968f903fdcd485:docs/superpowers/plans/2026-09-15-phase-3-functions.md:generic-api-key:106
+440b4fc251d6c8e41c2596021f968f903fdcd485:src/test/java/com/oficina/contracts/Phase3ContractTest.java:generic-api-key:60
+440b4fc251d6c8e41c2596021f968f903fdcd485:src/test/java/com/oficina/contracts/Phase3ContractTest.java:generic-api-key:67
+54fce6bdfc64e458679ea617e5dc291c765c8c23:src/test/java/com/oficina/contracts/Phase3ContractTest.java:generic-api-key:67
+843eff05798ce221256ed1b13e614a1caacc9ad6:src/test/java/com/oficina/contracts/Phase3ContractTest.java:generic-api-key:37
+891f11f626214ce94ef386177c3d846fbdadd22d:tests/phase4-kind-contract.ps1:generic-api-key:46
+da8c45b20bb2f082807ec1ea366879bedc0035ad:docs/superpowers/plans/2026-09-15-phase-3-functions.md:generic-api-key:106
+
+# UNR-370: JWT malformado de caso negativo na coleção Postman de staging, falso positivo; aceito por Rafael (interação e82a2ae8)
+74f100a2f5d7bf696ab1d3690fd415c458f1945a:postman/Oficina-Fase3-Staging.postman_collection.json:jwt:955
+
+# UNR-370: checksum SHA-256 público do agente New Relic, falso positivo; aceito por Rafael (interação e82a2ae8)
+440b4fc251d6c8e41c2596021f968f903fdcd485:Dockerfile:new-relic-user-api-id:21
+440b4fc251d6c8e41c2596021f968f903fdcd485:src/test/java/com/oficina/config/HealthGroupsTest.java:new-relic-user-api-id:21
+7ca6e2948e423ea171c252eddeaca266179bd153:Dockerfile:new-relic-user-api-id:21
+7ca6e2948e423ea171c252eddeaca266179bd153:src/test/java/com/oficina/config/HealthGroupsTest.java:new-relic-user-api-id:21
+
+# UNR-364: chave de cluster kind local descartável (kubeconfig/tfstate do commit dbcd7f7), sem credencial de nuvem; aceita por Rafael (interação e82a2ae8)
+dbcd7f76c58951fe9984bfe27feaf8726d893ed1:infra/oficina-k8s-config:private-key:18
+dbcd7f76c58951fe9984bfe27feaf8726d893ed1:infra/terraform.tfstate:private-key:52
+dbcd7f76c58951fe9984bfe27feaf8726d893ed1:infra/terraform.tfstate:private-key:84

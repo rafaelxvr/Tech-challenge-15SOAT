@@ -12,6 +12,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -54,16 +57,53 @@ public class ObservabilitySnapshotsConfiguration {
 
     /** Fixed 60-second cadence with at most one second random start jitter; no backlog or retry loop. */
     static final class SnapshotPoller implements SmartLifecycle {
+        private static final Logger LOG = LoggerFactory.getLogger(SnapshotPoller.class);
         private final SnapshotScheduler scheduler;
+        private final java.util.function.Supplier<ScheduledExecutorService> executorFactory;
         private ScheduledExecutorService executor;
-        SnapshotPoller(SnapshotScheduler scheduler) { this.scheduler = scheduler; }
+
+        SnapshotPoller(SnapshotScheduler scheduler) {
+            this(scheduler, () -> Executors.newSingleThreadScheduledExecutor(task -> {
+                Thread thread = new Thread(task, "snapshot-exporter");
+                thread.setDaemon(true);
+                return thread;
+            }));
+        }
+
+        /** Visible for tests: lets a test observe exactly what start() passes to
+         * scheduleWithFixedDelay (in particular the TimeUnit) without depending on wall-clock timing. */
+        SnapshotPoller(SnapshotScheduler scheduler, java.util.function.Supplier<ScheduledExecutorService> executorFactory) {
+            this.scheduler = scheduler;
+            this.executorFactory = executorFactory;
+        }
+
         @Override public synchronized void start() {
             if (isRunning()) return;
-            executor = Executors.newSingleThreadScheduledExecutor(task -> {
-                Thread thread = new Thread(task, "snapshot-exporter"); thread.setDaemon(true); return thread;
-            });
+            executor = executorFactory.get();
+            // Logged before scheduling so the "started" signal can never race a tick: with the jitter
+            // now correctly expressed in milliseconds, a zero draw lets the first tick fire almost
+            // immediately, and scheduleWithFixedDelay runs on the executor's own thread rather than
+            // this one, so registering the tick before logging its start could otherwise let a tick
+            // complete first.
+            registrarInicio();
+            // Both arguments are milliseconds: a 0-1000ms startup jitter so replicas don't all
+            // publish in the same instant, then a steady 60-second (60_000ms) cadence. Expressing
+            // both in the same unit here is deliberate - mixing a millisecond jitter with a
+            // TimeUnit.SECONDS call previously turned the intended sub-second stagger into a
+            // 0-1000 SECOND delay before the first tick.
             executor.scheduleWithFixedDelay(scheduler::exportarAgora,
-                    java.util.concurrent.ThreadLocalRandom.current().nextLong(0, 1001), 60, TimeUnit.SECONDS);
+                    java.util.concurrent.ThreadLocalRandom.current().nextLong(0, 1001),
+                    TimeUnit.SECONDS.toMillis(60), TimeUnit.MILLISECONDS);
+        }
+        private void registrarInicio() {
+            // Synchronous signal that the poller bean started, independent of whether any tick ever
+            // fires; this is what lets an operator tell "never started" apart from the other states.
+            MDC.put("event_name", "snapshot_poller_started");
+            try {
+                LOG.info("");
+            } finally {
+                MDC.remove("event_name");
+            }
         }
         @Override public synchronized void stop() { if (executor != null) executor.shutdownNow(); }
         @Override public synchronized boolean isRunning() { return executor != null && !executor.isShutdown(); }
