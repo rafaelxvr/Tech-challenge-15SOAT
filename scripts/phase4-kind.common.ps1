@@ -2,7 +2,9 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$script:ClusterName = 'oficina-phase4'
+# O nome do cluster é parametrizável (PHASE4_KIND_CLUSTER) para ensaiar sem tocar no cluster oficina-phase4 do runner.
+$script:ClusterName = if ($env:PHASE4_KIND_CLUSTER) { $env:PHASE4_KIND_CLUSTER } else { 'oficina-phase4' }
+if ($script:ClusterName -notmatch '^[a-z0-9][a-z0-9-]{0,30}$') { throw "PHASE4_KIND_CLUSTER inválido: '$($script:ClusterName)'" }
 $script:KubeContext = "kind-$($script:ClusterName)"
 $script:RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $script:KindDir = Join-Path $script:RepoRoot 'infra/phase4-kind'
