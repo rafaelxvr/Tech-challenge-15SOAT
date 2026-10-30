@@ -1,0 +1,271 @@
+{
+  "versao": 1,
+  "fonte": "Derivado do código em develop (os-service cf34717, billing 96c811a, execution 1bf1e6c) e do Plan 0; divergências em docs/phase4/bdd-matriz.md",
+  "perfilPrazosCurtos": {
+    "os": { "SAGA_PRAZO_DIAGNOSTICO": "45s", "SAGA_PRAZO_RESPOSTA": "30s", "SAGA_PRAZO_DECISAO": "45s", "SAGA_PRAZO_PAGAMENTO": "45s", "SAGA_PRAZO_COMPENSACAO": "30s", "SAGA_MAX_TENTATIVAS_COMPENSACAO": "3" },
+    "billing": { "BILLING_PAGAMENTO_VALIDADE": "10m" },
+    "execution": { "EXECUCAO_CAPACIDADE_REPAROS": "2" },
+    "observacao": "Os pollers de prazo rodam a cada 15 s; esperar prazo + 15 s + folga. Defaults de produção (3d/5m/7d/30m/5m/5) não servem em Kind."
+  },
+  "cenarios": [
+    {
+      "id": "BDD-01a", "categoria": "fluxo-feliz", "modo": "tres-servicos",
+      "titulo": "OS percorre diagnóstico, orçamento, aprovação, pagamento, reparo e conclusão",
+      "estadosSaga": ["AGUARDANDO_DIAGNOSTICO", "AGUARDANDO_ORCAMENTO", "AGUARDANDO_DECISAO", "AGUARDANDO_PAGAMENTO", "AGUARDANDO_REPARO", "EM_EXECUCAO", "CONCLUIDA"],
+      "estadosTransitorios": ["RESERVANDO_PECAS"],
+      "comandos": ["IniciarDiagnostico", "GerarOrcamento", "RegistrarDecisao", "IniciarReparo"],
+      "respostas": ["DiagnosticoConcluido", "OrcamentoGerado", "OrcamentoAprovado", "PagamentoConfirmado", "ReparoIniciado", "ExecucaoFinalizada"],
+      "pilhaCompensacaoFinal": [],
+      "statusOsFinal": "FINALIZADA",
+      "contagens": { "saga_inbox": 6, "comandos_saga_outbox": 4, "execucoes": { "DIAGNOSTICO": 1, "REPARO": 1 }, "orcamentos": { "APROVADO": 1 }, "pagamentos": { "CONFIRMADO": 1 }, "estoqueDecrementadoPorPeca": "quantidade da OS" }
+    },
+    {
+      "id": "BDD-02a", "categoria": "recusa-pagamento", "modo": "tres-servicos",
+      "titulo": "Pagamento recusado cancela o orçamento e a OS",
+      "estadosSaga": ["AGUARDANDO_DIAGNOSTICO", "AGUARDANDO_ORCAMENTO", "AGUARDANDO_DECISAO", "AGUARDANDO_PAGAMENTO", "COMPENSANDO", "CANCELADA"],
+      "comandos": ["IniciarDiagnostico", "GerarOrcamento", "RegistrarDecisao", "CancelarOrcamento"],
+      "respostas": ["DiagnosticoConcluido", "OrcamentoGerado", "OrcamentoAprovado", "PagamentoRecusado", "OrcamentoCancelado"],
+      "motivoFalha": "PAGAMENTO_RECUSADO",
+      "pilhaAntesDaCompensacao": ["CANCELAR_ORCAMENTO"],
+      "pilhaCompensacaoFinal": [],
+      "statusOsFinal": "CANCELADA",
+      "contagens": { "orcamentos": { "CANCELADO": 1 }, "pagamentos": { "RECUSADO": 1 }, "estoqueDecrementadoPorPeca": 0 }
+    },
+    {
+      "id": "BDD-02b", "categoria": "recusa-pagamento", "modo": "tres-servicos",
+      "titulo": "Cliente recusa o orçamento: saga volta ao diagnóstico com versão 2",
+      "estadosSaga": ["AGUARDANDO_DIAGNOSTICO", "AGUARDANDO_ORCAMENTO", "AGUARDANDO_DECISAO", "AGUARDANDO_DIAGNOSTICO"],
+      "comandos": ["IniciarDiagnostico", "GerarOrcamento", "RegistrarDecisao", "IniciarDiagnostico"],
+      "respostas": ["DiagnosticoConcluido", "OrcamentoGerado", "OrcamentoRecusado"],
+      "versaoOrcamentoFinal": 2,
+      "pilhaCompensacaoFinal": ["CANCELAR_EXECUCAO"],
+      "statusOsFinal": "EM_DIAGNOSTICO",
+      "contagens": { "orcamentos": { "RECUSADO": 1 }, "execucoes": { "DIAGNOSTICO": 2 } }
+    },
+    {
+      "id": "BDD-03a", "categoria": "falha-pos-pagamento-estorno", "modo": "tres-servicos",
+      "titulo": "Estoque insuficiente após pagamento: estorna e cancela orçamento",
+      "estadosSaga": ["AGUARDANDO_PAGAMENTO", "RESERVANDO_PECAS", "COMPENSANDO", "CANCELADA"],
+      "comandos": ["EstornarPagamento", "CancelarOrcamento"],
+      "respostas": ["PagamentoConfirmado", "PagamentoEstornado", "OrcamentoCancelado"],
+      "motivoFalha": "ESTOQUE_INSUFICIENTE",
+      "pilhaAntesDaCompensacao": ["CANCELAR_ORCAMENTO", "ESTORNAR_PAGAMENTO"],
+      "pilhaCompensacaoFinal": [],
+      "statusOsFinal": "CANCELADA",
+      "contagens": { "pagamentos": { "ESTORNADO": 1 }, "orcamentos": { "CANCELADO": 1 }, "estoqueDecrementadoPorPeca": 0 }
+    },
+    {
+      "id": "BDD-03b", "categoria": "falha-pos-pagamento-estorno", "modo": "tres-servicos",
+      "titulo": "Reparo recusado por capacidade: cancela execução, repõe estoque, estorna e cancela orçamento",
+      "estadosSaga": ["AGUARDANDO_REPARO", "COMPENSANDO", "CANCELADA"],
+      "comandos": ["IniciarReparo", "CancelarExecucao", "EstornarPagamento", "CancelarOrcamento"],
+      "respostas": ["ReparoRecusado", "ExecucaoCancelada", "PagamentoEstornado", "OrcamentoCancelado"],
+      "motivoFalha": "REPARO_RECUSADO",
+      "pilhaAntesDaCompensacao": ["CANCELAR_ORCAMENTO", "ESTORNAR_PAGAMENTO", "REPOR_ESTOQUE", "CANCELAR_EXECUCAO"],
+      "pilhaCompensacaoFinal": [],
+      "statusOsFinal": "CANCELADA",
+      "contagens": { "execucoes": { "RECUSADA": 1 }, "estoqueDecrementadoPorPeca": 0, "observacao": "REPOR_ESTOQUE é local: não gera mensagem" }
+    },
+    {
+      "id": "BDD-03c", "categoria": "falha-pos-pagamento-estorno", "modo": "injecao-de-respostas",
+      "titulo": "CompensacaoFalhou leva a FALHA_COMPENSACAO sem cancelar a OS",
+      "estadosSaga": ["COMPENSANDO", "FALHA_COMPENSACAO"],
+      "comandos": ["EstornarPagamento"],
+      "respostas": ["CompensacaoFalhou"],
+      "pilhaCompensacaoFinal": ["CANCELAR_ORCAMENTO", "ESTORNAR_PAGAMENTO"],
+      "statusOsFinalNao": "CANCELADA",
+      "observacao": "Estado terminal exige reconciliação manual (runbook)."
+    },
+    {
+      "id": "BDD-03d", "categoria": "falha-pos-pagamento-estorno", "modo": "tres-servicos",
+      "titulo": "Pivô: depois de ReparoIniciado a pilha é esvaziada e prazos não falham a saga",
+      "estadosSaga": ["EM_EXECUCAO"],
+      "pilhaCompensacaoFinal": [],
+      "prazoFinal": null,
+      "observacao": "falhar() lança IllegalStateException em EM_EXECUCAO; o scheduler não a toca."
+    },
+    {
+      "id": "BDD-04a", "categoria": "duplicidade-idempotencia", "modo": "injecao-de-respostas",
+      "titulo": "Reply com o mesmo messageId é descartada pelo inbox",
+      "logsEsperados": ["saga_resposta_duplicada"],
+      "contagens": { "transicoes": 1, "saga_inbox_por_messageId": 1 }
+    },
+    {
+      "id": "BDD-04b", "categoria": "duplicidade-idempotencia", "modo": "injecao-de-comandos",
+      "titulo": "Comando de compensação reenviado com novo messageId devolve a mesma resposta sem efeito duplo",
+      "respostas": ["OrcamentoCancelado", "OrcamentoCancelado"],
+      "contagens": { "orcamentos": { "CANCELADO": 1 }, "mesmoOrcamentoIdNasDuasRespostas": true }
+    },
+    {
+      "id": "BDD-04c", "categoria": "duplicidade-idempotencia", "modo": "injecao-de-comandos",
+      "titulo": "IniciarDiagnostico duplicado (mesmo messageId) cria uma única execução",
+      "contagens": { "execucoes": { "DIAGNOSTICO": 1 }, "execucao_inbox_por_messageId": 1 }
+    },
+    {
+      "id": "BDD-04d", "categoria": "duplicidade-idempotencia", "modo": "tres-servicos",
+      "titulo": "Simulação de pagamento aprovado repetida gera um único PagamentoConfirmado",
+      "respostas": ["PagamentoConfirmado"],
+      "contagens": { "PagamentoConfirmado_na_fila_de_respostas": 1, "pagamentos": { "CONFIRMADO": 1 } }
+    },
+    {
+      "id": "BDD-04e", "categoria": "duplicidade-idempotencia", "modo": "tres-servicos",
+      "titulo": "Reentrega at-least-once da outbox não duplica efeito (dedup FIFO por messageId)",
+      "contagens": { "comandos_distintos_por_messageId_na_fila": 1 }
+    },
+    {
+      "id": "BDD-05a", "categoria": "reply-tardia", "modo": "tres-servicos",
+      "titulo": "Aprovação de pagamento depois de CANCELADA: billing estorna sem responder",
+      "estadosSaga": ["CANCELADA"],
+      "respostasNovasNaFilaDeRespostas": 0,
+      "contagens": { "pagamentos": { "ESTORNADO": 1 }, "orcamentos": { "CANCELADO": 1 } },
+      "statusOsFinal": "CANCELADA"
+    },
+    {
+      "id": "BDD-05b", "categoria": "reply-tardia", "modo": "injecao-de-respostas",
+      "titulo": "DiagnosticoConcluido depois do prazo fica obsoleto e não reabre a saga",
+      "logsEsperados": ["saga_resposta_obsoleta"],
+      "estadosSaga": ["CANCELADA"],
+      "contagens": { "transicoes_apos_resposta": 0 }
+    },
+    {
+      "id": "BDD-05c", "categoria": "reply-tardia", "modo": "injecao-de-respostas",
+      "titulo": "Reply incompatível com o comando aguardado, de saga desconhecida ou de tipo desconhecido é descartada",
+      "logsEsperados": ["saga_resposta_incompativel", "saga_resposta_sem_saga", "saga_resposta_desconhecida"],
+      "contagens": { "transicoes_apos_resposta": 0 }
+    },
+    {
+      "id": "BDD-06a", "categoria": "scheduler", "modo": "tres-servicos",
+      "titulo": "Diagnóstico sem conclusão no prazo: DIAGNOSTICO_SEM_RESPOSTA e cancelamento da execução",
+      "estadosSaga": ["AGUARDANDO_DIAGNOSTICO", "COMPENSANDO", "CANCELADA"],
+      "comandos": ["IniciarDiagnostico", "CancelarExecucao"],
+      "motivoFalha": "DIAGNOSTICO_SEM_RESPOSTA",
+      "contagens": { "execucoes": { "CANCELADA": 1 } },
+      "statusOsFinal": "CANCELADA"
+    },
+    {
+      "id": "BDD-06b", "categoria": "scheduler", "modo": "tres-servicos",
+      "titulo": "Cliente não decide no prazo: DECISAO_EXPIRADA e CancelarOrcamento",
+      "estadosSaga": ["AGUARDANDO_DECISAO", "COMPENSANDO", "CANCELADA"],
+      "comandos": ["CancelarOrcamento"],
+      "motivoFalha": "DECISAO_EXPIRADA",
+      "statusOsFinal": "CANCELADA"
+    },
+    {
+      "id": "BDD-06c", "categoria": "scheduler", "modo": "tres-servicos",
+      "titulo": "Decisão registrada mas billing mudo: DECISAO_SEM_RESPOSTA",
+      "motivoFalha": "DECISAO_SEM_RESPOSTA",
+      "estadosSaga": ["AGUARDANDO_DECISAO", "COMPENSANDO"],
+      "observacao": "Billing parado (replicas=0) entre a decisão e o prazo de resposta automática."
+    },
+    {
+      "id": "BDD-06d", "categoria": "scheduler", "modo": "tres-servicos",
+      "titulo": "Pagamento pendente além do prazo da saga: PAGAMENTO_EXPIRADO; aprovação posterior é estornada",
+      "motivoFalha": "PAGAMENTO_EXPIRADO",
+      "estadosSaga": ["AGUARDANDO_PAGAMENTO", "COMPENSANDO", "CANCELADA"],
+      "comandos": ["CancelarOrcamento"],
+      "contagens": { "pagamentos": { "CANCELADO": 1 } }
+    },
+    {
+      "id": "BDD-06e", "categoria": "scheduler", "modo": "tres-servicos",
+      "titulo": "Validade do pagamento no billing vence antes da saga: PagamentoExpirado",
+      "respostas": ["PagamentoExpirado"],
+      "motivoFalha": "PAGAMENTO_EXPIRADO",
+      "contagens": { "pagamentos": { "EXPIRADO": 1 } },
+      "observacao": "BILLING_PAGAMENTO_VALIDADE=30s e SAGA_PRAZO_PAGAMENTO=10m neste cenário."
+    },
+    {
+      "id": "BDD-06f", "categoria": "scheduler", "modo": "tres-servicos",
+      "titulo": "Execution mudo após o pagamento: REPARO_SEM_RESPOSTA e compensação completa",
+      "motivoFalha": "REPARO_SEM_RESPOSTA",
+      "pilhaAntesDaCompensacao": ["CANCELAR_ORCAMENTO", "ESTORNAR_PAGAMENTO", "REPOR_ESTOQUE", "CANCELAR_EXECUCAO"],
+      "observacao": "Execution parado entre pecasReservadas e a resposta; CancelarExecucao fica pendente até execution voltar."
+    },
+    {
+      "id": "BDD-06g", "categoria": "scheduler", "modo": "tres-servicos",
+      "titulo": "Compensação sem resposta: reenvios até o teto e FALHA_COMPENSACAO",
+      "estadosSaga": ["COMPENSANDO", "FALHA_COMPENSACAO"],
+      "contagens": { "envios_da_mesma_compensacao": 3, "reenvios": 2, "teto": "SAGA_MAX_TENTATIVAS_COMPENSACAO=3 (default 5 => 5 envios)" },
+      "pilhaCompensacaoFinal": "não vazia"
+    },
+    {
+      "id": "BDD-06h", "categoria": "scheduler", "modo": "coberto-por-unitario",
+      "titulo": "Falha de uma saga no sweep não bloqueia as demais; poller sobrevive a Throwable",
+      "referenciaUnitaria": ["ExpiracaoPrazosTest", "PollerPeriodicoTest"],
+      "logsEsperados": ["saga_prazo_falhou", "poller_falhou"],
+      "observacao": "Sem ponto de injeção seguro em Kind; não simulado fora do unitário."
+    },
+    {
+      "id": "BDD-07a", "categoria": "indisponibilidade-outbox-localstack", "modo": "tres-servicos",
+      "titulo": "LocalStack fora: decisão do cliente é confirmada, comando fica PENDING e é entregue na volta",
+      "estadosSaga": ["AGUARDANDO_DECISAO"],
+      "contagens": { "saga_outbox_pendente_durante_falha": 1, "tentativas_crescentes": true, "RegistrarDecisao_na_fila_apos_recuperar": 1 }
+    },
+    {
+      "id": "BDD-07b", "categoria": "indisponibilidade-outbox-localstack", "modo": "tres-servicos",
+      "titulo": "Billing e execution acumulam replies na outbox e entregam em ordem por OS após a volta",
+      "contagens": { "ordem_por_osId_preservada": true, "replies_duplicadas_na_fila": 0 }
+    },
+    {
+      "id": "BDD-07c", "categoria": "indisponibilidade-outbox-localstack", "modo": "coberto-por-unitario",
+      "titulo": "Backoff 5 s a 300 s e BLOCKED na 12ª tentativa",
+      "referenciaUnitaria": ["BackoffPublicacaoTest", "SagaOutboxPublisherTest", "OutboxPublisherTest", "PublicadorOutboxTest"],
+      "observacao": "Em Kind exigiria >20 min de indisponibilidade; opcional com a tag @lento."
+    },
+    {
+      "id": "BDD-07d", "categoria": "indisponibilidade-outbox-localstack", "modo": "tres-servicos",
+      "titulo": "Queda mais longa que prazo x tentativas esgota a compensação (M7)",
+      "estadosSaga": ["COMPENSANDO", "FALHA_COMPENSACAO"],
+      "pilhaCompensacaoFinal": "não vazia",
+      "observacao": "Alerta/recuperação manual descritos em D19; sem alerta automatizado ainda em develop."
+    },
+    {
+      "id": "BDD-08a", "categoria": "retry-dlq-redrive", "modo": "injecao-de-comandos",
+      "titulo": "Mensagem venenosa vai à DLQ após maxReceiveCount=5 e outro grupo segue",
+      "contagens": { "maxReceiveCount": 5, "dlq_billing_commands": 1, "mensagem_valida_de_outra_os_processada": 1 }
+    },
+    {
+      "id": "BDD-08b", "categoria": "retry-dlq-redrive", "modo": "injecao-de-comandos",
+      "titulo": "Mensagens posteriores do mesmo grupo ficam retidas até a venenosa sair",
+      "contagens": { "ordem_de_processamento_do_grupo": "venenosa, depois posteriores" }
+    },
+    {
+      "id": "BDD-08c", "categoria": "retry-dlq-redrive", "modo": "injecao-de-comandos",
+      "titulo": "RegistrarDecisao de orçamento desconhecido: sem reply, DLQ e saga com DECISAO_SEM_RESPOSTA (D11)",
+      "motivoFalha": "DECISAO_SEM_RESPOSTA",
+      "contagens": { "dlq_billing_commands": 1, "respostas": 0 }
+    },
+    {
+      "id": "BDD-08d", "categoria": "retry-dlq-redrive", "modo": "injecao-de-respostas",
+      "titulo": "Reply venenosa vai à os-saga-replies-dlq e a saga não muda",
+      "contagens": { "dlq_os_saga_replies": 1, "transicoes": 0 }
+    },
+    {
+      "id": "BDD-08e", "categoria": "retry-dlq-redrive", "modo": "injecao-de-comandos",
+      "titulo": "Redrive manual da DLQ reprocessa uma única vez e esvazia a DLQ",
+      "contagens": { "dlq_apos_redrive": 0, "efeitos_de_negocio": 1 },
+      "observacao": "Redrive por receive+send via script; StartMessageMoveTask no LocalStack 3.8 não foi verificado."
+    },
+    {
+      "id": "BDD-09a", "categoria": "capacidade-reparos", "modo": "tres-servicos",
+      "titulo": "Capacidade 2: terceiro reparo é recusado com CAPACIDADE_ESGOTADA",
+      "respostas": ["ReparoIniciado", "ReparoIniciado", "ReparoRecusado"],
+      "contagens": { "execucoes": { "NA_FILA": 2, "RECUSADA": 1 } }
+    },
+    {
+      "id": "BDD-09b", "categoria": "capacidade-reparos", "modo": "injecao-de-comandos",
+      "titulo": "Seis IniciarReparo concorrentes aceitam exatamente a capacidade",
+      "contagens": { "aceitos": 2, "recusados": 4, "ativas_acima_da_capacidade": 0 }
+    },
+    {
+      "id": "BDD-09c", "categoria": "capacidade-reparos", "modo": "tres-servicos",
+      "titulo": "Concluir ou cancelar libera vaga para o próximo reparo",
+      "contagens": { "aceitos_apos_liberar": 1 },
+      "observacao": "Liberação inferida do ajuste de capacidade; confirmar na execução (UNR-69)."
+    },
+    {
+      "id": "BDD-09d", "categoria": "capacidade-reparos", "modo": "tres-servicos",
+      "titulo": "Duas execuções consecutivas da suíte não vazam capacidade nem estado",
+      "contagens": { "execucoes_ativas_apos_limpeza": 0, "resultados_iguais_nas_duas_rodadas": true }
+    }
+  ]
+}
