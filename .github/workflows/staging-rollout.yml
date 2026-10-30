@@ -27,6 +27,9 @@ env:
 
 jobs:
   rollout:
+    # Gate: sem o cluster EKS provisionado o job publica imagem no ECR e falha em seguida.
+    # Habilite definindo a variável de repositório APP_STAGING_ROLLOUT_ENABLED=true.
+    if: github.event_name == 'workflow_dispatch' || vars.APP_STAGING_ROLLOUT_ENABLED == 'true'
     name: Build and roll out to staging
     environment:
       name: staging
