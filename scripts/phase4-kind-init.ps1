@@ -13,6 +13,8 @@ $instances = @(
     @{ Instance = 'billing'; Database = 'billing'; Migrator = 'billing_migrator'; App = 'billing_app' }
 )
 $rolesSql = Get-Content -Raw (Join-Path $script:KindDir 'postgres/init-roles.sql')
+# billing migrates itself (Flyway at startup), so its runtime grants are default privileges applied here, before any table exists.
+$billingGrantsSql = Get-Content -Raw (Join-Path $script:KindDir 'postgres/grants-billing.sql')
 
 foreach ($i in $instances) {
     $secretName = "postgres-$($i.Instance)-roles"
@@ -28,6 +30,9 @@ foreach ($i in $instances) {
         app_pw      = (Get-KubeSecretValue data $secretName app_password)
     }
     Invoke-Psql -Instance $i.Instance -Database $i.Database -Sql $rolesSql -Variables $vars | Out-Null
+    if ($i.Instance -eq 'billing') {
+        Invoke-Psql -Instance billing -Database $i.Database -Sql $billingGrantsSql -Variables @{ migrator = $i.Migrator; app = $i.App } | Out-Null
+    }
     # Runtime/migration roles must not wander into the maintenance database.
     Invoke-Psql -Instance $i.Instance -Database $i.Database -Sql 'REVOKE ALL ON DATABASE postgres FROM PUBLIC;' | Out-Null
     Write-Host "postgres-$($i.Instance): roles $($i.Migrator)/$($i.App) ready on database $($i.Database)"
