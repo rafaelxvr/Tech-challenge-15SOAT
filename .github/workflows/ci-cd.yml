@@ -155,6 +155,18 @@ jobs:
           kubectl apply -f k8s/postgres.yaml
           kubectl -n oficina rollout status deployment/oficina-postgres --timeout=180s
 
+      - name: Configurar confiança JWT efêmera (somente CI, sem segredo versionado)
+        run: |
+          # Par RSA descartável gerado neste runner; nada é commitado nem reutilizado fora do job.
+          openssl genrsa -out "$RUNNER_TEMP/customer.key" 2048
+          PUB="$(openssl rsa -in "$RUNNER_TEMP/customer.key" -pubout 2>/dev/null)"
+          APP_JSON="$(jq -cn --arg pem "$PUB" '{security:{jwt:{customer:{"public-keys":{"ci-kind":$pem}}}}}')"
+          PATCH="$(jq -cn --arg json "$APP_JSON" '{data:{
+            JWT_STAFF_ISSUER:"oficina-ci", JWT_STAFF_AUDIENCE:"oficina-api", JWT_STAFF_KEY_ID:"ci-staff",
+            JWT_CUSTOMER_ISSUER:"oficina-ci-customer", JWT_CUSTOMER_AUDIENCE:"oficina-api",
+            SPRING_APPLICATION_JSON:$json}}')"
+          kubectl -n oficina patch configmap oficina-config --type merge -p "$PATCH"
+
       - name: Aplicar manifestos da aplicação (HPA, Service, Deployment)
         run: |
           kubectl apply -f k8s/mailhog.yaml
@@ -168,3 +180,10 @@ jobs:
           sleep 5
           curl -sf http://127.0.0.1:8080/api/actuator/health
           echo
+
+      - name: Diagnóstico em caso de falha
+        if: failure()
+        run: |
+          kubectl -n oficina get pods -o wide || true
+          kubectl -n oficina describe pods -l app=oficina-app | tail -60 || true
+          kubectl -n oficina logs -l app=oficina-app --tail=80 --all-containers || true
