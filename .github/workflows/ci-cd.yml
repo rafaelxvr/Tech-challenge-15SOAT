@@ -120,8 +120,9 @@ jobs:
 
   local-kind-smoke:
     name: Local Kind smoke (no AWS deployment)
-    needs: docker-image
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Usa a imagem construída localmente (sem GHCR): o digest exposto pelo build-push-action
+    # sem buildx dedicado não corresponde ao manifesto publicado ("manifest unknown").
+    needs: [build-and-test, integration-test]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -137,23 +138,11 @@ jobs:
           version: v0.33.0
           wait: 120s
 
-      - name: Login GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Pull e carregar imagem no Kind
+      - name: Construir e carregar imagem no Kind
         run: |
-          DIGEST="${{ needs.docker-image.outputs.digest }}"
-          if [[ ! "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-            echo "Digest de imagem invalido: $DIGEST" >&2
-            exit 1
-          fi
-          IMAGE="${{ needs.docker-image.outputs.image_base }}@${DIGEST}"
-          echo "Usando imagem: $IMAGE"
-          docker pull "$IMAGE"
+          IMAGE="${{ env.IMAGE_NAME }}:ci-${GITHUB_SHA::12}"
+          echo "Usando imagem local: $IMAGE"
+          docker build -t "$IMAGE" .
           kind load docker-image "$IMAGE" --name oficina-ci
           sed -i "s|image: .*oficina-mecanica.*|image: ${IMAGE}|g" k8s/app.yaml
           sed -i "s|imagePullPolicy: IfNotPresent|imagePullPolicy: Never|g" k8s/app.yaml
@@ -165,6 +154,18 @@ jobs:
           kubectl apply -f k8s/secret.yaml
           kubectl apply -f k8s/postgres.yaml
           kubectl -n oficina rollout status deployment/oficina-postgres --timeout=180s
+
+      - name: Configurar confiança JWT efêmera (somente CI, sem segredo versionado)
+        run: |
+          # Par RSA descartável gerado neste runner; nada é commitado nem reutilizado fora do job.
+          openssl genrsa -out "$RUNNER_TEMP/customer.key" 2048
+          PUB="$(openssl rsa -in "$RUNNER_TEMP/customer.key" -pubout 2>/dev/null)"
+          APP_JSON="$(jq -cn --arg pem "$PUB" '{security:{jwt:{customer:{"public-keys":{"ci-kind":$pem}}}}}')"
+          PATCH="$(jq -cn --arg json "$APP_JSON" '{data:{
+            DEPLOYMENT_ENVIRONMENT:"local", JWT_STAFF_ISSUER:"oficina-ci", JWT_STAFF_AUDIENCE:"oficina-api", JWT_STAFF_KEY_ID:"ci-staff",
+            JWT_CUSTOMER_ISSUER:"oficina-ci-customer", JWT_CUSTOMER_AUDIENCE:"oficina-api",
+            SPRING_APPLICATION_JSON:$json}}')"
+          kubectl -n oficina patch configmap oficina-config --type merge -p "$PATCH"
 
       - name: Aplicar manifestos da aplicação (HPA, Service, Deployment)
         run: |
@@ -179,3 +180,10 @@ jobs:
           sleep 5
           curl -sf http://127.0.0.1:8080/api/actuator/health
           echo
+
+      - name: Diagnóstico em caso de falha
+        if: failure()
+        run: |
+          kubectl -n oficina get pods -o wide || true
+          kubectl -n oficina describe pods -l app=oficina-app | tail -60 || true
+          kubectl -n oficina logs -l app=oficina-app --tail=80 --all-containers || true
