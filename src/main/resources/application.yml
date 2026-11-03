@@ -100,6 +100,24 @@ oficina:
     enabled: ${OUTBOX_ENABLED:false}
     region: ${AWS_REGION:us-east-1}
     queue-url: ${OUTBOX_QUEUE_URL:}
+  saga:
+    # Saga switch: off keeps the Phase 3 manual flow for new orders; Phase 4 Plan 4 turns it on.
+    enabled: ${SAGA_ENABLED:false}
+    filial-padrao: ${SAGA_FILIAL_PADRAO:MATRIZ}
+    prazos:
+      diagnostico: ${SAGA_PRAZO_DIAGNOSTICO:3d}
+      resposta-automatica: ${SAGA_PRAZO_RESPOSTA:5m}
+      decisao: ${SAGA_PRAZO_DECISAO:7d}
+      pagamento: ${SAGA_PRAZO_PAGAMENTO:30m}
+      compensacao: ${SAGA_PRAZO_COMPENSACAO:5m}
+      max-tentativas-compensacao: ${SAGA_MAX_TENTATIVAS_COMPENSACAO:5}
+    mensageria:
+      enabled: ${SAGA_MENSAGERIA_ENABLED:false}
+      region: ${AWS_REGION:us-east-1}
+      endpoint: ${SAGA_SQS_ENDPOINT:}
+      fila-billing: ${SAGA_FILA_BILLING:}
+      fila-execucao: ${SAGA_FILA_EXECUCAO:}
+      fila-respostas: ${SAGA_FILA_RESPOSTAS:}
   historico:
     # Fresh synthetic installations use UTC. Existing deployments must supply a proven
     # compatibility zone; this setting NEVER backfills legacy canonical timestamps.

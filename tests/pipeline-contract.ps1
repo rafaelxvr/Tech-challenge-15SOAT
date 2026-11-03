@@ -33,7 +33,7 @@ if($workflow -match 'id-token: write|configure-aws-credentials|AWS_ACCESS_KEY_ID
 $temp=Join-Path ([IO.Path]::GetTempPath()) ('oficina-app-output-' + [guid]::NewGuid())
 New-Item -ItemType Directory -Path $temp | Out-Null
 try {
-    $values=@{schema_version='V8'; auth_view_version='V5'; recipient_view_version='V7'; app_secret_arn='arn:aws:secretsmanager:us-east-1:123456789012:secret:oficina/staging/app-AbCdEf'; migration_secret_arn='arn:aws:secretsmanager:us-east-1:123456789012:secret:oficina/staging/migration-AbCdEf'; auth_lookup_secret_arn='arn:aws:secretsmanager:us-east-1:123456789012:secret:oficina/staging/auth-AbCdEf'; notification_lookup_secret_arn='arn:aws:secretsmanager:us-east-1:123456789012:secret:oficina/staging/notification-AbCdEf'}
+    $values=@{schema_version='V10'; auth_view_version='V5'; recipient_view_version='V7'; app_secret_arn='arn:aws:secretsmanager:us-east-1:123456789012:secret:oficina/staging/app-AbCdEf'; migration_secret_arn='arn:aws:secretsmanager:us-east-1:123456789012:secret:oficina/staging/migration-AbCdEf'; auth_lookup_secret_arn='arn:aws:secretsmanager:us-east-1:123456789012:secret:oficina/staging/auth-AbCdEf'; notification_lookup_secret_arn='arn:aws:secretsmanager:us-east-1:123456789012:secret:oficina/staging/notification-AbCdEf'}
     $raw=@{}; foreach($key in $values.Keys) {$raw[$key]=@{sensitive=$false; value=$values[$key]}}
     $raw.password=@{sensitive=$true; value='must-not-export'}
     $inputPath="$temp/outputs.json"; $outputPath="$temp/filtered.json"

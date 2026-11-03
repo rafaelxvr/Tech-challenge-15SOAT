@@ -33,7 +33,7 @@ try {
     $platformPath=Join-Path $temp 'platform.json'; Save @{Environment='staging'} $platformPath
     $workloadPath=Join-Path $temp 'workload.json'; Save @{kind='List'} $workloadPath
     foreach ($environment in @('staging','production')) {
-        $manifest = @{ schemaVersion=1; environment=$environment; sourceCommit=('a'*40); artifactSha256=(Sha $bundle); deployerImageDigest=('sha256:' + ('b'*64)); contractVersion='phase3-v2'; migrationVersion='V8'; runtimeArtifactDigest=('sha256:' + ('c'*64)); promotedFromStaging=($environment -eq 'production'); stagingArtifactSha256=(Sha $bundle) }
+        $manifest = @{ schemaVersion=1; environment=$environment; sourceCommit=('a'*40); artifactSha256=(Sha $bundle); deployerImageDigest=('sha256:' + ('b'*64)); contractVersion='phase3-v2'; migrationVersion='V10'; runtimeArtifactDigest=('sha256:' + ('c'*64)); promotedFromStaging=($environment -eq 'production'); stagingArtifactSha256=(Sha $bundle) }
         $manifest.mode='FirstWriter'; $manifest.platformInputsSha256=Sha $platformPath; $manifest.stagingWorkloadSha256=Sha $workloadPath; $manifest.cloudWindowEvidenceSha256=Sha $window
         $manifest.terraformVariablesSha256 = Sha $tfvarsPath
         if($environment -eq 'staging'){Add-RuntimePublicFixture $manifest "$temp/public.json";Add-MigrationIdentityFixture $manifest $platformPath}

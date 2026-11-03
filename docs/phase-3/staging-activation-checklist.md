@@ -16,7 +16,7 @@ activate the disabled executor.
 
 ## Reviewed inputs
 
-- `APP_RELEASE_INPUT_PATH` points to a reviewed file available after checkout with `schemaVersion`, `environment: staging`, `contractVersion: phase3-v2`, `databaseSchemaVersion: V8`, and immutable runtime/migration references.
+- `APP_RELEASE_INPUT_PATH` points to a reviewed file available after checkout with `schemaVersion`, `environment: staging`, `contractVersion: phase3-v2`, `databaseSchemaVersion: V10`, and immutable runtime/migration references.
 - `APP_PLATFORM_INPUTS_PATH` points to reviewed K8S/DB/FUN outputs with ARNs and endpoints only; it contains no secret values.
 - `APP_CLOUD_WINDOW_EVIDENCE_PATH` points to fresh, redacted staging evidence with the approved billing acknowledgment and an open UTC window.
 - The fixed artifact bucket, `releases/app/staging` prefix, and `oficina-phase3-oficina-app-staging-deploy` project match the reviewed K8S executor outputs.

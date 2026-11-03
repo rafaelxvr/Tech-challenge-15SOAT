@@ -39,7 +39,7 @@ function kubectl {
             deployment {
                 $image=if($f.Mode -ceq 'Rollback') {$f.Release.image} else {$f.Release.previousImage}
                 @{spec=@{replicas=$(if($f.Drained){0}else{1}); selector=@{matchLabels=@{'app.kubernetes.io/name'='oficina-app'}};
-                    template=@{metadata=@{annotations=@{'oficina.io/schema-version'=$(if($f.Failure -ceq 'legacy'){'V4'}else{'V8'}); 'oficina.io/security-contract'='phase3-v2'}};
+                    template=@{metadata=@{annotations=@{'oficina.io/schema-version'=$(if($f.Failure -ceq 'legacy'){'V4'}else{'V10'}); 'oficina.io/security-contract'='phase3-v2'}};
                         spec=@{serviceAccountName='oficina-app'; containers=@(@{name='app'; image=$image})}}}}
             }
             hpa { $min=if($f.Environment -ceq 'production'){2}else{1}; @{spec=@{minReplicas=$min; maxReplicas=($min*2); scaleTargetRef=@{kind='Deployment';name='oficina-app'};metrics=@(@{resource=@{name='cpu';target=@{averageUtilization=60}}})}} }
@@ -67,11 +67,11 @@ function Write-Fixture([string]$Mode='FirstWriter', [string]$Environment='stagin
         app=@{arn="arn:aws:secretsmanager:us-east-1:123456789012:secret:oficina/$Environment/app-AbCdEf";versionId=('3'*32)};
         auth=@{arn="arn:aws:secretsmanager:us-east-1:123456789012:secret:oficina/$Environment/auth-AbCdEf";versionId=('4'*32)};
         notification=@{arn="arn:aws:secretsmanager:us-east-1:123456789012:secret:oficina/$Environment/notification-AbCdEf";versionId=('5'*32)}}}
-    $bootstrapReceipt=@{schemaVersion=2;environment=$Environment;sourceCommit=('b'*40);outputs=@{schemaVersion='V8';authViewVersion='V5';recipientViewVersion='V7';migrationSecretArn=$review.roles.migration.arn;migrationSecretVersionId=$review.roles.migration.versionId;appSecretArn=$review.roles.app.arn;appSecretVersionId=$review.roles.app.versionId;authLookupSecretArn=$review.roles.auth.arn;authLookupSecretVersionId=$review.roles.auth.versionId;notificationLookupSecretArn=$review.roles.notification.arn;notificationLookupSecretVersionId=$review.roles.notification.versionId}}
-    $script:release=@{schemaVersion=1; environment=$Environment; mode=$Mode; sourceCommit=('b'*40); contractVersion='phase3-v2';databaseSchemaVersion='V8';
+    $bootstrapReceipt=@{schemaVersion=2;environment=$Environment;sourceCommit=('b'*40);outputs=@{schemaVersion='V10';authViewVersion='V5';recipientViewVersion='V7';migrationSecretArn=$review.roles.migration.arn;migrationSecretVersionId=$review.roles.migration.versionId;appSecretArn=$review.roles.app.arn;appSecretVersionId=$review.roles.app.versionId;authLookupSecretArn=$review.roles.auth.arn;authLookupSecretVersionId=$review.roles.auth.versionId;notificationLookupSecretArn=$review.roles.notification.arn;notificationLookupSecretVersionId=$review.roles.notification.versionId}}
+    $script:release=@{schemaVersion=1; environment=$Environment; mode=$Mode; sourceCommit=('b'*40); contractVersion='phase3-v2';databaseSchemaVersion='V10';
         platformInputsSha256=(Get-AppFileHash "$temp/platform.json");image=$platform.Image;previousImage=($prefix+'oficina@sha256:'+('c'*64)); migrationImage=($prefix+'flyway@sha256:'+('d'*64)); bootstrapImage=($prefix+'bootstrap@sha256:'+('e'*64)); bootstrapReview=$review; bootstrapReceipt=$bootstrapReceipt;
         kubeContext='arn:aws:eks:us-east-1:123456789012:cluster/oficina';migrationSecretName="oficina-migration-$Environment";migrationServiceAccount="oficina-migration-$Environment";
-        migrationSqlSha256=(Get-AppMigrationDigest);rollback=@{image=($prefix+'oficina@sha256:'+('e'*64));databaseSchemaVersion='V8';contractVersion='phase3-v2';compatibilityEvidence='review/compatible-v8'}}
+        migrationSqlSha256=(Get-AppMigrationDigest);rollback=@{image=($prefix+'oficina@sha256:'+('e'*64));databaseSchemaVersion='V10';contractVersion='phase3-v2';compatibilityEvidence='review/compatible-v8'}}
     $global:appRolloutFixture.Release=$script:release; $global:appRolloutFixture.Mode=$Mode; $global:appRolloutFixture.Environment=$Environment
     $global:appRolloutFixture.Calls.Clear(); $global:appRolloutFixture.Drained=$false; $global:appRolloutFixture.Failure=''
 }
@@ -87,7 +87,7 @@ function Write-ProductionFixture {
     @{environment='production'} | ConvertTo-Json | Set-Content "$temp/tfvars.json"
     @{windowStartUtc=[datetimeoffset]::UtcNow.AddMinutes(-5).ToString('o');windowEndUtc=[datetimeoffset]::UtcNow.AddMinutes(30).ToString('o');recordedAtUtc=[datetimeoffset]::UtcNow.ToString('o');accountEvidenceReference='offline-fixture';projectAllowanceUsd=10;reserveUsd=1;currentEstimatedSpendUsd=0} | ConvertTo-Json | Set-Content "$temp/window.json"
     $release.artifactSha256=Get-AppFileHash "$temp/source.zip"
-    $release.runtimeArtifactDigest='sha256:'+('a'*64); $release.migrationVersion='V8'
+    $release.runtimeArtifactDigest='sha256:'+('a'*64); $release.migrationVersion='V10'
     $release.promotedFromStaging=$true; $release.stagingArtifactSha256=$release.artifactSha256
     $release.deployerImageDigest='sha256:'+('d'*64)
     $release.terraformVariablesSha256=Get-AppFileHash "$temp/tfvars.json"
