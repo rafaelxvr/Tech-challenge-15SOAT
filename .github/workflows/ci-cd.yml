@@ -162,7 +162,7 @@ jobs:
           PUB="$(openssl rsa -in "$RUNNER_TEMP/customer.key" -pubout 2>/dev/null)"
           APP_JSON="$(jq -cn --arg pem "$PUB" '{security:{jwt:{customer:{"public-keys":{"ci-kind":$pem}}}}}')"
           PATCH="$(jq -cn --arg json "$APP_JSON" '{data:{
-            JWT_STAFF_ISSUER:"oficina-ci", JWT_STAFF_AUDIENCE:"oficina-api", JWT_STAFF_KEY_ID:"ci-staff",
+            DEPLOYMENT_ENVIRONMENT:"local", JWT_STAFF_ISSUER:"oficina-ci", JWT_STAFF_AUDIENCE:"oficina-api", JWT_STAFF_KEY_ID:"ci-staff",
             JWT_CUSTOMER_ISSUER:"oficina-ci-customer", JWT_CUSTOMER_AUDIENCE:"oficina-api",
             SPRING_APPLICATION_JSON:$json}}')"
           kubectl -n oficina patch configmap oficina-config --type merge -p "$PATCH"
