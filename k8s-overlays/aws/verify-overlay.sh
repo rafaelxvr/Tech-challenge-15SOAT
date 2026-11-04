@@ -13,12 +13,13 @@ out="$(kubectl kustomize . )" || fail "kustomize nao renderiza"
 
 # Entrada somente por port-forward: sem NodePort/LoadBalancer.
 ! grep -qE 'type: (NodePort|LoadBalancer)|nodePort:' <<<"$out" || fail "Service exposto (NodePort/LoadBalancer)"
+! grep -qE '^kind: (Ingress|Gateway|HTTPRoute|GRPCRoute|TCPRoute|IngressRoute)' <<<"$out" || fail "Ingress/Gateway/HTTPRoute proibido (sem entrada publica; webhook nao existe)"
 ! grep -qE 'hostNetwork|privileged|hostPID|hostPath' <<<"$out" || fail "pod privilegiado/hostNetwork"
 grep -q 'SPRING_PROFILES_ACTIVE: aws' <<<"$out" || fail "perfil Spring aws ausente"
 grep -q 'automountServiceAccountToken: false' <<<"$out" || fail "automountServiceAccountToken deve ser false"
 
 # Guarda inversa de S-3: nada de endpoint/credencial de LocalStack no overlay.
-! grep -qiE 'localstack|AWS_ENDPOINT_URL|SAGA_SQS_ENDPOINT|AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY|:4566' <<<"$out" || fail "endpoint/credencial local no overlay aws"
+! grep -qiE 'localstack|AWS_ENDPOINT_URL|SAGA_SQS_ENDPOINT|AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY|AWS_SESSION_TOKEN|AWS_PROFILE|AWS_CONTAINER_|AWS_WEB_IDENTITY|AWS_ROLE_ARN|AWS_EC2_METADATA|AWS_CONFIG_FILE|AWS_SHARED_CREDENTIALS|AWS_ENDPOINT_URL_|aws\.accessKeyId|aws\.secretAccessKey|aws\.endpointUrl|:4566' <<<"$out" || fail "endpoint/credencial local no overlay aws"
 
 # Imagem sempre por digest.
 grep -qE 'image: ghcr\.io/[^@ ]+@sha256:[0-9a-f]{64}' <<<"$out" || fail "imagem deve ser GHCR pinada por digest"

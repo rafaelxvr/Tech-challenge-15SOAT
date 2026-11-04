@@ -9,7 +9,7 @@ resource "aws_eks_cluster" "this" {
   vpc_config {
     subnet_ids              = aws_subnet.public[*].id
     endpoint_public_access  = true
-    endpoint_private_access = false
+    endpoint_private_access = true                # nos (subnet publica) alcancam a API pelo endpoint privado; o publico fica so no /32
     public_access_cidrs     = [var.operator_cidr] # /32 do operador; nunca 0.0.0.0/0
   }
 

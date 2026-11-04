@@ -33,6 +33,15 @@ variable "operator_cidr" {
     condition     = can(cidrhost(var.operator_cidr, 0)) && endswith(var.operator_cidr, "/32")
     error_message = "operator_cidr deve ser um unico IPv4 em /32."
   }
+
+  # Rejeita /32 que nao e IP publico do operador: 0.0.0.0, loopback, RFC1918, CGNAT, link-local, multicast/reservado.
+  validation {
+    condition = !can(regex(
+      "^(0|10|127|169[.]254|192[.]168|172[.](1[6-9]|2[0-9]|3[01])|100[.](6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])|22[4-9]|2[3-5][0-9])[.]",
+      var.operator_cidr
+    ))
+    error_message = "operator_cidr deve ser o IP publico do operador (nao 0.0.0.0, privado, loopback, CGNAT, link-local ou reservado)."
+  }
 }
 
 variable "compute_mode" {

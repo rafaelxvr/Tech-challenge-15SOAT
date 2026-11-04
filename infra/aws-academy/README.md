@@ -1,6 +1,6 @@
 # infra/aws-academy: Terraform do Learner Lab (escrito offline)
 
-Módulo Terraform da Fase 4 para o AWS Academy Learner Lab (UNR-609, plano UNR-50 v9.1).
+Módulo Terraform da Fase 4 para o AWS Academy Learner Lab (UNR-609, plano UNR-50 v9.2).
 **Nada aqui foi planejado nem aplicado.** `plan`/`apply`/`destroy` só com card aprovado pelo Rafael, por recurso.
 
 ## O que o módulo descreve
@@ -8,7 +8,7 @@ Módulo Terraform da Fase 4 para o AWS Academy Learner Lab (UNR-609, plano UNR-5
 | Recurso | Arquivo | Notas |
 |---|---|---|
 | VPC, 2 subnets públicas, IGW (sem NAT) | `network.tf` | Sem NAT Gateway, sem Multi-AZ, sem Fargate |
-| EKS + managed node group 2× t3.medium | `eks.tf` | `public_access_cidrs` = `/32` do operador; sem SSH; sem logs do control plane; launch template com IMDSv2 (`hop_limit=2`) |
+| EKS + managed node group 2× t3.medium | `eks.tf` | Endpoint **privado ligado** (nós em subnet pública alcançam a API sem ampliar o CIDR) e público só no `/32` do operador (`public_access_cidrs = [var.operator_cidr]`); sem SSH; sem logs do control plane; launch template com IMDSv2 (`hop_limit=2`) |
 | Fallback EC2 única com k3s | `k3s.tf` | `compute_mode = "k3s"`; sem SSH; API 6443 só do `/32` |
 | 2× RDS PostgreSQL 16 db.t3.micro | `rds.tf` | os-service e billing separados; não públicos; 5432 só do SG dos workloads; TLS forçado; criptografado; sem backup/snapshot |
 | 3 tabelas DynamoDB on-demand | `dynamodb.tf` | Mesmos nomes/índices do LocalStack (`init.sh`); sem PITR |
@@ -26,7 +26,7 @@ Antes de qualquer execução supervisionada: abortar se `AWS_ACCESS_KEY_ID`/`AWS
 
 ```bash
 cd infra/aws-academy
-bash verify-offline.sh     # IAM proibido, sem entrada 0.0.0.0/0, endurecimentos, segredos, fmt, init -backend=false, validate
+bash verify-offline.sh     # IAM proibido, entrada só de var.operator_cidr (inclui aws_security_group_rule/inline), sem aws_lb*/elb/NAT/EIP, endpoint EKS, tfvars/tfstate/tfplan não versionados, segredos, fmt, init -backend=false, validate
 ```
 
 `terraform init -backend=false` baixa só os providers do registry (lock em `.terraform.lock.hcl`, linux/windows/darwin). Não toca a AWS.

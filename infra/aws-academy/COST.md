@@ -29,7 +29,7 @@ Valores **de lista**, us-east-1, on-demand, **não medidos**; revalidar no card.
 
 ## Teto e contingência (para os cards)
 
-- Teto por sessão de 4 h: **US$2** (≈2× a estimativa, cobre data transfer, LCU/IPv4 e arredondamentos). 3–4 sessões previstas: **~US$4–8**.
+- Teto por sessão de 4 h: **US$2** (≈2× a estimativa, cobre data transfer, IPv4 e arredondamentos; não há LB/LCU no desenho). 3–4 sessões previstas: **~US$4–8**.
 - **Risco principal: recurso esquecido.** EKS ligado por 24 h ≈ US$5,8; por isso o destroy é obrigatório ao fim de cada sessão (`RUNBOOK.md`), com hard stop (início do cleanup) em T-60 min do timer.
 - Fora do state e que geram custo se sobrarem: ENIs, SGs, volumes EBS órfãos, snapshots RDS (desligados: `skip_final_snapshot`), filas.
 
@@ -38,9 +38,9 @@ Valores **de lista**, us-east-1, on-demand, **não medidos**; revalidar no card.
 | # | Card | Ação AWS | Custo |
 |---|---|---|---|
 | 1 | Preflight de conta/região/quota | `sts get-caller-identity`, `eks describe-cluster-versions`, `iam get-role` (LabRole, LabEksClusterRole), quota de vCPU/instâncias; somente leitura | 0 |
-| 2 | `plan` do módulo | `terraform plan` com `-var-file` privado e `plan -out` fora do repositório | 0 |
+| 2 | `plan` do módulo | `terraform plan` com `-var-file` privado e `plan -out` fora do repositório; conferir no plan JSON `public_access_cidrs == ["<ip>/32"]` | 0 |
 | 3 | `apply` rede + RDS + DynamoDB + SQS | cria os recursos de dados | ~0,05/h |
 | 4 | `apply` EKS + node group | cria cluster e nós | ~0,19/h |
 | 5 | Secret/deploy dos 3 serviços | `kubectl` (Secret por stdin, overlay `aws`, port-forward) | 0 |
-| 6 | `destroy` + inventário pós-destroy | `kubectl delete svc` (se houver LB), `terraform destroy`, inventário de ENI/SG/EBS/filas/snapshots | 0 |
+| 6 | `destroy` + inventário pós-destroy | verificação somente leitura de ausência de Service `LoadBalancer` (sem delete), `terraform destroy`, inventário de ENI/SG/EBS/filas/snapshots | 0 |
 | F | Fallback k3s (só se G8 acionar) | `apply` com `compute_mode=k3s`, SSM para kubeconfig, destroy | ~0,13/h |
