@@ -17,18 +17,25 @@ terraform -chdir=infra/aws-academy plan  -var-file=<privado>.tfvars -state=<priv
 terraform -chdir=infra/aws-academy apply <privado>/tfplan
 ```
 
-Depois: Secret por stdin (S-11), `kubectl apply -k k8s-overlays/aws`, migrations com o usuário master, usuários de runtime sem DDL, `kubectl port-forward svc/oficina-app 8080:8080` (127.0.0.1). Apagar `tfplan`.
+Depois: Secret por stdin (S-11), `kubectl apply -k k8s-overlays/aws`, migrations com o usuário master, usuários de runtime sem DDL, `kubectl port-forward svc/oficina-app 8080:8080` (127.0.0.1) para o os-service. Apagar `tfplan`.
 
 ### Verificações pós-apply (mesmo card, somente leitura)
 
 1. **/32 efetivo** (consulta AWS só no card aprovado): `aws eks describe-cluster --profile fiap-lab --query 'cluster.resourcesVpcConfig.[publicAccessCidrs,endpointPrivateAccess]'` deve dar `["<ip>/32"]` e `true`. Nunca ampliar o CIDR; se os nós não registrarem, investigar (endpoint privado, SG), não abrir o público.
-2. **Webhook inexistente (teste negativo 404):** o billing usa polling, não há webhook público. Com `kubectl port-forward` ativo: `curl -s -o /dev/null -w '%{http_code}
-' -X POST http://127.0.0.1:8080/<path>` deve imprimir `404` para cada path candidato de webhook (`/webhooks/mercadopago`, `/api/webhooks/mercadopago`, `/billing/webhook`); registrar só os códigos.
+2. **Webhook do billing inacessível sem assinatura (teste direto no billing):** o billing ainda expõe a rota histórica `POST /billing/webhooks/mercadopago` (context-path `/billing` + `@PostMapping("/webhooks/mercadopago")`, `permitAll` protegida por HMAC), mas não há Ingress/LB: só o port-forward alcança o pod. O port-forward do `oficina-app` **não** prova nada sobre o billing; faça um port-forward próprio (namespace e Service do billing, porta 8080, em 127.0.0.1), em outra porta local:
+
+   ```bash
+   # terminal 1 (encerrar com Ctrl+C ao final):
+   kubectl -n oficina-billing port-forward svc/oficina-billing 8081:8080
+   # terminal 2:
+   curl -s -o /dev/null -w '%{http_code}\n' -X POST 'http://127.0.0.1:8081/billing/webhooks/mercadopago?data.id=0&type=payment'
+   ```
+
+   Esperado: `401` (sem `x-signature`/`x-request-id`, ou com `MP_WEBHOOK_SECRET` vazio, `AssinaturaWebhook.valida` recusa sempre e o corpo nunca é processado). `404` aqui indicaria rota ou context-path errados (o teste não provou nada); `200`/`202` é violação: parar e escalar. Registrar só o código. O teste não é 404 porque a rota existe no código do billing; "sem webhook" significa sem entrada pública e sem segredo de assinatura configurado.
 
 ## Destroy (obrigatório; iniciar em T-60 min do timer; também se a sessão falhar)
 
-1. **Verificar a ausência** de Service `LoadBalancer` (somente leitura, sem `delete`): `kubectl get svc -A -o jsonpath='{range .items[?(@.spec.type=="LoadBalancer")]}{.metadata.namespace}/{.metadata.name}{"
-"}{end}'` deve sair vazio. Se listar algo, é violação do desenho: parar, registrar no card e escalar ao Rafael/SecurityEngineer antes de qualquer remoção (o `terraform destroy` não conhece NLB criado fora do state).
+1. **Verificar a ausência** de Service `LoadBalancer` (somente leitura, sem `delete`): `kubectl get svc -A -o jsonpath='{range .items[?(@.spec.type=="LoadBalancer")]}{.metadata.namespace}/{.metadata.name}{"\n"}{end}'` deve sair vazio. Se listar algo, é violação do desenho: parar, registrar no card e escalar ao Rafael/SecurityEngineer antes de qualquer remoção (o `terraform destroy` não conhece NLB criado fora do state).
 2. `terraform destroy` com o mesmo state/var-file.
 3. Inventário pós-destroy no mesmo card: NLB, ENI, SG, EBS, filas SQS, snapshots RDS, instâncias. **Zero** esperado.
 4. Só com inventário zero: apagar state e `tfplan`.
