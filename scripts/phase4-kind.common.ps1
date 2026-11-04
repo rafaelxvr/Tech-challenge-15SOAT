@@ -15,12 +15,49 @@ foreach ($name in 'AWS_PROFILE', 'AWS_DEFAULT_PROFILE', 'AWS_SESSION_TOKEN', 'AW
 }
 $env:AWS_EC2_METADATA_DISABLED = 'true'
 
+# Única função de sanitização dos artefatos do harness (logs, bdd-results.json, diagnostico.txt). Ordem importa:
+# JWT solto -> Bearer/Basic -> Authorization -> chave=valor/JSON -> literais SQL. Idempotente e fail closed (superfície larga).
 function Hide-Secret {
     param([string]$Text)
-    $Text = $Text -replace "(?i)(PGPASSWORD|password|_pw|secret)\s*=\s*\S+", '$1=***'
+    if (-not $Text) { return $Text }
+    # JWT solto: eyJ<header>.<payload>.<assinatura>; a assinatura pode ser vazia (alg=none).
+    $Text = $Text -replace 'eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*', '***'
+    # Esquema de autorização: preserva só o prefixo (Bearer/Basic) e mascara a credencial.
+    $Text = $Text -replace '(?i)\b(Bearer|Basic)\s+(?!\*\*\*)[^\s"'',;}]+', '$1 ***'
+    # Authorization sem esquema reconhecido (ex.: token cru): mascara o valor inteiro.
+    $Text = $Text -replace '(?i)(authorization["'']?\s*[:=]\s*["'']?)(?!(?:Bearer|Basic)\s)(?!\*\*\*)[^\s"'',;}]+', '$1***'
+    # chave=valor, chave: valor e JSON ("password": "valor").
+    $Text = $Text -replace '(?i)(PGPASSWORD|passwd|password|_pw|secret|token|api[_-]?key)(["'']?\s*[:=]\s*["'']?)(?!\*\*\*)[^\s"'',;}]+', '$1$2***'
     # SQL forms such as: ALTER ROLE x PASSWORD 'literal' / PASSWORD $$literal$$ / PASSWORD E'literal'
     $Text = $Text -replace "(?i)(password\s+)(E?'(?:[^']|'')*'|\$\$.*?\$\$)", '$1''***'''
     $Text
+}
+
+# Sanitiza todo campo de detalhe antes de serializar bdd-results.json (retornos normais dos handlers, não só exceções).
+function Protect-Resultados {
+    param([object[]]$Resultados)
+    @($Resultados | ForEach-Object {
+        [pscustomobject]@{ id = $_.id; status = $_.status; detalhe = (Hide-Secret ([string]$_.detalhe)) }
+    })
+}
+
+# Escreve o diagnóstico sem nunca gravar conteúdo bruto no caminho final: acumula em memória, sanitiza e só então grava.
+# $Secoes: lista de @{ Titulo = '...'; Coletar = { ...linhas... } }. Falha numa seção vira nota e a coleta segue.
+# Se a própria sanitização falhar, publica só um marcador fixo (jamais o texto bruto).
+function Write-SanitizedDiagnostico {
+    param([Parameter(Mandatory)][string]$Path, [Parameter(Mandatory)][object[]]$Secoes, [int]$MaxChars = 2000000)
+    $sb = New-Object System.Text.StringBuilder
+    foreach ($secao in $Secoes) {
+        [void]$sb.AppendLine("== $($secao.Titulo) ==")
+        try { foreach ($linha in @(& $secao.Coletar)) { [void]$sb.AppendLine("$linha") } }
+        catch { [void]$sb.AppendLine("coleta interrompida: $($_.Exception.Message)") }
+    }
+    try {
+        $texto = Hide-Secret $sb.ToString()
+        if ($texto.Length -gt $MaxChars) { $texto = $texto.Substring(0, $MaxChars) + "`n== truncado em $MaxChars caracteres ==" }
+    }
+    catch { $texto = 'diagnóstico indisponível: a sanitização falhou e o conteúdo bruto foi descartado.' }
+    Set-Content -Path $Path -Value $texto -Encoding utf8
 }
 
 function Invoke-Native {
