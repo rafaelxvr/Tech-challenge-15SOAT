@@ -48,6 +48,27 @@ jobs:
       - name: Build e testes automatizados
         run: ./mvnw -B verify
 
+      - name: Resumo de cobertura JaCoCo (SHA ${{ github.sha }})
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import xml.etree.ElementTree as E
+          raiz = E.parse('target/site/jacoco/jacoco.xml').getroot()
+          for c in raiz.findall('counter'):
+              if c.get('type') == 'LINE':
+                  m, v = int(c.get('missed')), int(c.get('covered'))
+                  print(f'JaCoCo LINE (bundle completo) {v / (m + v):.4f} ({v}/{m + v})')
+          PY
+
+      - name: Relatórios JaCoCo (SHA ${{ github.sha }})
+        if: always()
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+        with:
+          name: jacoco-${{ github.sha }}
+          path: target/site/jacoco
+          if-no-files-found: error
+          retention-days: 14
+
   integration-test:
     name: Testes de integracao com Docker
     needs: build-and-test
