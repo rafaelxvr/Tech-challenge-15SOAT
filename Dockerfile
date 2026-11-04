@@ -63,9 +63,11 @@ ENV SPRING_PROFILES_ACTIVE=prod
 # The image never embeds an agent or ingest key. If the reviewed New Relic agent is supplied by the runtime,
 # its own log forwarding stays disabled because the Kubernetes forwarder is the single application-log sender.
 ENV NEW_RELIC_APPLICATION_LOGGING_FORWARDING_ENABLED=false
+ENV NEW_RELIC_APP_NAME=oficina-os-service
+ENV OBSERVABILITY_ENABLED=false
 ENV NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true
 ENV NEW_RELIC_SPAN_EVENTS_MAX_SAMPLES_STORED=500
 
 # One runtime value labels both JSON logs and Java-agent Transaction events. It is finite and
 # nonsecret; Kubernetes supplies staging or production through DEPLOYMENT_ENVIRONMENT.
-ENTRYPOINT ["sh", "-c", "export OFICINA_ENVIRONMENT=\"${DEPLOYMENT_ENVIRONMENT:?DEPLOYMENT_ENVIRONMENT is required}\"; export NEW_RELIC_LABELS=\"environment:${DEPLOYMENT_ENVIRONMENT}\"; exec java $JAVA_OPTS -jar app.jar"]
+ENTRYPOINT ["sh", "-c", "if [ \"${OBSERVABILITY_ENABLED}\" = true ] && [ -z \"${NEW_RELIC_LICENSE_KEY:-}\" ]; then echo 'ERRO: OBSERVABILITY_ENABLED=true exige NEW_RELIC_LICENSE_KEY (Secret em tempo de execucao).' >&2; exit 78; fi; export OFICINA_ENVIRONMENT=\"${DEPLOYMENT_ENVIRONMENT:?DEPLOYMENT_ENVIRONMENT is required}\"; export NEW_RELIC_LABELS=\"environment:${DEPLOYMENT_ENVIRONMENT}\"; exec java $JAVA_OPTS -jar app.jar"]
