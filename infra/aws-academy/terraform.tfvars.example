@@ -1,0 +1,8 @@
+# Copie para um arquivo FORA do repositorio (ex.: D:\unravel-private\...\lab.tfvars) e use -var-file.
+# *.tfvars e *.tfstate estao no .gitignore. Nao coloque credenciais aqui.
+region                  = "us-east-1"
+allowed_account_ids     = ["000000000000"] # ID real da conta do Lab, so no arquivo privado
+operator_cidr           = "203.0.113.10/32" # IP publico do operador em /32
+shared_credentials_file = "~/.aws/credentials"
+compute_mode            = "eks" # ou "k3s" (fallback; exige k3s_version)
+# k3s_version           = "vX.Y.Z+k3sN"
