@@ -170,3 +170,11 @@ Achados da fatia 6:
 - Em 08c a compensação `CancelarOrcamento` aponta para a versão inexistente, mas o billing a trata de forma idempotente (responde `OrcamentoCancelado` sem erro): `COMPENSANDO` dura cerca de 1 s e a saga fecha em `CANCELADA`. Esperar `COMPENSANDO` por polling era a causa da intermitência (UNR-319); o cenário espera `CANCELADA` e confere `COMPENSANDO` nos passos.
 - Nenhuma falha de serviço encontrada; nenhuma subtarefa para o Backend.
 - Sem cobertura, Sonar nem `mvn` medidos nesta fatia.
+
+## Reexecução consolidada (UNR-623, PR #91)
+
+Medida no GitHub Actions, run [41744737989](https://github.com/rafaelxvr/Tech-challenge-15SOAT/actions/runs/41744737989), workflow `phase4-kind-bdd`, em cluster Kind efêmero. SHAs: os-service `bfe353c`, billing `17a37b9`, execution `0669c4b`.
+
+- Resultado da matriz: **34 PASS**, 2 `COBERTO_POR_UNITARIO`, 0 FAIL (08a–08e e 09a–09d entre os PASS).
+- Cleanup verificado ao final: `cluster=0 containers=0 port-forwards=0 imagens=0`.
+- Os 2 `COBERTO_POR_UNITARIO` não foram reexecutados nesta run; a cobertura unitária correspondente não foi remedida aqui.

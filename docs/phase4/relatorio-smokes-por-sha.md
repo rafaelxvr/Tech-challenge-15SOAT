@@ -147,3 +147,7 @@ cluster oficina-p4-unr69g: deleted; containers=0 port-forwards=0 images-removed=
 
 - Não medido: cobertura, Sonar, CI (fatia 8, SRE). Egress é verificado por configuração e logs; não há `NetworkPolicy` bloqueando o tráfego, então a ausência de egress real não é provada por bloqueio de rede.
 - Isolamento de banco do execution: sem credencial SQL; o acesso é DynamoDB no LocalStack e não foi testado acesso cruzado a outras tabelas.
+
+## Nota da consolidação (UNR-623, PR #91)
+
+O workflow `phase4-kind-bdd` (run 41744737989, SHAs `bfe353c`/`17a37b9`/`0669c4b`) executa a matriz BDD e o cleanup, mas **não executa `phase4-kind-smokes.ps1`**. Os números de smokes acima (53/53) pertencem aos SHAs `7a8ea6c`/`17a37b9`/`1bf1e6c` e **não foram remedidos** nos SHAs atuais. Resultado BDD medido: ver `bdd-matriz.md`.
