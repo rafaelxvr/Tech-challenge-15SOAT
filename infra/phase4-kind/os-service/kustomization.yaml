@@ -1,0 +1,15 @@
+# Overlay Kind do os-service (Phase 4). A imagem `oficina-os-service:local` é trocada pela tag do SHA por
+# scripts/phase4-kind-stack.ps1 e carregada com `kind load`; nada vem de ECR e nenhum endpoint é AWS real.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: oficina
+resources:
+  - serviceaccount.yaml
+  - configmap.yaml
+  - deployment.yaml
+  - service.yaml
+labels:
+  - pairs:
+      app.kubernetes.io/name: oficina-os-service
+      app.kubernetes.io/part-of: oficina
+    includeSelectors: true

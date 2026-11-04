@@ -35,8 +35,28 @@ Acesso a serviços: somente `kubectl port-forward --address 127.0.0.1`. O Kind n
 
 `postgres/grants-os.sql` roda como `oficina_migrator` depois de cada migration. Todas as tabelas (exceto `flyway_schema_history`) recebem apenas `SELECT/INSERT/UPDATE` (D15-R; auditoria no código: nenhum DELETE em runtime, as exclusões da API são desativações). `DELETE` só entra por tabela com evidência. O `DatabaseBootstrap` (caminho não Kind) ainda concede `DELETE` fora das tabelas saga; alinhar fica como follow-up.
 
+## Bring-up único dos 3 serviços (os-service, billing, execution)
+
+`scripts/phase4-kind-stack.ps1` cria UM cluster, sobe as dependências, builda as imagens dos SHAs pinados, carrega com `kind load` (sem ECR/registry), aplica os 3 serviços e espera readiness. SHAs padrão: os-service `cf34717`, billing `96c811a`, execution `1bf1e6c` (parâmetros `-OsSha/-BillingSha/-ExecutionSha`). O código de cada serviço é extraído com `git archive` do SHA, sem tocar no working tree.
+
+```powershell
+$b = 'D:epository\...\Tech-challenge-15SOAT-billing'; $e = 'D:epository\...\Tech-challenge-15SOAT-execution'   # checkouts com os SHAs
+pwsh -NoProfile -File scripts/phase4-kind-stack.ps1 -Action Build  -BillingRepo $b -ExecutionRepo $e   # só imagens (sem cluster)
+pwsh -NoProfile -File scripts/phase4-kind-stack.ps1 -Action Up     -BillingRepo $b -ExecutionRepo $e   # cluster + deps + 3 serviços (~5 min com cache frio)
+pwsh -NoProfile -File scripts/phase4-kind-stack.ps1 -Action Verify -BillingRepo $b -ExecutionRepo $e   # readyReplicas, imagem por SHA e /actuator/health/readiness
+pwsh -NoProfile -File scripts/phase4-kind-stack.ps1 -Action Down   -BillingRepo $b -ExecutionRepo $e   # kind delete cluster + prova de cleanup
+```
+
+- **Cluster parametrizável:** `-ClusterName` (ou `PHASE4_KIND_CLUSTER`) vale para todos os scripts `phase4-kind*.ps1`; o padrão é `oficina-phase4`. Para ensaiar sem tocar no cluster do runner, use outro nome (ex.: `-ClusterName oficina-p4-ensaio`). O `scripts/deploy-kind.sh` do billing (padrão `oficina-billing`) **não é usado** pelo bring-up, então não há conflito de cluster.
+- **os-service:** overlay em `infra/phase4-kind/os-service/` (Service `oficina-os-service:8080`, contexto `/api`; imagem placeholder trocada pela tag do SHA). Migrações Flyway rodam num Job com `oficina_migrator`, seguidas de `grants-os.sql`; o runtime usa `oficina_app` com `SPRING_FLYWAY_ENABLED=false`. Saga ligada, endpoints SQS só do LocalStack, credenciais `test/test`.
+- **billing:** overlay `kind-fake` do repositório (gateway de pagamento fake, só testes) + `billing-jwt-staff-patch.yaml`, que alinha emissor/audiência/kid do JWT de staff ao contrato do os-service/execution (o base do billing usa valores `*-kind`; sem o patch um token de staff não valeria nos três). O billing roda o próprio Flyway com `billing_migrator`. Service `oficina-billing:8080`, contexto `/billing`.
+- **execution:** `k8s/local` do repositório. Service `oficina-execution:8080`, contexto `/execucao`.
+- **Segredos:** gerados aleatoriamente por cluster e mantidos só em Secrets do Kubernetes. O `JWT_SECRET` HMAC é o mesmo nos três (o execution valida o token de staff emitido pelo os-service). O os-service também recebe uma chave pública RSA descartável de cliente (`oficina-os-customer-trust`); a privada não é guardada. Nada é impresso nem versionado.
+- **Cleanup comprovado (`Down`):** apaga só o cluster nomeado e falha se restar cluster, container do Kind, `kubectl port-forward` do cluster ou imagem `oficina-phase4/*`. O bring-up não usa port-forward nem publica portas no host; o acesso é por `kubectl exec`/`port-forward` loopback sob demanda.
+- Os logs do os-service são deliberadamente opacos (`"message":"safe"`). Para depurar uma falha de startup, monte um `logback.xml` temporário e use `-Dlogback.configurationFile` via `JAVA_OPTS` no cluster efêmero; não versione isso.
+
 ## Limites conhecidos
 
 - **NetworkPolicy não é usada nem alegada.** O isolamento provado é por credenciais, roles e instâncias separadas. Ausência de egress para a AWS não foi bloqueada na rede; a garantia é por configuração: os scripts só falam com `localhost:4566` dentro do pod do LocalStack, limpam variáveis de perfil AWS e o contrato estático proíbe endpoints de serviço AWS reais.
-- Os serviços de aplicação (os/billing/execution) ainda não são implantados aqui: isso é das tarefas de cada serviço (Task 3/5 do Plan 4).
+- Os três serviços são implantados por `scripts/phase4-kind-stack.ps1` (seção abaixo). Billing e execution usam os manifests do próprio repositório no SHA pinado; só o os-service tem overlay aqui.
 - Aceitação do Kind como evidência de deploy Kubernetes pelos avaliadores segue como risco aberto.

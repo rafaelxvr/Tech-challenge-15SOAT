@@ -21,7 +21,7 @@ function Invoke-Up {
     $clusters = (Invoke-Native kind @('get', 'clusters') -AllowFailure).Output -split "`n"
     if ($clusters -contains $script:ClusterName) { Write-Host "cluster $($script:ClusterName): exists" }
     else {
-        Invoke-Native kind @('create', 'cluster', '--config', (Join-Path $script:KindDir 'kind-config.yaml'), '--wait', '120s') | Out-Null
+        Invoke-Native kind @('create', 'cluster', '--name', $script:ClusterName, '--config', (Join-Path $script:KindDir 'kind-config.yaml'), '--wait', '120s') | Out-Null
         Write-Host "cluster $($script:ClusterName): created"
     }
     Invoke-Kube @('apply', '-f', (Join-Path $script:KindDir 'manifests/namespaces.yaml')) | Out-Null
