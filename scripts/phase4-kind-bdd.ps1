@@ -95,8 +95,13 @@ function Assert-DeployedRevision {
     if ("$anotacao" -ne $Sha -and -not $porImagem) {
         throw "SHA informado para '$($Service.Nome)' ($Sha) não corresponde ao implantado (anotação phase4.oficina/source-sha='$anotacao', imagem='$imagem')."
     }
-    $imageId = (Invoke-Kube @('-n', $Service.Namespace, 'get', 'pods', '-l', "app=$($Service.Deployment)", '-o', 'jsonpath={.items[0].status.containerStatuses[0].imageID}') -AllowFailure).Output
-    "$imageId"
+    $r = Invoke-Kube @('-n', $Service.Namespace, 'get', 'pods', '-l', "app=$($Service.Deployment)", '-o', 'jsonpath={.items[0].status.containerStatuses[0].imageID}') -AllowFailure
+    $imageId = "$($r.Output)".Trim()
+    # Evidência só vale com digest real: erro de jsonpath/kubectl nunca pode virar "digest" gravado em bdd-results.json.
+    if ($r.ExitCode -ne 0 -or $imageId -notmatch 'sha256:[0-9a-f]{64}$') {
+        throw "Digest da imagem de '$($Service.Nome)' indisponível (exit=$($r.ExitCode), saída='$imageId')."
+    }
+    $imageId
 }
 
 function Assert-RunArguments {

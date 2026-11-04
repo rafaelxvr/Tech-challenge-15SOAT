@@ -22,6 +22,9 @@ on:
       - 'scripts/phase4-kind*.ps1'
       - 'infra/phase4-kind/**'
       - 'tests/phase4-kind/**'
+      - 'src/**'
+      - 'pom.xml'
+      - 'Dockerfile'
 
 permissions:
   contents: read
