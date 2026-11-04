@@ -183,3 +183,11 @@ Fatia 7 (UNR-620, runbook D19-R, [docs/runbooks/saga-recuperacao-d19r.md](../run
 - Só a outbox do os-service foi levada a `BLOCKED`; as do billing e da execution não foram bloqueadas neste exercício.
 - Não há alerta automatizado de `BLOCKED`/DLQ (item 4 das divergências): a detecção é por consulta, descrita no runbook.
 - Nada foi exercitado em AWS; sem cobertura, Sonar nem `mvn` medidos nesta fatia.
+
+## Reexecução consolidada (UNR-623, PR #91)
+
+Medida no GitHub Actions, run [41744737989](https://github.com/rafaelxvr/Tech-challenge-15SOAT/actions/runs/41744737989), workflow `phase4-kind-bdd`, em cluster Kind efêmero. SHAs: os-service `bfe353c`, billing `17a37b9`, execution `0669c4b`.
+
+- Resultado da matriz: **34 PASS**, 2 `COBERTO_POR_UNITARIO`, 0 FAIL (08a–08e e 09a–09d entre os PASS).
+- Cleanup verificado ao final: `cluster=0 containers=0 port-forwards=0 imagens=0`.
+- Os 2 `COBERTO_POR_UNITARIO` não foram reexecutados nesta run; a cobertura unitária correspondente não foi remedida aqui.

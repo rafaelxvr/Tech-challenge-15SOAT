@@ -1,0 +1,27 @@
+# Pod sem acesso a API do Kubernetes; credenciais AWS so pela role do no (IMDSv2, default chain).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oficina-app
+  namespace: oficina
+spec:
+  template:
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: app
+          imagePullPolicy: IfNotPresent
+---
+# Entrada somente por `kubectl port-forward svc/oficina-app 8080:8080` (127.0.0.1). Sem NodePort/LoadBalancer.
+apiVersion: v1
+kind: Service
+metadata:
+  name: oficina-app
+  namespace: oficina
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+      name: http
+      nodePort: null
