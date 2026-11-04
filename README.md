@@ -129,6 +129,7 @@ As 14 condições de alerta ficam na policy `Oficina Phase 3 <ambiente> operatio
 
 - [Índice da Fase 3](docs/phase-3/README.md) — arquitetura, runbooks, evidências
 - [Arquitetura da APP](docs/architecture.md)
+- [Runbook D19-R (Fase 4)](docs/runbooks/saga-recuperacao-d19r.md) — outbox `BLOCKED`, DLQ/redrive, LocalStack fora e `FALHA_COMPENSACAO`; exercitado em Kind (ver [matriz BDD](docs/phase4/bdd-matriz.md))
 - [Matriz requisito/evidência](docs/phase-3/evidence/requirements.md)
 - [Contratos de API](docs/phase-3/api/contracts.md) — snapshots OpenAPI e Postman com hash
 - [RFCs](docs/rfcs/001-aws-profile.md) e [ADRs](docs/adrs/001-modular-monolith.md)

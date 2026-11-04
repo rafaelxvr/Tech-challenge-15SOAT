@@ -100,6 +100,7 @@ Runner: handlers em `scripts/phase4-kind-bdd.handlers.ps1`, suporte (port-forwar
 | BDD-09d | PASS | 09a+09b+09c duas vezes seguidas: resultados iguais (`A[2/1] B[2/4] C[1]` nas duas), 0 execuções REPARO ativas e `reparosAtivos`=0 depois de cada limpeza. |
 | 03c, 04a–04c, 05b, 05c | PASS | ver Fatia 5 (UNR-295) |
 | 08a–08e | PASS | ver Fatia 6 (UNR-296) |
+| 07e, 07f, 08f | PASS | ver Fatia 7 (UNR-620, runbook D19-R); 08a–08e e 07a/07d reexecutados nos SHAs atuais |
 | demais 2 | COBERTO_POR_UNITARIO | 06h é UNIT; 07c é UNIT |
 
 Fatia 1 (UNR-283): cluster efêmero `oficina-p4-unr283` (nome distinto para não colidir com a rodada do UNR-69), SHAs os `cf34717`, billing `96c811a`, execution `1bf1e6c`, sem egress AWS (LocalStack, credenciais fictícias). Os quatro cenários passaram em cluster limpo; em execuções separadas do mesmo cluster 01a, 03d, 04d (rodada 1) e 03b, 04e (rodada 2). Handlers em `scripts/phase4-kind-bdd.handlers.pos-pagamento.ps1`.
@@ -170,3 +171,15 @@ Achados da fatia 6:
 - Em 08c a compensação `CancelarOrcamento` aponta para a versão inexistente, mas o billing a trata de forma idempotente (responde `OrcamentoCancelado` sem erro): `COMPENSANDO` dura cerca de 1 s e a saga fecha em `CANCELADA`. Esperar `COMPENSANDO` por polling era a causa da intermitência (UNR-319); o cenário espera `CANCELADA` e confere `COMPENSANDO` nos passos.
 - Nenhuma falha de serviço encontrada; nenhuma subtarefa para o Backend.
 - Sem cobertura, Sonar nem `mvn` medidos nesta fatia.
+
+Fatia 7 (UNR-620, runbook D19-R, [docs/runbooks/saga-recuperacao-d19r.md](../runbooks/saga-recuperacao-d19r.md)): cluster efêmero `oficina-p4-unr620` (bring-up por `phase4-kind-stack.ps1`, imagens locais, sem egress AWS), SHAs os `6c5224db2689b6cbd00fa041ec78cfd933a12dd0`, billing `17a37b9ad8d7e859c637b383fca265f8f734d6ca`, execution `0669c4bfd1170e75c5726621aee51fcf329a3704` (os `develop` e `develop` dos outros dois no dia da execução); 07a, 07d, 07e, 07f, 08a–08f passam (07c segue unitário), cada grupo em execução própria (`pwsh -Command`) no mesmo cluster. 07e foi a segunda tentativa (a primeira falhou porque o handler contava `PUBLISHED` da OS inteira em vez de só do `RegistrarDecisao`; corrigido no handler, sem mudança de serviço). Handlers em `scripts/phase4-kind-bdd.handlers.runbook.ps1`. Cleanup: `-Action Down` removeu o cluster (`containers=0 port-forwards=0 images-removed=3`); o cluster `oficina-phase4` de outra rodada ficou intocado.
+
+| Cenário | Status | Observação |
+|---|---|---|
+| BDD-07e | PASS | `RegistrarDecisao` com LocalStack fora, linha levada a 11 tentativas por SQL sintético (fixture; 12 tentativas só com backoff real exigiriam mais de 20 min): o publisher real a bloqueou na 12ª (`BLOCKED`, `QUEUE_SEND_FAILED`). Com o LocalStack de volta e 25 s de espera ela **continuou `BLOCKED`** e a saga em `AGUARDANDO_DECISAO`, sem orçamento aprovado. Re-arme (`PENDING`, `tentativas=0`, mesmo `message_id`): 1 linha afetada, `PUBLISHED` uma vez, saga `AGUARDANDO_PAGAMENTO`, 1 orçamento `APROVADO`, 1 pagamento `PENDENTE`, 1 linha no `inbox`; segundo re-arme afetou 0 linhas; fila e DLQ de comandos vazias. |
+| BDD-07f | PASS | como 07d, até `FALHA_COMPENSACAO` com pilha `CANCELAR_ORCAMENTO`; na volta do LocalStack a outbox entregou sozinha 3 linhas `CancelarOrcamento` (1 envio + 2 reenvios), o billing foi a `CANCELADO` com 1 linha, a `saga_outbox` ficou sem `PENDING`/`BLOCKED` e a saga **continuou `FALHA_COMPENSACAO`** com a mesma pilha (não há transição de saída). |
+| BDD-08f | PASS | como 08e, mas o mesmo comando foi redriven **duas vezes** (segundo envio com `MessageDeduplicationId` novo): 1 `OrcamentoAprovado`, 1 pagamento `PENDENTE`, 1 linha no `inbox`, DLQ e fila vazias. |
+
+- Só a outbox do os-service foi levada a `BLOCKED`; as do billing e da execution não foram bloqueadas neste exercício.
+- Não há alerta automatizado de `BLOCKED`/DLQ (item 4 das divergências): a detecção é por consulta, descrita no runbook.
+- Nada foi exercitado em AWS; sem cobertura, Sonar nem `mvn` medidos nesta fatia.

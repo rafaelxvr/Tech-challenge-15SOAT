@@ -30,3 +30,9 @@ Funcionalidade: Retry, DLQ e redrive
     Dado uma mensagem válida na DLQ cuja causa foi corrigida
     Quando o script move a mensagem de volta à fila original
     Então ela é processada uma vez e a DLQ fica vazia
+
+  @BDD-08f
+  Cenário: Redrive repetido da mesma mensagem
+    Dado uma mensagem válida já reprocessada por redrive manual
+    Quando o script a envia de novo à fila original
+    Então o inbox a descarta e continua um único efeito de negócio
