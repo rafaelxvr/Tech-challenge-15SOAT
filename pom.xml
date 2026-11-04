@@ -27,9 +27,11 @@
         <lombok.version>1.18.32</lombok.version>
         <aws.sdk.version>2.54.18</aws.sdk.version>
         <logstash.logback.encoder.version>8.1</logstash.logback.encoder.version>
-        <!-- SonarCloud: organização e chave do projeto vêm do CI (variáveis SONAR_ORGANIZATION/SONAR_PROJECT_KEY); token só por SONAR_TOKEN. Local: -Dsonar.host.url=http://localhost:9000 -->
+        <!-- SonarCloud: organização e chave do projeto ficam nas propriedades abaixo (não secretas); token só por SONAR_TOKEN. Local: -Dsonar.host.url=http://localhost:9000 -->
         <sonar.maven.plugin.version>4.0.0.4121</sonar.maven.plugin.version>
         <sonar.projectName>Oficina Mecânica</sonar.projectName>
+        <sonar.organization>rafaelxvr</sonar.organization>
+        <sonar.projectKey>rafaelxvr_Tech-challenge-15SOAT</sonar.projectKey>
         <sonar.host.url>https://sonarcloud.io</sonar.host.url>
         <sonar.coverage.jacoco.xmlReportPaths>${project.build.directory}/site/jacoco/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
     </properties>
