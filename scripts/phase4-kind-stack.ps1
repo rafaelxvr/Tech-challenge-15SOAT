@@ -9,6 +9,8 @@
   Down    `kind delete cluster` e prova de que não restou cluster, container, imagem, processo nem porta
 .PARAMETER ClusterName
   Padrão oficina-phase4 (ou $env:PHASE4_KIND_CLUSTER). Use outro nome para ensaiar sem tocar no cluster do runner.
+.PARAMETER Observability
+  Perfil observável (opt-in): injeta NEW_RELIC_LICENSE_KEY por secretKeyRef nos 3 serviços. Ver infra/phase4-kind/observability/README.md.
 .PARAMETER BillingRepo / ExecutionRepo
   Checkouts locais dos repositórios billing e execution (precisam conter o SHA pinado). O os-service é este repositório.
 #>
@@ -21,7 +23,9 @@ param(
     [ValidatePattern('^[0-9a-f]{7,40}$')][string]$ExecutionSha = '1bf1e6c',
     [string]$OsRepo,
     [string]$BillingRepo,
-    [string]$ExecutionRepo
+    [string]$ExecutionRepo,
+    [switch]$Observability,
+    [string]$NewRelicEnvFile = $(if ($env:PHASE4_NEWRELIC_ENV_FILE) { $env:PHASE4_NEWRELIC_ENV_FILE } else { 'D:\unravel-private\fiap\newrelic.env' })
 )
 if ($ClusterName) { $env:PHASE4_KIND_CLUSTER = $ClusterName }
 . (Join-Path $PSScriptRoot 'phase4-kind.common.ps1')
@@ -197,6 +201,18 @@ function Get-ExecutionManifest {
     (Invoke-Native kubectl @('kustomize', (Join-Path $src 'k8s/local'))).Output
 }
 
+# Perfil observável: o Secret `newrelic-license` nasce de stdin (nunca de argumento) e os Deployments o referenciam por secretKeyRef.
+function Enable-NewRelic {
+    param([string]$LicenseKey)
+    $patchTemplate = Get-Content -Raw (Join-Path $script:KindDir 'observability/newrelic-env-patch.json')
+    foreach ($s in $script:Services) {
+        Set-KubeSecret $s.Namespace 'newrelic-license' @{ license_key = $LicenseKey }
+        $patch = ($patchTemplate -replace '__APP_NAME__', "oficina-phase4-$($s.Key)") | ConvertFrom-Json | ConvertTo-Json -Depth 8 -Compress
+        Invoke-Kube @('patch', "deploy/$($s.Deployment)", '-n', $s.Namespace, '--type=json', '-p', $patch) | Out-Null
+        Write-Host "newrelic: $($s.Namespace)/$($s.Deployment) referencia Secret newrelic-license por secretKeyRef"
+    }
+}
+
 function Wait-Service {
     param($Svc)
     Invoke-Kube @('rollout', 'status', "deploy/$($Svc.Deployment)", '-n', $Svc.Namespace, '--timeout=300s') | Out-Null
@@ -204,6 +220,8 @@ function Wait-Service {
 }
 
 function Invoke-Up {
+    # Falha cedo e sem eco do valor: antes de buildar imagem ou criar cluster.
+    $licenseKey = if ($Observability) { Get-NewRelicLicenseKey $NewRelicEnvFile }
     Invoke-Build
     $pwsh = (Get-Process -Id $PID).Path
     Invoke-Native $pwsh @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'phase4-kind.ps1'), '-Action', 'Up') | ForEach-Object { $_.Output } | Write-Host
@@ -226,6 +244,8 @@ function Invoke-Up {
         Apply-Rendered (Get-ExecutionManifest $execution $work) $execution
     }
     finally { Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue }
+    if ($Observability) { Enable-NewRelic $licenseKey }
+    $licenseKey = $null
     foreach ($s in $script:Services) { Wait-Service $s }
     Write-Host 'Up: OK'
 }
@@ -239,6 +259,12 @@ function Invoke-Verify {
         $h = Invoke-Kube @('exec', '-n', $s.Namespace, "deploy/$($s.Deployment)", '--', 'wget', '-qO-', "http://127.0.0.1:8080$($s.Health)") -AllowFailure
         if ($ready -eq '1' -and $img -eq $s.Image -and $h.Output -match '"status"\s*:\s*"UP"') { Write-Host "PASS $($s.Key) readyReplicas=1 image=$img readiness=UP" }
         else { Write-Host "FAIL $($s.Key) readyReplicas=$ready image=$img readiness=$($h.Output)"; $fail = 1 }
+    }
+    if ($Observability) {
+        foreach ($s in $script:Services) {
+            $ref = (Invoke-Kube @('get', 'deploy', $s.Deployment, '-n', $s.Namespace, '-o', 'jsonpath={.spec.template.spec.containers[0].env[?(@.name=="NEW_RELIC_LICENSE_KEY")].valueFrom.secretKeyRef.name}') -AllowFailure).Output
+            if ($ref -eq 'newrelic-license') { Write-Host "PASS $($s.Key) NEW_RELIC_LICENSE_KEY via secretKeyRef" } else { Write-Host "FAIL $($s.Key) NEW_RELIC_LICENSE_KEY sem secretKeyRef"; $fail = 1 }
+        }
     }
     if ($fail) { throw 'Verify FAILED' }
     Write-Host 'Verify: OK'

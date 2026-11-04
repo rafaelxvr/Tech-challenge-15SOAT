@@ -59,5 +59,28 @@ Assert-That 'Invoke-Native errors with stdin never echo quoted literals' (($thre
 $threwJson = try { Invoke-Native pwsh @('-NoProfile', '-Command', "[Console]::Error.WriteLine([Console]::In.ReadToEnd()); exit 3") -StdIn '{"stringData":{"POSTGRES_PASSWORD":"DUMMYjson456"}}'; '' } catch { $_.Exception.Message }
 Assert-That 'Invoke-Native errors with stdin never echo a JSON manifest value' (($threwJson -ne '') -and ($threwJson -notmatch 'DUMMYjson456'))
 
+# New Relic no Kind (UNR-617): secretKeyRef, sem valor versionado, falha clara sem eco do segredo.
+$nrPatch = Get-Content -Raw (Join-Path $kind 'observability/newrelic-env-patch.json')
+Assert-That 'newrelic patch: license key only via secretKeyRef to newrelic-license' (($nrPatch -match '"name": "NEW_RELIC_LICENSE_KEY", "valueFrom": \{ "secretKeyRef": \{ "name": "newrelic-license", "key": "license_key"') -and ($nrPatch -notmatch '"name": "NEW_RELIC_LICENSE_KEY", "value"'))
+Assert-That 'newrelic patch holds no account id nor literal key' (($nrPatch -notmatch '(?i)ACCOUNT_ID') -and ($nrPatch -notmatch '[0-9A-Fa-f]{32,}'))
+$upAt = $stack.IndexOf('function Invoke-Up')
+Assert-That 'stack validates the newrelic file before any cluster/build work' (($stack -match '\[switch\]\$Observability') -and ($stack.IndexOf('Get-NewRelicLicenseKey $NewRelicEnvFile') -gt $upAt) -and ($stack.IndexOf('Get-NewRelicLicenseKey $NewRelicEnvFile') -lt $stack.IndexOf('Invoke-Build', $upAt)))
+$nrTmp = Join-Path ([IO.Path]::GetTempPath()) "p4-nr-$([Guid]::NewGuid().ToString('N'))"
+New-Item -ItemType Directory -Path $nrTmp | Out-Null
+try {
+    $msg = { param($path) try { Get-NewRelicLicenseKey $path | Out-Null; '' } catch { $_.Exception.Message } }
+    $m = & $msg (Join-Path $nrTmp 'ausente.env')
+    Assert-That 'newrelic: missing file fails clearly with path' ($m -match 'ausente' -and $m -match [regex]::Escape($nrTmp))
+    Set-Content (Join-Path $nrTmp 'semchave.env') -Value 'OUTRA=DUMMYother789'
+    $m = & $msg (Join-Path $nrTmp 'semchave.env')
+    Assert-That 'newrelic: missing key fails clearly without echoing file content' ($m -match 'NEW_RELIC_LICENSE_KEY ausente' -and $m -notmatch 'DUMMYother789')
+    Set-Content (Join-Path $nrTmp 'vazia.env') -Value 'NEW_RELIC_LICENSE_KEY=""'
+    Assert-That 'newrelic: empty value fails clearly' ((& $msg (Join-Path $nrTmp 'vazia.env')) -match 'vazia')
+    Set-Content (Join-Path $nrTmp 'ok.env') -Value @('NEW_RELIC_ACCOUNT_ID=999', 'export NEW_RELIC_LICENSE_KEY="DUMMYlicense123"')
+    Assert-That 'newrelic: valid file yields only the license key' ((Get-NewRelicLicenseKey (Join-Path $nrTmp 'ok.env')) -eq 'DUMMYlicense123')
+    Assert-That 'Hide-Secret masks license key assignments' ((Hide-Secret 'NEW_RELIC_LICENSE_KEY=DUMMYlicense123') -notmatch 'DUMMYlicense123')
+}
+finally { Remove-Item $nrTmp -Recurse -Force -ErrorAction SilentlyContinue }
+
 if ($failures.Count) { Write-Host "contract FAILED: $($failures -join '; ')"; exit 1 }
 Write-Host 'phase4-kind-contract=PASS'

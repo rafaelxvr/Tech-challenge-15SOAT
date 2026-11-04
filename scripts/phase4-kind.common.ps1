@@ -17,7 +17,7 @@ $env:AWS_EC2_METADATA_DISABLED = 'true'
 
 function Hide-Secret {
     param([string]$Text)
-    $Text = $Text -replace "(?i)(PGPASSWORD|password|_pw|secret)\s*=\s*\S+", '$1=***'
+    $Text = $Text -replace "(?i)(PGPASSWORD|password|_pw|secret|license_key)\s*=\s*\S+", '$1=***'
     # SQL forms such as: ALTER ROLE x PASSWORD 'literal' / PASSWORD $$literal$$ / PASSWORD E'literal'
     $Text = $Text -replace "(?i)(password\s+)(E?'(?:[^']|'')*'|\$\$.*?\$\$)", '$1''***'''
     $Text
@@ -92,6 +92,23 @@ function Invoke-Psql {
     else { $Password = Get-KubeSecretValue data "postgres-$Instance-admin" password }
     $exec += $psql
     Invoke-Kube $exec -StdIn "$Password`n$sets`n$Sql`n" -AllowFailure:$AllowFailure
+}
+
+# Lê NEW_RELIC_LICENSE_KEY do arquivo local (fora do repositório). Valida existência, chave e valor não vazio;
+# as mensagens citam só o caminho e o nome da chave, nunca o conteúdo do arquivo.
+function Get-NewRelicLicenseKey {
+    param([Parameter(Mandatory)][string]$Path)
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { throw "arquivo de credencial New Relic ausente: $Path" }
+    $found = $false
+    foreach ($line in Get-Content -LiteralPath $Path) {
+        if ($line -match '^\s*(?:export\s+)?NEW_RELIC_LICENSE_KEY\s*=\s*(.*?)\s*$') {
+            $found = $true
+            $value = $Matches[1].Trim('"', "'")
+            if ($value) { return $value }
+        }
+    }
+    if ($found) { throw "NEW_RELIC_LICENSE_KEY vazia em $Path" }
+    throw "NEW_RELIC_LICENSE_KEY ausente em $Path"
 }
 
 function Test-LoopbackAddress {
