@@ -35,7 +35,7 @@ env:
   PHASE4_KIND_CLUSTER: oficina-phase4-ci
   PHASE4_TIMEOUT_FACTOR: '2'
   # SHAs pinados (40 caracteres: actions/checkout não resolve SHA abreviado): inputs do workflow_dispatch ou estes padrões. Nunca branches móveis.
-  OS_SHA: ${{ inputs.os_sha || '6c5224db2689b6cbd00fa041ec78cfd933a12dd0' }}
+  OS_SHA: ${{ inputs.os_sha || github.event.pull_request.head.sha || '6c5224db2689b6cbd00fa041ec78cfd933a12dd0' }}
   BILLING_SHA: ${{ inputs.billing_sha || '17a37b9ad8d7e859c637b383fca265f8f734d6ca' }}
   EXECUTION_SHA: ${{ inputs.execution_sha || '0669c4bfd1170e75c5726621aee51fcf329a3704' }}
   RESULTS_DIR: ${{ github.workspace }}/phase4-results
