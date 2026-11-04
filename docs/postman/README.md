@@ -6,7 +6,7 @@ Arquivos em `postman/`:
 |---|---|
 | `Oficina-Fase4-Kind.postman_collection.json` | Coleção sequencial dos três serviços (Runner/Newman) |
 | `kind-local.postman_environment.json` | Environment do Kind (URLs de port-forward, sem segredos) |
-| `aws-academy.postman_environment.json` | Placeholders para o deploy no Learner Lab (preencher depois) |
+| `aws-academy.postman_environment.json` | Learner Lab (UNR-609, plano v9.2): sem NLB/ALB, entrada por `kubectl port-forward` em 127.0.0.1 (mesmas portas 8080/8081/8082); `customerTokenUrl` vazio (o emissor local não vale no Learner Lab) |
 
 ## 1. Importar
 
@@ -52,7 +52,9 @@ Requests que não se aplicam (por exemplo a pasta 04 com `executarMercadoPago=fa
 
 ## 5. Dois passos que precisam de atenção
 
-- **Token do cliente (emissor local):** as rotas de CPF/OTP não existem no core; vêm do Lambda de `oficina-functions`, ausente no Kind. Para testar a aprovação do orçamento, suba o emissor local antes da coleção: `node scripts/postman/customer-token-minter.mjs` (porta 8099, `customerTokenUrl`). Ele gera um par RSA efêmero em memória (nada vai para disco) e imprime a chave pública. Configure no core, no ConfigMap `oficina-config`: `JWT_CUSTOMER_ISSUER=oficina-kind-customer`, `JWT_CUSTOMER_AUDIENCE=oficina-kind-api` e `SPRING_APPLICATION_JSON={"security":{"jwt":{"customer":{"public-keys":{"kind-local":"<PEM impresso>"}}}}}`, e reinicie o `oficina-app`. Ao reiniciar o emissor, a chave muda: reaplique o ConfigMap. Encerre o emissor ao final (Ctrl+C).
+- **Token do cliente (emissor local):** as rotas de CPF/OTP não existem no core; vêm do Lambda de `oficina-functions`, ausente no Kind. Para testar a aprovação do orçamento, suba o emissor local antes da coleção: `node scripts/postman/customer-token-minter.mjs` (porta 8099, `customerTokenUrl`). Ele gera um par RSA efêmero em memória (nada vai para disco) e imprime a chave pública. Configure no core, no ConfigMap `oficina-config`: `JWT_CUSTOMER_ISSUER=oficina-kind-customer`, `JWT_CUSTOMER_AUDIENCE=oficina-kind-api` e `SPRING_APPLICATION_JSON={"security":{"jwt":{"customer":{"public-keys":{"kind-local":"<PEM impresso>"}}}}}`, e reinicie o `oficina-app` (`kubectl rollout restart deploy/oficina-app` e aguarde `rollout status`: `envFrom` não atualiza pods existentes). Ao reiniciar o emissor, a chave muda: reaplique o ConfigMap e faça novo rollout do `oficina-app`. Encerre o emissor ao final (Ctrl+C).
+  - O emissor só aceita `POST /token` com `Host` local, `Content-Type: application/json` e sem `Origin`; `sub` deve ser UUID minúsculo; `iat` sai 5 s no passado (tolera drift de relógio do pod).
+  - **Escopo:** uso exclusivo do Kind local. Nunca aplique essa chave pública/issuer no `aws-academy` nem em ambiente compartilhado. Ao terminar, remova `SPRING_APPLICATION_JSON` e `JWT_CUSTOMER_*` do ConfigMap `oficina-config` e faça rollout, para o core não continuar confiando em chave órfã.
 - **`pagamentoId`:** o billing atual não expõe consulta de pagamento por OS. A coleção tenta `GET /billing/pagamentos?osId=` (preenche sozinha se o endpoint existir). Enquanto não existir, preencha `pagamentoId<slot>` com o id lido do banco do billing, por exemplo:
 
   ```bash

@@ -15,8 +15,10 @@ const KID = process.env.KID ?? 'kind-local';
 const ISSUER = process.env.CUSTOMER_ISSUER ?? 'oficina-kind-customer';
 const AUDIENCE = process.env.CUSTOMER_AUDIENCE ?? 'oficina-kind-api';
 const TTL_SECONDS = 900;
+const CLOCK_SKEW_SECONDS = 5; // iat no passado: o core rejeita iat futuro (drift host x pod)
+const ALLOWED_HOSTS = new Set([`127.0.0.1:${PORT}`, `localhost:${PORT}`]);
 const SCOPES = ['orders:read:self', 'orders:decide:self'];
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 const { publicKey, privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
 const b64url = (value) => Buffer.from(value).toString('base64url');
@@ -26,7 +28,7 @@ function mint(sub, identityVersion) {
   const header = { alg: 'RS256', typ: 'JWT', kid: KID };
   const claims = {
     iss: ISSUER, aud: AUDIENCE, sub, principal_type: 'customer', token_use: 'access',
-    identity_version: identityVersion, iat: now, exp: now + TTL_SECONDS, scopes: SCOPES, jti: randomUUID(),
+    identity_version: identityVersion, iat: now - CLOCK_SKEW_SECONDS, exp: now + TTL_SECONDS, scopes: SCOPES, jti: randomUUID(),
   };
   const unsigned = `${b64url(JSON.stringify(header))}.${b64url(JSON.stringify(claims))}`;
   const signature = createSign('RSA-SHA256').update(unsigned).sign(privateKey);
@@ -38,8 +40,16 @@ function reply(res, status, body) {
   res.end(JSON.stringify(body));
 }
 
+// Defesa contra página no navegador do dev (POST simples / DNS rebinding): exige Host local,
+// Content-Type JSON (força preflight, que não é atendido) e rejeita qualquer Origin.
+function requestAllowed(req) {
+  const type = String(req.headers['content-type'] ?? '').split(';')[0].trim().toLowerCase();
+  return ALLOWED_HOSTS.has(req.headers.host) && type === 'application/json' && req.headers.origin === undefined;
+}
+
 const server = createServer((req, res) => {
   if (req.method !== 'POST' || req.url !== '/token') return reply(res, 404, { error: 'NOT_FOUND' });
+  if (!requestAllowed(req)) return reply(res, 403, { error: 'FORBIDDEN' });
   let raw = '';
   req.on('data', (chunk) => { raw += chunk; if (raw.length > 4096) req.destroy(); });
   req.on('end', () => {
