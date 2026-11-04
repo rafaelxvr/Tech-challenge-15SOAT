@@ -1,0 +1,11 @@
+[
+  { "op": "replace", "path": "/data/SPRING_PROFILES_ACTIVE", "value": "aws" },
+  { "op": "remove", "path": "/data/DB_URL" },
+  { "op": "remove", "path": "/data/DB_USERNAME" },
+  { "op": "remove", "path": "/data/MAIL_HOST" },
+  { "op": "remove", "path": "/data/MAIL_PORT" },
+  { "op": "replace", "path": "/data/MAIL_ENABLED", "value": "false" },
+  { "op": "add", "path": "/data/SAGA_ENABLED", "value": "true" },
+  { "op": "add", "path": "/data/SAGA_MENSAGERIA_ENABLED", "value": "true" },
+  { "op": "add", "path": "/data/AWS_REGION", "value": "us-east-1" }
+]
