@@ -27,11 +27,10 @@
         <lombok.version>1.18.32</lombok.version>
         <aws.sdk.version>2.54.18</aws.sdk.version>
         <logstash.logback.encoder.version>8.1</logstash.logback.encoder.version>
-        <!-- SonarQube (docker compose: http://localhost:9000) -->
+        <!-- SonarCloud: organização e chave do projeto vêm do CI (variáveis SONAR_ORGANIZATION/SONAR_PROJECT_KEY); token só por SONAR_TOKEN. Local: -Dsonar.host.url=http://localhost:9000 -->
         <sonar.maven.plugin.version>4.0.0.4121</sonar.maven.plugin.version>
-        <sonar.projectKey>com.oficina:oficina-mecanica</sonar.projectKey>
         <sonar.projectName>Oficina Mecânica</sonar.projectName>
-        <sonar.host.url>http://localhost:9000</sonar.host.url>
+        <sonar.host.url>https://sonarcloud.io</sonar.host.url>
         <sonar.coverage.jacoco.xmlReportPaths>${project.build.directory}/site/jacoco/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
     </properties>
 
@@ -376,7 +375,7 @@
                 </executions>
             </plugin>
 
-            <!-- SonarQube: mvn verify sonar:sonar -Dsonar.token=SEU_TOKEN -->
+            <!-- SonarCloud: mvn verify sonar:sonar -Dsonar.organization=ORG -Dsonar.projectKey=CHAVE (token em SONAR_TOKEN) -->
             <plugin>
                 <groupId>org.sonarsource.scanner.maven</groupId>
                 <artifactId>sonar-maven-plugin</artifactId>
