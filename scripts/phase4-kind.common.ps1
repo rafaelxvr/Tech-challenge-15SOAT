@@ -94,21 +94,26 @@ function Invoke-Psql {
     Invoke-Kube $exec -StdIn "$Password`n$sets`n$Sql`n" -AllowFailure:$AllowFailure
 }
 
-# Lê NEW_RELIC_LICENSE_KEY do arquivo local (fora do repositório). Valida existência, chave e valor não vazio;
-# as mensagens citam só o caminho e o nome da chave, nunca o conteúdo do arquivo.
-function Get-NewRelicLicenseKey {
+# Valida o arquivo local de credencial New Relic (fora do repositório) SEM capturar o valor: só testa por regex.
+# O formato é o aceito por `kubectl create secret --from-env-file` (KEY=valor, sem aspas nem `export`, que o kubectl não remove).
+# As mensagens citam só o caminho e o nome da chave, nunca o conteúdo do arquivo.
+function Assert-NewRelicEnvFile {
     param([Parameter(Mandatory)][string]$Path)
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { throw "arquivo de credencial New Relic ausente: $Path" }
-    $found = $false
-    foreach ($line in Get-Content -LiteralPath $Path) {
-        if ($line -match '^\s*(?:export\s+)?NEW_RELIC_LICENSE_KEY\s*=\s*(.*?)\s*$') {
-            $found = $true
-            $value = $Matches[1].Trim('"', "'")
-            if ($value) { return $value }
-        }
-    }
-    if ($found) { throw "NEW_RELIC_LICENSE_KEY vazia em $Path" }
-    throw "NEW_RELIC_LICENSE_KEY ausente em $Path"
+    $lines = @(Get-Content -LiteralPath $Path | Where-Object { $_ -match '^\s*(?:export\s+)?NEW_RELIC_LICENSE_KEY\s*=' })
+    if (-not $lines.Count) { throw "NEW_RELIC_LICENSE_KEY ausente em $Path" }
+    if ($lines.Count -gt 1) { throw "NEW_RELIC_LICENSE_KEY duplicada em $Path" }
+    if ($lines[0] -notmatch '^NEW_RELIC_LICENSE_KEY=\S') { throw "NEW_RELIC_LICENSE_KEY vazia ou fora do formato KEY=valor (sem espaços, aspas ou export) em $Path" }
+    if ($lines[0] -match '^NEW_RELIC_LICENSE_KEY=["'']') { throw "NEW_RELIC_LICENSE_KEY com aspas em $Path; o kubectl --from-env-file não as remove" }
+}
+
+# Cria/atualiza o Secret `newrelic-license` direto do arquivo (kubectl --from-env-file), sem passar o valor por variável PowerShell.
+# O manifesto trafega por pipe entre dois kubectl e é aplicado server-side: não grava a licença em last-applied-configuration.
+function Set-NewRelicSecret {
+    param([Parameter(Mandatory)][string]$Namespace, [Parameter(Mandatory)][string]$EnvFile)
+    kubectl --context $script:KubeContext create secret generic newrelic-license -n $Namespace "--from-env-file=$EnvFile" --dry-run=client -o yaml 2>$null |
+        kubectl --context $script:KubeContext apply --server-side --force-conflicts -f - 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "falha ao aplicar o Secret newrelic-license em $Namespace (saída omitida: pode conter credencial)" }
 }
 
 function Test-LoopbackAddress {

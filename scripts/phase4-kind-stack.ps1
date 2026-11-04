@@ -10,7 +10,7 @@
 .PARAMETER ClusterName
   Padrão oficina-phase4 (ou $env:PHASE4_KIND_CLUSTER). Use outro nome para ensaiar sem tocar no cluster do runner.
 .PARAMETER Observability
-  Perfil observável (opt-in): injeta NEW_RELIC_LICENSE_KEY por secretKeyRef nos 3 serviços. Ver infra/phase4-kind/observability/README.md.
+  Perfil observável (opt-in): injeta NEW_RELIC_LICENSE_KEY (secretKeyRef), OBSERVABILITY_ENABLED=true e o app name nos 3 serviços. Ver infra/phase4-kind/observability/README.md.
 .PARAMETER BillingRepo / ExecutionRepo
   Checkouts locais dos repositórios billing e execution (precisam conter o SHA pinado). O os-service é este repositório.
 #>
@@ -201,16 +201,26 @@ function Get-ExecutionManifest {
     (Invoke-Native kubectl @('kustomize', (Join-Path $src 'k8s/local'))).Output
 }
 
-# Perfil observável: o Secret `newrelic-license` nasce de stdin (nunca de argumento) e os Deployments o referenciam por secretKeyRef.
+# Perfil observável: o Secret `newrelic-license` nasce direto do arquivo (--from-env-file, server-side) e os Deployments o referenciam por secretKeyRef.
+# Nomes de app exatos exigidos pela observabilidade da Fase 4.
+$script:NewRelicAppNames = @{ os = 'oficina-os-service'; billing = 'oficina-billing-service'; execution = 'oficina-execution-service' }
+
 function Enable-NewRelic {
-    param([string]$LicenseKey)
     $patchTemplate = Get-Content -Raw (Join-Path $script:KindDir 'observability/newrelic-env-patch.json')
-    foreach ($s in $script:Services) {
-        Set-KubeSecret $s.Namespace 'newrelic-license' @{ license_key = $LicenseKey }
-        $patch = ($patchTemplate -replace '__APP_NAME__', "oficina-phase4-$($s.Key)") | ConvertFrom-Json | ConvertTo-Json -Depth 8 -Compress
-        Invoke-Kube @('patch', "deploy/$($s.Deployment)", '-n', $s.Namespace, '--type=json', '-p', $patch) | Out-Null
-        Write-Host "newrelic: $($s.Namespace)/$($s.Deployment) referencia Secret newrelic-license por secretKeyRef"
+    try {
+        foreach ($s in $script:Services) {
+            Set-NewRelicSecret $s.Namespace $NewRelicEnvFile
+            $patch = ($patchTemplate -replace '__APP_NAME__', $script:NewRelicAppNames[$s.Key]) | ConvertFrom-Json | ConvertTo-Json -Depth 8 -Compress
+            Invoke-Kube @('patch', "deploy/$($s.Deployment)", '-n', $s.Namespace, '--type=json', '-p', $patch) | Out-Null
+            Write-Host "newrelic: $($s.Namespace)/$($s.Deployment) referencia Secret newrelic-license (key NEW_RELIC_LICENSE_KEY) por secretKeyRef"
+        }
     }
+    catch {
+        # Higiene: falha no meio não deixa a licença em namespaces sem o wiring completo.
+        foreach ($s in $script:Services) { Invoke-Kube @('delete', 'secret', 'newrelic-license', '-n', $s.Namespace, '--ignore-not-found') -AllowFailure | Out-Null }
+        throw
+    }
+    finally { $patchTemplate = $null }
 }
 
 function Wait-Service {
@@ -221,7 +231,7 @@ function Wait-Service {
 
 function Invoke-Up {
     # Falha cedo e sem eco do valor: antes de buildar imagem ou criar cluster.
-    $licenseKey = if ($Observability) { Get-NewRelicLicenseKey $NewRelicEnvFile }
+    if ($Observability) { Assert-NewRelicEnvFile $NewRelicEnvFile }
     Invoke-Build
     $pwsh = (Get-Process -Id $PID).Path
     Invoke-Native $pwsh @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'phase4-kind.ps1'), '-Action', 'Up') | ForEach-Object { $_.Output } | Write-Host
@@ -244,8 +254,7 @@ function Invoke-Up {
         Apply-Rendered (Get-ExecutionManifest $execution $work) $execution
     }
     finally { Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue }
-    if ($Observability) { Enable-NewRelic $licenseKey }
-    $licenseKey = $null
+    if ($Observability) { Enable-NewRelic }
     foreach ($s in $script:Services) { Wait-Service $s }
     Write-Host 'Up: OK'
 }
@@ -262,8 +271,18 @@ function Invoke-Verify {
     }
     if ($Observability) {
         foreach ($s in $script:Services) {
-            $ref = (Invoke-Kube @('get', 'deploy', $s.Deployment, '-n', $s.Namespace, '-o', 'jsonpath={.spec.template.spec.containers[0].env[?(@.name=="NEW_RELIC_LICENSE_KEY")].valueFrom.secretKeyRef.name}') -AllowFailure).Output
-            if ($ref -eq 'newrelic-license') { Write-Host "PASS $($s.Key) NEW_RELIC_LICENSE_KEY via secretKeyRef" } else { Write-Host "FAIL $($s.Key) NEW_RELIC_LICENSE_KEY sem secretKeyRef"; $fail = 1 }
+            $tpl = 'jsonpath={.spec.template.spec.containers[0].env[?(@.name=="@N")]@F}'
+            $get = { param($n, $f) (Invoke-Kube @('get', 'deploy', $s.Deployment, '-n', $s.Namespace, '-o', ($tpl.Replace('@N', $n).Replace('@F', $f))) -AllowFailure).Output }
+            $refName = & $get 'NEW_RELIC_LICENSE_KEY' '.valueFrom.secretKeyRef.name'
+            $refKey = & $get 'NEW_RELIC_LICENSE_KEY' '.valueFrom.secretKeyRef.key'
+            $enabled = & $get 'OBSERVABILITY_ENABLED' '.value'
+            $agent = & $get 'NEW_RELIC_AGENT_ENABLED' '.value'
+            $app = & $get 'NEW_RELIC_APP_NAME' '.value'
+            # go-template devolve só "present" e o resultado nunca é impresso (só o booleano): o valor do Secret não vaza nem em erro.
+            $has = (Invoke-Kube @('get', 'secret', 'newrelic-license', '-n', $s.Namespace, '-o', 'go-template={{if .data}}{{if index .data "NEW_RELIC_LICENSE_KEY"}}present{{end}}{{end}}') -AllowFailure).Output
+            $ok = ($refName -eq 'newrelic-license') -and ($refKey -eq 'NEW_RELIC_LICENSE_KEY') -and ($has -eq 'present') -and ($enabled -eq 'true') -and ($agent -eq 'true') -and ($app -eq $script:NewRelicAppNames[$s.Key])
+            if ($ok) { Write-Host "PASS $($s.Key) newrelic secretKeyRef=newrelic-license/NEW_RELIC_LICENSE_KEY secret=present OBSERVABILITY_ENABLED=true app=$app" }
+            else { Write-Host "FAIL $($s.Key) newrelic secretKeyRef=$refName/$refKey secret=$($has -eq 'present') OBSERVABILITY_ENABLED=$enabled AGENT_ENABLED=$agent app=$app"; $fail = 1 }
         }
     }
     if ($fail) { throw 'Verify FAILED' }
