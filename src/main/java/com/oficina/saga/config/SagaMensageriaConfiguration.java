@@ -25,8 +25,9 @@ import java.util.Map;
 @ConditionalOnProperty(prefix = "oficina.saga", name = {"enabled", "mensageria.enabled"}, havingValue = "true")
 public class SagaMensageriaConfiguration {
     @Bean(destroyMethod = "close") ClientesSqsSaga clientesSqsSaga(SagaProperties propriedades,
-            @Value("${AWS_ROLE_ARN:}") String roleArn, @Value("${AWS_WEB_IDENTITY_TOKEN_FILE:}") String tokenFile) {
-        return ClientesSqsSaga.criar(propriedades.mensageria(), roleArn, tokenFile);
+            @Value("${AWS_ROLE_ARN:}") String roleArn, @Value("${AWS_WEB_IDENTITY_TOKEN_FILE:}") String tokenFile,
+            @Value("${oficina.aws.credenciais:irsa}") String modoCredenciais) {
+        return ClientesSqsSaga.criar(propriedades.mensageria(), roleArn, tokenFile, "cadeia-padrao".equals(modoCredenciais));
     }
 
     @Bean EnviadorMensagens enviadorMensagens(ClientesSqsSaga clientes, SagaProperties propriedades) {

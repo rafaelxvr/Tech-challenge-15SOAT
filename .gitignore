@@ -42,6 +42,9 @@ docker/postgres/data/
 **/.terraform/
 *.tfstate
 *.tfstate.*
+*.tfvars
+*.tfvars.json
+!infra/aws-academy/terraform.tfvars.example
 infra/oficina-k8s-config
 
 # SonarScanner

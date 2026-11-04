@@ -4,6 +4,7 @@ import com.oficina.config.OutboxConfiguration;
 import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.http.SdkHttpClient;
@@ -34,6 +35,11 @@ public final class ClientesSqsSaga implements AutoCloseable {
     }
 
     public static ClientesSqsSaga criar(SagaProperties.Mensageria m, String roleArn, String tokenFile) {
+        return criar(m, roleArn, tokenFile, false);
+    }
+
+    /** {@code cadeiaPadrao} is the Learner Lab mode (profile aws): node role through the default chain, no IRSA. */
+    public static ClientesSqsSaga criar(SagaProperties.Mensageria m, String roleArn, String tokenFile, boolean cadeiaPadrao) {
         SdkHttpClient http = UrlConnectionHttpClient.builder().connectionTimeout(Duration.ofSeconds(1))
                 .socketTimeout(Duration.ofSeconds(15)).build();
         Region region = Region.of(m.region());
@@ -42,6 +48,8 @@ public final class ClientesSqsSaga implements AutoCloseable {
         AwsCredentialsProvider credenciais;
         if (local) {
             credenciais = StaticCredentialsProvider.create(AwsBasicCredentials.create("test", "test"));
+        } else if (cadeiaPadrao) {
+            credenciais = DefaultCredentialsProvider.create();
         } else {
             // AssumeRoleWithWebIdentity is unsigned. Never recurse into the default credentials chain.
             sts = StsClient.builder().region(region).credentialsProvider(AnonymousCredentialsProvider.create())
