@@ -115,5 +115,14 @@ Assert-That 'runner rejeita SHA em maiúsculas com exit != 0' ($r.ExitCode -ne 0
 $fonteRunner = Get-Content -Raw $runner
 Assert-That 'preflight exige valor efetivo true nas flags da saga e Run confere SHA contra o deployment' ($fonteRunner -match "-ne 'true'" -and $fonteRunner -match 'Assert-DeployedRevision' -and $fonteRunner -match 'phase4\.oficina/source-sha')
 
+# Supply chain: toda Action do workflow da Fase 4 deve estar pinada em SHA completo (40 hex) com comentário "# vX.Y.Z"; tag móvel falha.
+$wfPath = Join-Path $root '.github/workflows/phase4-kind-bdd.yml'
+$usos = @(Get-Content $wfPath | Where-Object { $_ -match '^\s*(-\s*)?uses:' })
+Assert-That 'workflow da Fase 4 declara ao menos um uses' ($usos.Count -gt 0)
+$naoPinados = @($usos | Where-Object { $_ -notmatch 'uses:\s*\./' -and $_ -notmatch 'uses:\s*[\w.-]+/[\w./-]+@[0-9a-f]{40}\s+#\s*v\d+\.\d+\.\d+\s*$' })
+Assert-That 'todo uses do workflow da Fase 4 pinado em SHA de 40 hex com comentário de versão' ($naoPinados.Count -eq 0)
+$depPath = Join-Path $root '.github/dependabot.yml'
+Assert-That 'dependabot cobre github-actions em /' ((Test-Path $depPath) -and ((Get-Content -Raw $depPath) -match 'package-ecosystem:\s*"github-actions"') -and ((Get-Content -Raw $depPath) -match 'directory:\s*"/"'))
+
 if ($failures.Count -gt 0) { Write-Host "`n$($failures.Count) falha(s)"; exit 1 }
 Write-Host "`nOK: $($cenarios.Count) cenários, $($features.Count) features, $($filas.Count) filas verificadas"
