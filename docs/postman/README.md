@@ -32,7 +32,7 @@ Variáveis `secret` do environment, vazias no arquivo:
 | `jwtSecret` | Segredo HMAC do JWT de staff do Kind (o mesmo do Secret `jwt_secret` do billing/execution). Com ele a coleção minta um token HS256 para billing/execution; sem ele, reaproveita o token do login do core | Só se billing/execution usarem issuer/audience/segredo próprios |
 | `mpAccessToken` | Access Token **de teste** do Mercado Pago (sandbox) | Só na pasta 04 |
 
-Variáveis comuns (não secretas): `adminEmail`, `jwtIssuer`/`jwtAudience`/`jwtKeyId` (padrão do overlay Kind), `filialId` (`MATRIZ`), `pagamentoModo` (`fake` ou `sandbox`), `executarMercadoPago` (`false`), `capacidadeReparos`, `pollMaxTentativas`/`pollIntervaloMs`, `mailhogUrl` e `localstackUrl` (opcionais). As variáveis de fluxo (`token`, `tokenServicos`, `tokenCliente`, `osId*`, `pagamentoId*`, `execucaoId*`, `preferenceId`, `mpPaymentId` etc.) começam vazias e são preenchidas pelos scripts de pós-resposta. O sufixo da variável identifica o cenário: `A` fluxo feliz, `M` Mercado Pago, `E` estoque, `R` pagamento recusado, `C`/`F` capacidade/reparo recusado.
+Variáveis comuns (não secretas): `adminEmail`, `jwtIssuer`/`jwtAudience`/`jwtKeyId` (padrão do overlay Kind), `filialId` (`MATRIZ`), `pagamentoModo` (`fake` ou `sandbox`), `executarMercadoPago` (`false`), `capacidadeReparos`, `pollMaxTentativas`/`pollIntervaloMs`, `customerTokenUrl`, `mailhogUrl` e `localstackUrl` (opcionais). As variáveis de fluxo (`token`, `tokenServicos`, `tokenCliente`, `osId*`, `pagamentoId*`, `execucaoId*`, `preferenceId`, `mpPaymentId` etc.) começam vazias e são preenchidas pelos scripts de pós-resposta. O sufixo da variável identifica o cenário: `A` fluxo feliz, `M` Mercado Pago, `E` estoque, `R` pagamento recusado, `C`/`F` capacidade/reparo recusado.
 
 ## 4. Ordem de execução
 
@@ -52,7 +52,7 @@ Requests que não se aplicam (por exemplo a pasta 04 com `executarMercadoPago=fa
 
 ## 5. Dois passos que precisam de atenção
 
-- **Código do cliente (CPF):** o token do cliente exige o código de 6 dígitos enviado por e-mail. Informe `mailhogUrl` (a coleção lê o código da caixa do MailHog) ou, sem MailHog, rode a request "solicitar desafio", preencha `otpCodigo` e rode a seguinte.
+- **Token do cliente (emissor local):** as rotas de CPF/OTP não existem no core; vêm do Lambda de `oficina-functions`, ausente no Kind. Para testar a aprovação do orçamento, suba o emissor local antes da coleção: `node scripts/postman/customer-token-minter.mjs` (porta 8099, `customerTokenUrl`). Ele gera um par RSA efêmero em memória (nada vai para disco) e imprime a chave pública. Configure no core, no ConfigMap `oficina-config`: `JWT_CUSTOMER_ISSUER=oficina-kind-customer`, `JWT_CUSTOMER_AUDIENCE=oficina-kind-api` e `SPRING_APPLICATION_JSON={"security":{"jwt":{"customer":{"public-keys":{"kind-local":"<PEM impresso>"}}}}}`, e reinicie o `oficina-app`. Ao reiniciar o emissor, a chave muda: reaplique o ConfigMap. Encerre o emissor ao final (Ctrl+C).
 - **`pagamentoId`:** o billing atual não expõe consulta de pagamento por OS. A coleção tenta `GET /billing/pagamentos?osId=` (preenche sozinha se o endpoint existir). Enquanto não existir, preencha `pagamentoId<slot>` com o id lido do banco do billing, por exemplo:
 
   ```bash
@@ -67,7 +67,7 @@ Requests que não se aplicam (por exemplo a pasta 04 com `executarMercadoPago=fa
 ```bash
 npx newman run postman/Oficina-Fase4-Kind.postman_collection.json \
   -e postman/kind-local.postman_environment.json \
-  --env-var adminSenha="$ADMIN_SENHA" --env-var mailhogUrl=http://127.0.0.1:8025 \
+  --env-var adminSenha="$ADMIN_SENHA" \
   --folder "00 Saúde e readiness" --folder "01 Auth e token de staff" --folder "02 Cadastro" \
   --folder "03 Fluxo feliz (gateway-fake)" --folder "06 Limpeza" --reporters cli
 ```

@@ -1025,74 +1025,14 @@
           }
         },
         {
-          "name": "03.2 - Cliente: solicitar desafio por CPF",
+          "name": "03.2 - Cliente: obter token via emissor local (scripts/postman/customer-token-minter.mjs)",
           "event": [
             {
               "listen": "prerequest",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.environment.unset('otpCodigo');"
-                ]
-              }
-            },
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('202 Accepted', () => pm.response.to.have.status(202));",
-                  "pm.environment.set('desafioId', pm.response.json().data.desafioId);"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": "{{baseUrlOs}}/auth/cpf/desafios",
-            "body": {
-              "mode": "raw",
-              "raw": "{ \"cpf\": \"{{documentoA}}\" }",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "auth": {
-              "type": "noauth"
-            }
-          }
-        },
-        {
-          "name": "03.2 - Cliente: trocar código pelo token (MailHog ou otpCodigo manual)",
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "// Com mailhogUrl, lê o código do e-mail do cliente; sem ele, digite os 6 dígitos em otpCodigo antes de rodar.",
-                  "const mh = pm.environment.get('mailhogUrl');",
-                  "const email = pm.environment.get('emailA');",
-                  "if (mh && !pm.environment.get('otpCodigo')) {",
-                  "  pm.sendRequest({ url: mh + '/api/v2/search?kind=to&query=' + encodeURIComponent(email), method: 'GET' }, function (err, res) {",
-                  "    if (!err && res.code === 200) {",
-                  "      const itens = res.json().items || [];",
-                  "      const m = itens.length ? (itens[0].Content.Body || '').match(/\\b(\\d{6})\\b/) : null;",
-                  "      if (m) { pm.environment.set('otpCodigo', m[1]); }",
-                  "    }",
-                  "  });",
-                  "}",
-                  "if (!mh && !/^[0-9]{6}$/.test(pm.environment.get('otpCodigo') || '')) {",
-                  "  throw new Error('Sem mailhogUrl: preencha otpCodigo (6 dígitos recebidos por e-mail).');",
-                  "}"
+                  "if (!pm.environment.get('clienteIdA')) { throw new Error('clienteIdA vazio: rode o cadastro antes.'); }"
                 ]
               }
             },
@@ -1108,8 +1048,7 @@
                   "pm.test('principal customer com escopos self', () => {",
                   "  pm.expect(claims.principal_type).to.eql('customer');",
                   "  pm.expect(claims.scopes).to.include.members(['orders:read:self', 'orders:decide:self']);",
-                  "});",
-                  "pm.environment.unset('otpCodigo');"
+                  "});"
                 ]
               }
             }
@@ -1122,10 +1061,10 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{baseUrlOs}}/auth/cpf/verificar",
+            "url": "{{customerTokenUrl}}/token",
             "body": {
               "mode": "raw",
-              "raw": "{ \"desafioId\": \"{{desafioId}}\", \"codigo\": \"{{otpCodigo}}\" }",
+              "raw": "{ \"sub\": \"{{clienteIdA}}\", \"identityVersion\": 1 }",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2432,55 +2371,18 @@
           }
         },
         {
-          "name": "04.2 - Cliente: solicitar desafio por CPF",
+          "name": "04.2 - Cliente: obter token via emissor local (scripts/postman/customer-token-minter.mjs)",
           "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('202 Accepted', () => pm.response.to.have.status(202));",
-                  "pm.environment.set('desafioId', pm.response.json().data.desafioId);"
-                ]
-              }
-            },
             {
               "listen": "prerequest",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.environment.unset('otpCodigo');",
-                  "if (pm.environment.get('executarMercadoPago') !== 'true') { pm.execution.skipRequest(); }"
+                  "if (pm.environment.get('executarMercadoPago') !== 'true') { pm.execution.skipRequest(); }",
+                  "if (!pm.environment.get('clienteIdM')) { throw new Error('clienteIdM vazio: rode o cadastro antes.'); }"
                 ]
               }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": "{{baseUrlOs}}/auth/cpf/desafios",
-            "body": {
-              "mode": "raw",
-              "raw": "{ \"cpf\": \"{{documentoM}}\" }",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             },
-            "auth": {
-              "type": "noauth"
-            }
-          }
-        },
-        {
-          "name": "04.2 - Cliente: trocar código pelo token (MailHog ou otpCodigo manual)",
-          "event": [
             {
               "listen": "test",
               "script": {
@@ -2493,32 +2395,7 @@
                   "pm.test('principal customer com escopos self', () => {",
                   "  pm.expect(claims.principal_type).to.eql('customer');",
                   "  pm.expect(claims.scopes).to.include.members(['orders:read:self', 'orders:decide:self']);",
-                  "});",
-                  "pm.environment.unset('otpCodigo');"
-                ]
-              }
-            },
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "// Com mailhogUrl, lê o código do e-mail do cliente; sem ele, digite os 6 dígitos em otpCodigo antes de rodar.",
-                  "const mh = pm.environment.get('mailhogUrl');",
-                  "const email = pm.environment.get('emailM');",
-                  "if (mh && !pm.environment.get('otpCodigo')) {",
-                  "  pm.sendRequest({ url: mh + '/api/v2/search?kind=to&query=' + encodeURIComponent(email), method: 'GET' }, function (err, res) {",
-                  "    if (!err && res.code === 200) {",
-                  "      const itens = res.json().items || [];",
-                  "      const m = itens.length ? (itens[0].Content.Body || '').match(/\\b(\\d{6})\\b/) : null;",
-                  "      if (m) { pm.environment.set('otpCodigo', m[1]); }",
-                  "    }",
-                  "  });",
-                  "}",
-                  "if (!mh && !/^[0-9]{6}$/.test(pm.environment.get('otpCodigo') || '')) {",
-                  "  throw new Error('Sem mailhogUrl: preencha otpCodigo (6 dígitos recebidos por e-mail).');",
-                  "}",
-                  "if (pm.environment.get('executarMercadoPago') !== 'true') { pm.execution.skipRequest(); }"
+                  "});"
                 ]
               }
             }
@@ -2531,10 +2408,10 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{baseUrlOs}}/auth/cpf/verificar",
+            "url": "{{customerTokenUrl}}/token",
             "body": {
               "mode": "raw",
-              "raw": "{ \"desafioId\": \"{{desafioId}}\", \"codigo\": \"{{otpCodigo}}\" }",
+              "raw": "{ \"sub\": \"{{clienteIdM}}\", \"identityVersion\": 1 }",
               "options": {
                 "raw": {
                   "language": "json"
@@ -3580,74 +3457,14 @@
               }
             },
             {
-              "name": "05.1b - Cliente: solicitar desafio por CPF",
+              "name": "05.1b - Cliente: obter token via emissor local (scripts/postman/customer-token-minter.mjs)",
               "event": [
                 {
                   "listen": "prerequest",
                   "script": {
                     "type": "text/javascript",
                     "exec": [
-                      "pm.environment.unset('otpCodigo');"
-                    ]
-                  }
-                },
-                {
-                  "listen": "test",
-                  "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                      "pm.test('202 Accepted', () => pm.response.to.have.status(202));",
-                      "pm.environment.set('desafioId', pm.response.json().data.desafioId);"
-                    ]
-                  }
-                }
-              ],
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "url": "{{baseUrlOs}}/auth/cpf/desafios",
-                "body": {
-                  "mode": "raw",
-                  "raw": "{ \"cpf\": \"{{documentoE}}\" }",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                },
-                "auth": {
-                  "type": "noauth"
-                }
-              }
-            },
-            {
-              "name": "05.1b - Cliente: trocar código pelo token (MailHog ou otpCodigo manual)",
-              "event": [
-                {
-                  "listen": "prerequest",
-                  "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                      "// Com mailhogUrl, lê o código do e-mail do cliente; sem ele, digite os 6 dígitos em otpCodigo antes de rodar.",
-                      "const mh = pm.environment.get('mailhogUrl');",
-                      "const email = pm.environment.get('emailE');",
-                      "if (mh && !pm.environment.get('otpCodigo')) {",
-                      "  pm.sendRequest({ url: mh + '/api/v2/search?kind=to&query=' + encodeURIComponent(email), method: 'GET' }, function (err, res) {",
-                      "    if (!err && res.code === 200) {",
-                      "      const itens = res.json().items || [];",
-                      "      const m = itens.length ? (itens[0].Content.Body || '').match(/\\b(\\d{6})\\b/) : null;",
-                      "      if (m) { pm.environment.set('otpCodigo', m[1]); }",
-                      "    }",
-                      "  });",
-                      "}",
-                      "if (!mh && !/^[0-9]{6}$/.test(pm.environment.get('otpCodigo') || '')) {",
-                      "  throw new Error('Sem mailhogUrl: preencha otpCodigo (6 dígitos recebidos por e-mail).');",
-                      "}"
+                      "if (!pm.environment.get('clienteIdE')) { throw new Error('clienteIdE vazio: rode o cadastro antes.'); }"
                     ]
                   }
                 },
@@ -3663,8 +3480,7 @@
                       "pm.test('principal customer com escopos self', () => {",
                       "  pm.expect(claims.principal_type).to.eql('customer');",
                       "  pm.expect(claims.scopes).to.include.members(['orders:read:self', 'orders:decide:self']);",
-                      "});",
-                      "pm.environment.unset('otpCodigo');"
+                      "});"
                     ]
                   }
                 }
@@ -3677,10 +3493,10 @@
                     "value": "application/json"
                   }
                 ],
-                "url": "{{baseUrlOs}}/auth/cpf/verificar",
+                "url": "{{customerTokenUrl}}/token",
                 "body": {
                   "mode": "raw",
-                  "raw": "{ \"desafioId\": \"{{desafioId}}\", \"codigo\": \"{{otpCodigo}}\" }",
+                  "raw": "{ \"sub\": \"{{clienteIdE}}\", \"identityVersion\": 1 }",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -4655,74 +4471,14 @@
               }
             },
             {
-              "name": "05.2b - Cliente: solicitar desafio por CPF",
+              "name": "05.2b - Cliente: obter token via emissor local (scripts/postman/customer-token-minter.mjs)",
               "event": [
                 {
                   "listen": "prerequest",
                   "script": {
                     "type": "text/javascript",
                     "exec": [
-                      "pm.environment.unset('otpCodigo');"
-                    ]
-                  }
-                },
-                {
-                  "listen": "test",
-                  "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                      "pm.test('202 Accepted', () => pm.response.to.have.status(202));",
-                      "pm.environment.set('desafioId', pm.response.json().data.desafioId);"
-                    ]
-                  }
-                }
-              ],
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "url": "{{baseUrlOs}}/auth/cpf/desafios",
-                "body": {
-                  "mode": "raw",
-                  "raw": "{ \"cpf\": \"{{documentoR}}\" }",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                },
-                "auth": {
-                  "type": "noauth"
-                }
-              }
-            },
-            {
-              "name": "05.2b - Cliente: trocar código pelo token (MailHog ou otpCodigo manual)",
-              "event": [
-                {
-                  "listen": "prerequest",
-                  "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                      "// Com mailhogUrl, lê o código do e-mail do cliente; sem ele, digite os 6 dígitos em otpCodigo antes de rodar.",
-                      "const mh = pm.environment.get('mailhogUrl');",
-                      "const email = pm.environment.get('emailR');",
-                      "if (mh && !pm.environment.get('otpCodigo')) {",
-                      "  pm.sendRequest({ url: mh + '/api/v2/search?kind=to&query=' + encodeURIComponent(email), method: 'GET' }, function (err, res) {",
-                      "    if (!err && res.code === 200) {",
-                      "      const itens = res.json().items || [];",
-                      "      const m = itens.length ? (itens[0].Content.Body || '').match(/\\b(\\d{6})\\b/) : null;",
-                      "      if (m) { pm.environment.set('otpCodigo', m[1]); }",
-                      "    }",
-                      "  });",
-                      "}",
-                      "if (!mh && !/^[0-9]{6}$/.test(pm.environment.get('otpCodigo') || '')) {",
-                      "  throw new Error('Sem mailhogUrl: preencha otpCodigo (6 dígitos recebidos por e-mail).');",
-                      "}"
+                      "if (!pm.environment.get('clienteIdR')) { throw new Error('clienteIdR vazio: rode o cadastro antes.'); }"
                     ]
                   }
                 },
@@ -4738,8 +4494,7 @@
                       "pm.test('principal customer com escopos self', () => {",
                       "  pm.expect(claims.principal_type).to.eql('customer');",
                       "  pm.expect(claims.scopes).to.include.members(['orders:read:self', 'orders:decide:self']);",
-                      "});",
-                      "pm.environment.unset('otpCodigo');"
+                      "});"
                     ]
                   }
                 }
@@ -4752,10 +4507,10 @@
                     "value": "application/json"
                   }
                 ],
-                "url": "{{baseUrlOs}}/auth/cpf/verificar",
+                "url": "{{customerTokenUrl}}/token",
                 "body": {
                   "mode": "raw",
-                  "raw": "{ \"desafioId\": \"{{desafioId}}\", \"codigo\": \"{{otpCodigo}}\" }",
+                  "raw": "{ \"sub\": \"{{clienteIdR}}\", \"identityVersion\": 1 }",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -5704,55 +5459,18 @@
               }
             },
             {
-              "name": "05.3b - Cliente: solicitar desafio por CPF",
+              "name": "05.3b - Cliente: obter token via emissor local (scripts/postman/customer-token-minter.mjs)",
               "event": [
-                {
-                  "listen": "test",
-                  "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                      "pm.test('202 Accepted', () => pm.response.to.have.status(202));",
-                      "pm.environment.set('desafioId', pm.response.json().data.desafioId);"
-                    ]
-                  }
-                },
                 {
                   "listen": "prerequest",
                   "script": {
                     "type": "text/javascript",
                     "exec": [
-                      "pm.environment.unset('otpCodigo');",
-                      "if (pm.environment.get('capacidadeReparos') !== '1') { pm.execution.skipRequest(); }"
+                      "if (pm.environment.get('capacidadeReparos') !== '1') { pm.execution.skipRequest(); }",
+                      "if (!pm.environment.get('clienteIdC')) { throw new Error('clienteIdC vazio: rode o cadastro antes.'); }"
                     ]
                   }
-                }
-              ],
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "url": "{{baseUrlOs}}/auth/cpf/desafios",
-                "body": {
-                  "mode": "raw",
-                  "raw": "{ \"cpf\": \"{{documentoC}}\" }",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
                 },
-                "auth": {
-                  "type": "noauth"
-                }
-              }
-            },
-            {
-              "name": "05.3b - Cliente: trocar código pelo token (MailHog ou otpCodigo manual)",
-              "event": [
                 {
                   "listen": "test",
                   "script": {
@@ -5765,32 +5483,7 @@
                       "pm.test('principal customer com escopos self', () => {",
                       "  pm.expect(claims.principal_type).to.eql('customer');",
                       "  pm.expect(claims.scopes).to.include.members(['orders:read:self', 'orders:decide:self']);",
-                      "});",
-                      "pm.environment.unset('otpCodigo');"
-                    ]
-                  }
-                },
-                {
-                  "listen": "prerequest",
-                  "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                      "// Com mailhogUrl, lê o código do e-mail do cliente; sem ele, digite os 6 dígitos em otpCodigo antes de rodar.",
-                      "const mh = pm.environment.get('mailhogUrl');",
-                      "const email = pm.environment.get('emailC');",
-                      "if (mh && !pm.environment.get('otpCodigo')) {",
-                      "  pm.sendRequest({ url: mh + '/api/v2/search?kind=to&query=' + encodeURIComponent(email), method: 'GET' }, function (err, res) {",
-                      "    if (!err && res.code === 200) {",
-                      "      const itens = res.json().items || [];",
-                      "      const m = itens.length ? (itens[0].Content.Body || '').match(/\\b(\\d{6})\\b/) : null;",
-                      "      if (m) { pm.environment.set('otpCodigo', m[1]); }",
-                      "    }",
-                      "  });",
-                      "}",
-                      "if (!mh && !/^[0-9]{6}$/.test(pm.environment.get('otpCodigo') || '')) {",
-                      "  throw new Error('Sem mailhogUrl: preencha otpCodigo (6 dígitos recebidos por e-mail).');",
-                      "}",
-                      "if (pm.environment.get('capacidadeReparos') !== '1') { pm.execution.skipRequest(); }"
+                      "});"
                     ]
                   }
                 }
@@ -5803,10 +5496,10 @@
                     "value": "application/json"
                   }
                 ],
-                "url": "{{baseUrlOs}}/auth/cpf/verificar",
+                "url": "{{customerTokenUrl}}/token",
                 "body": {
                   "mode": "raw",
-                  "raw": "{ \"desafioId\": \"{{desafioId}}\", \"codigo\": \"{{otpCodigo}}\" }",
+                  "raw": "{ \"sub\": \"{{clienteIdC}}\", \"identityVersion\": 1 }",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -6817,55 +6510,18 @@
               }
             },
             {
-              "name": "05.3i - Cliente: solicitar desafio por CPF",
+              "name": "05.3i - Cliente: obter token via emissor local (scripts/postman/customer-token-minter.mjs)",
               "event": [
-                {
-                  "listen": "test",
-                  "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                      "pm.test('202 Accepted', () => pm.response.to.have.status(202));",
-                      "pm.environment.set('desafioId', pm.response.json().data.desafioId);"
-                    ]
-                  }
-                },
                 {
                   "listen": "prerequest",
                   "script": {
                     "type": "text/javascript",
                     "exec": [
-                      "pm.environment.unset('otpCodigo');",
-                      "if (pm.environment.get('capacidadeReparos') !== '1') { pm.execution.skipRequest(); }"
+                      "if (pm.environment.get('capacidadeReparos') !== '1') { pm.execution.skipRequest(); }",
+                      "if (!pm.environment.get('clienteIdF')) { throw new Error('clienteIdF vazio: rode o cadastro antes.'); }"
                     ]
                   }
-                }
-              ],
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "url": "{{baseUrlOs}}/auth/cpf/desafios",
-                "body": {
-                  "mode": "raw",
-                  "raw": "{ \"cpf\": \"{{documentoF}}\" }",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
                 },
-                "auth": {
-                  "type": "noauth"
-                }
-              }
-            },
-            {
-              "name": "05.3i - Cliente: trocar código pelo token (MailHog ou otpCodigo manual)",
-              "event": [
                 {
                   "listen": "test",
                   "script": {
@@ -6878,32 +6534,7 @@
                       "pm.test('principal customer com escopos self', () => {",
                       "  pm.expect(claims.principal_type).to.eql('customer');",
                       "  pm.expect(claims.scopes).to.include.members(['orders:read:self', 'orders:decide:self']);",
-                      "});",
-                      "pm.environment.unset('otpCodigo');"
-                    ]
-                  }
-                },
-                {
-                  "listen": "prerequest",
-                  "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                      "// Com mailhogUrl, lê o código do e-mail do cliente; sem ele, digite os 6 dígitos em otpCodigo antes de rodar.",
-                      "const mh = pm.environment.get('mailhogUrl');",
-                      "const email = pm.environment.get('emailF');",
-                      "if (mh && !pm.environment.get('otpCodigo')) {",
-                      "  pm.sendRequest({ url: mh + '/api/v2/search?kind=to&query=' + encodeURIComponent(email), method: 'GET' }, function (err, res) {",
-                      "    if (!err && res.code === 200) {",
-                      "      const itens = res.json().items || [];",
-                      "      const m = itens.length ? (itens[0].Content.Body || '').match(/\\b(\\d{6})\\b/) : null;",
-                      "      if (m) { pm.environment.set('otpCodigo', m[1]); }",
-                      "    }",
-                      "  });",
-                      "}",
-                      "if (!mh && !/^[0-9]{6}$/.test(pm.environment.get('otpCodigo') || '')) {",
-                      "  throw new Error('Sem mailhogUrl: preencha otpCodigo (6 dígitos recebidos por e-mail).');",
-                      "}",
-                      "if (pm.environment.get('capacidadeReparos') !== '1') { pm.execution.skipRequest(); }"
+                      "});"
                     ]
                   }
                 }
@@ -6916,10 +6547,10 @@
                     "value": "application/json"
                   }
                 ],
-                "url": "{{baseUrlOs}}/auth/cpf/verificar",
+                "url": "{{customerTokenUrl}}/token",
                 "body": {
                   "mode": "raw",
-                  "raw": "{ \"desafioId\": \"{{desafioId}}\", \"codigo\": \"{{otpCodigo}}\" }",
+                  "raw": "{ \"sub\": \"{{clienteIdF}}\", \"identityVersion\": 1 }",
                   "options": {
                     "raw": {
                       "language": "json"
