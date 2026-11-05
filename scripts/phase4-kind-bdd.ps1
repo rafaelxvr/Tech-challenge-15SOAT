@@ -181,7 +181,7 @@ function Invoke-Run {
         revisoes = [ordered]@{ os = $osSha; billing = $BillingSha; execution = $ExecutionSha }
         imagensImplantadas = $digests
         resumo = $resumo
-        resultados = $resultados
+        resultados = (Protect-Resultados $resultados)   # todo detalhe passa por Hide-Secret antes de serializar
     }
     $arquivo = Join-Path $dir 'bdd-results.json'
     $saida | ConvertTo-Json -Depth 6 | Set-Content -Encoding utf8 $arquivo
