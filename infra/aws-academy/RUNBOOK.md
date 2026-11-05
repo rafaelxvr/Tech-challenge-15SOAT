@@ -5,8 +5,8 @@ Executor: Rafael, ou SRE em sessão supervisionada, em foreground, saída filtra
 ## Antes (preflight, card 1)
 
 1. `Start Lab`; confirmar que `AWS_ACCESS_KEY_ID`/`AWS_PROFILE` do ambiente **não** apontam para outro perfil (abortar se apontarem). Usar sempre `--profile fiap-lab`.
-2. Provar região/quota e compatibilidade de `LabEksClusterRole`/`LabRole` com EKS e node group. Se falhar: acionar o fallback (abaixo).
-3. `bash infra/aws-academy/verify-offline.sh` e `bash k8s-overlays/aws/verify-overlay.sh --release` no SHA que será aplicado.
+2. Provar região/quota e compatibilidade de `LabRole` com EKS (control plane, default de `lab_eks_cluster_role_name`; confia em `eks.amazonaws.com`) e node group. `LabEksClusterRole` **não existe** na conta (achado da sessão 1); sem IAM novo. Se falhar: acionar o fallback (abaixo).
+3. `bash infra/aws-academy/verify-offline.sh` e `bash k8s-overlays/aws/verify-overlay.sh --release` no SHA que será aplicado. O `--release` confere o digest do overlay contra `infra/aws-academy/release-manifest.json` (3 digests `sha256` + SHAs de origem). Billing e execution têm overlay próprio nos repositórios deles; o digest vem do mesmo manifesto. O pacote `oficina-mecanica` (core) precisa estar público no GHCR (ação do Rafael, UNR-709), senão o pull falha no cluster.
 4. **/32 do endpoint EKS (nunca ampliar para `0.0.0.0/0`):** `operator_cidr` no var-file privado = IP público atual do operador em `/32` (a validação recusa `0.0.0.0`, privado, loopback, CGNAT). Depois do `plan` e **antes** do `apply`, no plan JSON: `terraform show -json <privado>/tfplan | jq -r '.. | .public_access_cidrs? // empty'` deve ser exatamente `["<ip>/32"]` (e `endpoint_private_access == true`). Qualquer outro valor: abortar, não ajustar o CIDR para fazer o nó entrar.
 
 ## Apply (cards 3 e 4)
@@ -34,6 +34,8 @@ Depois: Secret por stdin (S-11), `kubectl apply -k k8s-overlays/aws`, migrations
    Esperado: `401` (sem `x-signature`/`x-request-id`, ou com `MP_WEBHOOK_SECRET` vazio, `AssinaturaWebhook.valida` recusa sempre e o corpo nunca é processado). `404` aqui indicaria rota ou context-path errados (o teste não provou nada); `200`/`202` é violação: parar e escalar. Registrar só o código. O teste não é 404 porque a rota existe no código do billing; "sem webhook" significa sem entrada pública e sem segredo de assinatura configurado.
 
 ## Destroy (obrigatório; iniciar em T-60 min do timer; também se a sessão falhar)
+
+**Duração:** o `terraform destroy` do EKS levou ~11 min na sessão 1 (node group, depois control plane, depois RDS). Rodar com margem (começar em T-60 min) e, se o foreground estourar o limite de 10 min da execução, fazer em 2 passadas: `terraform destroy -target=aws_eks_node_group.this` e depois o `destroy` completo, sempre com o mesmo state/var-file. Conferir com `terraform state list` antes do `-target`.
 
 1. **Verificar a ausência** de Service `LoadBalancer` (somente leitura, sem `delete`): `kubectl get svc -A -o jsonpath='{range .items[?(@.spec.type=="LoadBalancer")]}{.metadata.namespace}/{.metadata.name}{"\n"}{end}'` deve sair vazio. Se listar algo, é violação do desenho: parar, registrar no card e escalar ao Rafael/SecurityEngineer antes de qualquer remoção (o `terraform destroy` não conhece NLB criado fora do state).
 2. `terraform destroy` com o mesmo state/var-file.

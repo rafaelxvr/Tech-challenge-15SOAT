@@ -1,0 +1,33 @@
+{
+  "schema": "release-manifest/v1",
+  "registry": "ghcr.io/rafaelxvr",
+  "services": {
+    "os-service": {
+      "image": "ghcr.io/rafaelxvr/oficina-mecanica",
+      "sourceRepo": "rafaelxvr/Tech-challenge-15SOAT",
+      "sourceSha": "dd7221e5270ac6b3088349d192b17acee5390d11",
+      "tag": "dd7221e5270ac6b3088349d192b17acee5390d11",
+      "digest": "sha256:ad58cfdef257018729129b18a47f7612e854fd6b17d7943d6be80b336d5308b3",
+      "ciRun": "42028364204",
+      "visibility": "private"
+    },
+    "billing": {
+      "image": "ghcr.io/rafaelxvr/oficina-billing-service",
+      "sourceRepo": "rafaelxvr/Tech-challenge-15SOAT-billing",
+      "sourceSha": "ab95f1bd0fbdb0b3c8572d00c4fdcae917623877",
+      "tag": "ab95f1bd0fbdb0b3c8572d00c4fdcae917623877",
+      "digest": "sha256:304bbf5ef21094fa9c5c09bd4335a4185a2699171caad11c552fb0cac176aa48",
+      "ciRun": "41967223523",
+      "visibility": "public"
+    },
+    "execution": {
+      "image": "ghcr.io/rafaelxvr/oficina-execution-service",
+      "sourceRepo": "rafaelxvr/Tech-challenge-15SOAT-execution",
+      "sourceSha": "0881f88b7dd0471d70a5c9e07858f7c7d6fc40cb",
+      "tag": "0881f88b7dd0471d70a5c9e07858f7c7d6fc40cb",
+      "digest": "sha256:761f6a284dbb8d9bafa8ba99f257e59b9156801fa79bdf5636dc2158c6426f5e",
+      "ciRun": "42028414772",
+      "visibility": "public"
+    }
+  }
+}

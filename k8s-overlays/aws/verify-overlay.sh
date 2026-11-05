@@ -26,4 +26,17 @@ grep -qE 'image: ghcr\.io/[^@ ]+@sha256:[0-9a-f]{64}' <<<"$out" || fail "imagem 
 if [ "${1:-}" = "--release" ] && grep -qE 'sha256:0{64}' <<<"$out"; then
   fail "digest placeholder: substitua pelo digest do manifesto de release antes de aplicar"
 fi
+
+# Release: o digest do overlay deve ser o do os-service no manifesto versionado.
+if [ "${1:-}" = "--release" ]; then
+  manifest="../../infra/aws-academy/release-manifest.json"
+  [ -f "$manifest" ] || fail "manifesto de release ausente: infra/aws-academy/release-manifest.json"
+  for svc in os-service billing execution; do
+    grep -qE "\"$svc\": \{" "$manifest" || fail "manifesto sem o servico $svc"
+  done
+  grep -qE '"digest": "sha256:0{64}"' "$manifest" && fail "manifesto com digest placeholder"
+  [ "$(grep -cE '"digest": "sha256:[0-9a-f]{64}"' "$manifest")" = 3 ] || fail "manifesto deve ter 3 digests sha256 validos"
+  os_digest="$(grep -oE 'image: ghcr\.io/[^@ ]+@sha256:[0-9a-f]{64}' <<<"$out" | head -1 | grep -oE 'sha256:[0-9a-f]{64}')"
+  grep -q "\"digest\": \"$os_digest\"" "$manifest" || fail "digest do overlay difere do manifesto (os-service)"
+fi
 echo "verify-overlay: OK"
