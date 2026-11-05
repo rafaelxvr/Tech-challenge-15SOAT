@@ -29,10 +29,10 @@ jobs:
       CONTRACT_SET_SHA256: 35d863ecc103d4b4ff271004ac21626cbead715de008479381810cb57440e5b0
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Setup Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@3a4f6e1af504cf6a31855fa899c6aa5355ba6c12 # v4.7.0
         with:
           distribution: temurin
           java-version: "17"
@@ -76,10 +76,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Setup Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@3a4f6e1af504cf6a31855fa899c6aa5355ba6c12 # v4.7.0
         with:
           distribution: temurin
           java-version: "17"
@@ -104,19 +104,27 @@ jobs:
       digest: ${{ steps.build.outputs.digest }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
 
       # GHCR exige owner/repo em minúsculas (ex.: SilasFurini → silasfurini)
       - name: Normalizar nome da imagem
         id: names
+        env:
+          REPO_OWNER: ${{ github.repository_owner }}
         run: |
-          OWNER_LC=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          OWNER_LC=$(echo "${REPO_OWNER}" | tr '[:upper:]' '[:lower:]')
           echo "owner_lc=${OWNER_LC}" >> "$GITHUB_OUTPUT"
           echo "image_base=${{ env.REGISTRY }}/${OWNER_LC}/${{ env.IMAGE_NAME }}" >> "$GITHUB_OUTPUT"
 
+      # Buildx dedicado: sem ele o digest do build-push-action não corresponde ao manifesto publicado.
+      - name: Configurar Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
       - name: Login GHCR
         if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -124,21 +132,34 @@ jobs:
 
       - name: Metadados da imagem
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
         with:
           images: ${{ steps.names.outputs.image_base }}
           tags: |
-            type=sha,prefix=
+            type=sha,prefix=,format=long
 
       - name: Build (e push se não for PR)
         id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           load: ${{ github.event_name == 'pull_request' }}
+
+      - name: Resumo da imagem publicada
+        if: github.event_name != 'pull_request'
+        env:
+          IMAGE_BASE: ${{ steps.names.outputs.image_base }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          {
+            echo "### Imagem publicada no GHCR"
+            echo "- Imagem: \`${IMAGE_BASE}\`"
+            echo "- Digest: \`${DIGEST}\`"
+            echo "- Referência imutável: \`${IMAGE_BASE}@${DIGEST}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   local-kind-smoke:
     name: Local Kind smoke (no AWS deployment)
@@ -148,13 +169,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Setup kubectl
-        uses: azure/setup-kubectl@v4
+        uses: azure/setup-kubectl@776406bce94f63e41d621b960d78ee25c8b76ede # v4.0.1
 
       - name: Create Kind cluster
-        uses: helm/kind-action@v1.10.0
+        uses: helm/kind-action@0025e74a8c7512023d06dc019c617aa3cf561fde # v1.10.0
         with:
           cluster_name: oficina-ci
           version: v0.33.0
