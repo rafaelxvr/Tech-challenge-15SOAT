@@ -219,6 +219,21 @@
       "observacao": "Alerta/recuperação manual descritos em D19; sem alerta automatizado ainda em develop."
     },
     {
+      "id": "BDD-07e", "categoria": "indisponibilidade-outbox-localstack", "modo": "tres-servicos",
+      "titulo": "Outbox BLOCKED: nada se recupera sozinho; o re-arme manual (D19-R) entrega uma única vez e é idempotente",
+      "estadosSaga": ["AGUARDANDO_DECISAO", "AGUARDANDO_PAGAMENTO"],
+      "contagens": { "tentativas_ao_bloquear": 12, "outbox_blocked_antes_do_rearme": 1, "outbox_blocked_depois_do_rearme": 0, "rearme_repetido_linhas_afetadas": 0, "RegistrarDecisao_PUBLISHED": 1, "efeitos_de_negocio": 1 },
+      "observacao": "A 12ª tentativa é alcançada pelo fixture tentativas=11 (SQL sintético): chegar lá só com o backoff de 5 s a 300 s exigiria mais de 20 min. O estado BLOCKED em si é produzido pelo publisher real."
+    },
+    {
+      "id": "BDD-07f", "categoria": "indisponibilidade-outbox-localstack", "modo": "tres-servicos",
+      "titulo": "FALHA_COMPENSACAO: com o LocalStack de volta a compensação pendente é entregue, o billing converge e a saga continua FALHA_COMPENSACAO (reconciliação manual)",
+      "estadosSaga": ["FALHA_COMPENSACAO"],
+      "pilhaCompensacaoFinal": "não vazia",
+      "contagens": { "outbox_pendente_ou_blocked_apos_convergir": 0 },
+      "observacao": "Não existe endpoint nem transição que feche a saga em FALHA_COMPENSACAO: o runbook D19-R reconcilia o efeito remoto (billing) e registra a decisão; o estado da saga é medido, não alterado."
+    },
+    {
       "id": "BDD-08a", "categoria": "retry-dlq-redrive", "modo": "injecao-de-comandos",
       "titulo": "Mensagem venenosa vai à DLQ após maxReceiveCount=5 e outro grupo segue",
       "contagens": { "maxReceiveCount": 5, "dlq_billing_commands": 1, "mensagem_valida_de_outra_os_processada": 1 }
@@ -244,6 +259,11 @@
       "titulo": "Redrive manual da DLQ reprocessa uma única vez e esvazia a DLQ",
       "contagens": { "dlq_apos_redrive": 0, "efeitos_de_negocio": 1 },
       "observacao": "Redrive por receive+send via script; StartMessageMoveTask no LocalStack 3.8 não foi verificado."
+    },
+    {
+      "id": "BDD-08f", "categoria": "retry-dlq-redrive", "modo": "injecao-de-comandos",
+      "titulo": "Redrive repetido da mesma mensagem é inócuo (inbox idempotente): um único efeito de negócio",
+      "contagens": { "dlq_apos_redrive": 0, "efeitos_de_negocio": 1, "linhas_no_inbox": 1 }
     },
     {
       "id": "BDD-09a", "categoria": "capacidade-reparos", "modo": "tres-servicos",

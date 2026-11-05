@@ -46,6 +46,7 @@ $Handlers = @{}
 . (Join-Path $PSScriptRoot 'phase4-kind-bdd.handlers.falhas.ps1')
 . (Join-Path $PSScriptRoot 'phase4-kind-bdd.handlers.injecao.ps1')
 . (Join-Path $PSScriptRoot 'phase4-kind-bdd.handlers.dlq.ps1')
+. (Join-Path $PSScriptRoot 'phase4-kind-bdd.handlers.runbook.ps1')
 
 $script:ResolvedOsSha = if ($OsSha) { $OsSha } else { (Invoke-Native git @('-C', $script:RepoRoot, 'rev-parse', 'HEAD')).Output.Trim() }
 
