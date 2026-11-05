@@ -280,13 +280,32 @@ function Invoke-Verify {
             $app = & $get 'NEW_RELIC_APP_NAME' '.value'
             # go-template devolve só "present" e o resultado nunca é impresso (só o booleano): o valor do Secret não vaza nem em erro.
             $has = (Invoke-Kube @('get', 'secret', 'newrelic-license', '-n', $s.Namespace, '-o', 'go-template={{if .data}}{{if index .data "NEW_RELIC_LICENSE_KEY"}}present{{end}}{{end}}') -AllowFailure).Output
-            $ok = ($refName -eq 'newrelic-license') -and ($refKey -eq 'NEW_RELIC_LICENSE_KEY') -and ($has -eq 'present') -and ($enabled -eq 'true') -and ($agent -eq 'true') -and ($app -eq $script:NewRelicAppNames[$s.Key])
-            if ($ok) { Write-Host "PASS $($s.Key) newrelic secretKeyRef=newrelic-license/NEW_RELIC_LICENSE_KEY secret=present OBSERVABILITY_ENABLED=true app=$app" }
+            # Resíduo de apply client-side: a anotação last-applied-configuration carregaria o valor do Secret. Só "present"/vazio é lido.
+            $residue = (Invoke-Kube @('get', 'secret', 'newrelic-license', '-n', $s.Namespace, '-o', 'go-template={{with .metadata.annotations}}{{if index . "kubectl.kubernetes.io/last-applied-configuration"}}present{{end}}{{end}}') -AllowFailure).Output
+            $ok = ($refName -eq 'newrelic-license') -and ($refKey -eq 'NEW_RELIC_LICENSE_KEY') -and ($has -eq 'present') -and (-not $residue) -and ($enabled -eq 'true') -and ($agent -eq 'true') -and ($app -eq $script:NewRelicAppNames[$s.Key])
+            if ($ok) { Write-Host "PASS $($s.Key) newrelic secretKeyRef=newrelic-license/NEW_RELIC_LICENSE_KEY secret=present sem-last-applied OBSERVABILITY_ENABLED=true app=$app" }
             else { Write-Host "FAIL $($s.Key) newrelic secretKeyRef=$refName/$refKey secret=$($has -eq 'present') OBSERVABILITY_ENABLED=$enabled AGENT_ENABLED=$agent app=$app"; $fail = 1 }
         }
     }
+    # billing_app precisa de DML nas tabelas que o Flyway do billing criou (default privileges de grants-billing.sql).
+    foreach ($t in 'outbox', 'pagamento') {
+        $sql = "SELECT CASE WHEN to_regclass('public.$t') IS NULL THEN 'missing' ELSE has_table_privilege('billing_app', 'public.$t', 'SELECT,INSERT,UPDATE')::text END"
+        $g = Invoke-Psql -Instance billing -Database billing -Sql $sql -AllowFailure
+        if ($g.Output.Trim() -eq 'true') { Write-Host "PASS billing_app tem SELECT/INSERT/UPDATE em $t" }
+        else { Write-Host "FAIL billing_app sem DML em $t ($($g.Output.Trim())); rode phase4-kind-init.ps1 (grants-billing.sql) e reinicie o billing"; $fail = 1 }
+    }
     if ($fail) { throw 'Verify FAILED' }
     Write-Host 'Verify: OK'
+}
+
+# Processos `kubectl port-forward` ainda ligados ao contexto do cluster (Windows via CIM, Linux/macOS via ps).
+function Get-ClusterPortForwards {
+    $ctx = "kind-$([regex]::Escape($script:ClusterName))\b.*port-forward"
+    if ($IsWindows) {
+        return @(Get-CimInstance Win32_Process -Filter "Name='kubectl.exe'" | Where-Object { $_.CommandLine -match $ctx } | ForEach-Object { [int]$_.ProcessId })
+    }
+    @((Invoke-Native ps @('-eo', 'pid=,args=') -AllowFailure).Output -split "`n" |
+        Where-Object { $_ -match '\bkubectl\b' -and $_ -match $ctx } | ForEach-Object { [int](($_.Trim() -split '\s+')[0]) })
 }
 
 # Cleanup comprovado: apaga só o cluster nomeado e confirma que não sobrou nada dele.
@@ -294,11 +313,11 @@ function Invoke-Down {
     Invoke-Native kind @('delete', 'cluster', '--name', $script:ClusterName) | Out-Null
     $clusters = (Invoke-Native kind @('get', 'clusters') -AllowFailure).Output -split "`n"
     $containers = (Invoke-Native docker @('ps', '-a', '--filter', "name=^$($script:ClusterName)-", '--format', '{{.Names}}')).Output.Trim()
-    $pf = @(Get-CimInstance Win32_Process -Filter "Name='kubectl.exe'" | Where-Object { $_.CommandLine -match "kind-$([regex]::Escape($script:ClusterName))\b.*port-forward" })
+    $pf = @(Get-ClusterPortForwards)
     $problems = @()
     if ($clusters -contains $script:ClusterName) { $problems += 'cluster ainda existe' }
     if ($containers) { $problems += "containers: $containers" }
-    if ($pf.Count) { $problems += "port-forward residual: $($pf.ProcessId -join ',')" }
+    if ($pf.Count) { $problems += "port-forward residual: $($pf -join ',')" }
     foreach ($s in $script:Services) { Invoke-Native docker @('rmi', $s.Image) -AllowFailure | Out-Null }
     $imagesLeft = @($script:Services | Where-Object { Test-ImagePresent $_.Image })
     if ($imagesLeft) { $problems += "imagens: $($imagesLeft.Image -join ',')" }

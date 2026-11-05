@@ -1,0 +1,52 @@
+# Remove da base tudo que o Learner Lab substitui por servico gerenciado ou por fluxo seguro.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oficina-postgres
+  namespace: oficina
+$patch: delete
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: oficina-postgres-pvc
+  namespace: oficina
+$patch: delete
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oficina-postgres
+  namespace: oficina
+$patch: delete
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oficina-mailhog
+  namespace: oficina
+$patch: delete
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oficina-mailhog
+  namespace: oficina
+$patch: delete
+---
+# O Secret `oficina-secrets` NAO e versionado para a AWS: criado em runtime por stdin (S-11),
+# com DB_URL, DB_USERNAME, DB_PASSWORD, JWT_*, chaves do New Relic e URLs das filas SQS.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: oficina-secrets
+  namespace: oficina
+$patch: delete
+---
+# metrics-server nao e instalado no cluster do Lab; sem HPA a quantidade de replicas e fixa.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: oficina-app-hpa
+  namespace: oficina
+$patch: delete
