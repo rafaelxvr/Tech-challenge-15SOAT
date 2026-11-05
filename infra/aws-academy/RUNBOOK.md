@@ -21,6 +21,7 @@ Depois: Secret por stdin (S-11), aplicar os 3 serviços (`kubectl apply -k k8s-o
 
 ### Verificações pós-apply (mesmo card, somente leitura)
 
+0. **Credenciais dos pods = role do nó (sem IRSA):** o Learner Lab não tem OIDC. Billing roda com `SPRING_PROFILES_ACTIVE=aws` e execution com `EXECUCAO_AWS_MODO=NODE_ROLE` (código dos PRs billing #15 e execution #39; ambos falham fechado se houver chave estática, `AWS_PROFILE`, web identity ou endpoint alterado). Depende do IMDSv2 alcançável pelo pod (`hop_limit=2` no launch template). Conferir pelos logs/readiness: se `kubectl -n <ns> logs deploy/<svc>` mostrar falha de credencial/IMDS (timeout ao `169.254.169.254`), parar e escalar; não criar chaves nem abrir `hostNetwork`.
 1. **/32 efetivo** (consulta AWS só no card aprovado): `aws eks describe-cluster --profile fiap-lab --query 'cluster.resourcesVpcConfig.[publicAccessCidrs,endpointPrivateAccess]'` deve dar `["<ip>/32"]` e `true`. Nunca ampliar o CIDR; se os nós não registrarem, investigar (endpoint privado, SG), não abrir o público.
 2. **Webhook do billing inacessível sem assinatura (teste direto no billing):** o billing ainda expõe a rota histórica `POST /billing/webhooks/mercadopago` (context-path `/billing` + `@PostMapping("/webhooks/mercadopago")`, `permitAll` protegida por HMAC), mas não há Ingress/LB: só o port-forward alcança o pod. O port-forward do `oficina-app` **não** prova nada sobre o billing; faça um port-forward próprio (namespace e Service do billing, porta 8080, em 127.0.0.1), em outra porta local:
 
