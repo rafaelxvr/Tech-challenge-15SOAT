@@ -19,6 +19,8 @@ concurrency:
 env:
   IMAGE_NAME: oficina-mecanica
   REGISTRY: ghcr.io
+  # Imagem de ferramenta fixada por digest imutável (mesma usada em billing e execution).
+  TRIVY_IMAGE: aquasec/trivy@sha256:ab70a02200597efa04748f210f793936eb647cbcdb0ea69cc30b226d6f5a22c7 # 0.58.1
 
 jobs:
   build-and-test:
@@ -69,6 +71,20 @@ jobs:
           path: target/site/jacoco
           if-no-files-found: error
           retention-days: 14
+
+  sca:
+    name: SCA (Trivy fs)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: SCA das dependências (Trivy fs; falha em HIGH/CRITICAL com correção)
+        run: |
+          set +x
+          docker run --rm -v "$PWD:/src:ro" "$TRIVY_IMAGE" fs --scanners vuln --severity HIGH,CRITICAL             --ignore-unfixed --ignorefile /src/.trivyignore --exit-code 1 /src/pom.xml
 
   integration-test:
     name: Testes de integracao com Docker
@@ -186,9 +202,18 @@ jobs:
           IMAGE="${{ env.IMAGE_NAME }}:ci-${GITHUB_SHA::12}"
           echo "Usando imagem local: $IMAGE"
           docker build -t "$IMAGE" .
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
           kind load docker-image "$IMAGE" --name oficina-ci
           sed -i "s|image: .*oficina-mecanica.*|image: ${IMAGE}|g" k8s/app.yaml
           sed -i "s|imagePullPolicy: IfNotPresent|imagePullPolicy: Never|g" k8s/app.yaml
+
+      - name: Scan da imagem (Trivy image; falha em HIGH/CRITICAL com correção)
+        run: |
+          set +x
+          scan_dir="$(mktemp -d)"
+          docker save "$IMAGE" -o "${scan_dir}/imagem.tar"
+          docker run --rm -v "${scan_dir}:/work:ro" -v "$PWD:/src:ro" "$TRIVY_IMAGE" image --scanners vuln             --severity HIGH,CRITICAL --ignore-unfixed --ignorefile /src/.trivyignore --exit-code 1 --input /work/imagem.tar
+          rm -rf "$scan_dir"
 
       - name: Deploy banco de dados (manifestos)
         run: |
