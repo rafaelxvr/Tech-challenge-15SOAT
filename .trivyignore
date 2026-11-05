@@ -1,1 +1,9 @@
-# Exceções do SCA: cada linha exige justificativa e aprovação do SecurityEngineer. Vazio por padrão.
+# Exceções do SCA: cada linha exige justificativa e aprovação do SecurityEngineer.
+#
+# spring-webmvc 6.2.19 (Spring Boot 3.5.16, última 6.2.x publicada no Maven Central).
+# A correção existe apenas na linha 7.0.x (Spring Framework 7 / Boot 4), migração fora do escopo
+# da Fase 4. O os-service é uma API REST pura: não usa XsltView, ModelAndView, ViewResolver,
+# SseEmitter nem text/event-stream (verificado por busca no código). Reavaliar quando houver 6.2.x
+# corrigida ou ao migrar para Boot 4. Aprovação: SecurityEngineer (UNR-829).
+CVE-2026-47884
+CVE-2026-47890
