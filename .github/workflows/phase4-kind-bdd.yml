@@ -49,13 +49,13 @@ jobs:
     timeout-minutes: 150
     steps:
       - name: Checkout os-service (histórico completo para git archive do SHA pinado)
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           fetch-depth: 0
           path: os
 
       - name: Checkout billing no SHA pinado
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           repository: rafaelxvr/Tech-challenge-15SOAT-billing
           ref: ${{ env.BILLING_SHA }}
@@ -63,7 +63,7 @@ jobs:
           path: billing
 
       - name: Checkout execution no SHA pinado
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           repository: rafaelxvr/Tech-challenge-15SOAT-execution
           ref: ${{ env.EXECUTION_SHA }}
@@ -125,7 +125,7 @@ jobs:
 
       - name: Publicar artefatos sanitizados
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: phase4-kind-bdd-${{ github.run_id }}
           path: |
