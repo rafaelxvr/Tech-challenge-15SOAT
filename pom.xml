@@ -19,6 +19,8 @@
 
     <properties>
         <java.version>17</java.version>
+        <!-- CVE-2026-54291 (HIGH): corrigido no pgjdbc 42.7.12; o BOM do Spring Boot ainda gerencia 42.7.11. Remover quando o BOM trouxer >= 42.7.12. -->
+        <postgresql.version>42.7.12</postgresql.version>
         <mapstruct.version>1.5.5.Final</mapstruct.version>
         <jjwt.version>0.12.5</jjwt.version>
         <springdoc.version>2.8.9</springdoc.version>
