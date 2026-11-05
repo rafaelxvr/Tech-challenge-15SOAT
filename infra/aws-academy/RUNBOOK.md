@@ -6,7 +6,7 @@ Executor: Rafael, ou SRE em sessão supervisionada, em foreground, saída filtra
 
 1. `Start Lab`; confirmar que `AWS_ACCESS_KEY_ID`/`AWS_PROFILE` do ambiente **não** apontam para outro perfil (abortar se apontarem). Usar sempre `--profile fiap-lab`.
 2. Provar região/quota e compatibilidade de `LabRole` com EKS (control plane, default de `lab_eks_cluster_role_name`; confia em `eks.amazonaws.com`) e node group. `LabEksClusterRole` **não existe** na conta (achado da sessão 1); sem IAM novo. Se falhar: acionar o fallback (abaixo).
-3. `bash infra/aws-academy/verify-offline.sh` e `bash k8s-overlays/aws/verify-overlay.sh --release` no SHA que será aplicado. O `--release` confere o digest do overlay contra `infra/aws-academy/release-manifest.json` (3 digests `sha256` + SHAs de origem). Billing e execution têm overlay próprio nos repositórios deles; o digest vem do mesmo manifesto. O pacote `oficina-mecanica` (core) precisa estar público no GHCR (ação do Rafael, UNR-709), senão o pull falha no cluster.
+3. Checkout dos 3 repositórios nos `sourceSha` do manifesto `infra/aws-academy/release-manifest.json` (core, billing, execution; refs `develop` pinadas por SHA). Depois: `bash infra/aws-academy/verify-offline.sh` e, no core, `bash k8s-overlays/aws/verify-overlay.sh --release --billing <billing>/k8s/overlays/aws --execution <execution>/k8s/overlays/aws`. O `--release` cruza **por serviço** (imagem + digest) o manifesto com os 3 overlays renderizados; sem `--billing`/`--execution` ele avisa e só valida o digest do manifesto (não usar para o apply). Os 3 pacotes GHCR (`oficina-mecanica`, `oficina-billing-service`, `oficina-execution-service`) são públicos (pull anônimo, sem `imagePullSecrets`); se algum voltar a privado, o pull falha no cluster.
 4. **/32 do endpoint EKS (nunca ampliar para `0.0.0.0/0`):** `operator_cidr` no var-file privado = IP público atual do operador em `/32` (a validação recusa `0.0.0.0`, privado, loopback, CGNAT). Depois do `plan` e **antes** do `apply`, no plan JSON: `terraform show -json <privado>/tfplan | jq -r '.. | .public_access_cidrs? // empty'` deve ser exatamente `["<ip>/32"]` (e `endpoint_private_access == true`). Qualquer outro valor: abortar, não ajustar o CIDR para fazer o nó entrar.
 
 ## Apply (cards 3 e 4)
@@ -17,7 +17,7 @@ terraform -chdir=infra/aws-academy plan  -var-file=<privado>.tfvars -state=<priv
 terraform -chdir=infra/aws-academy apply <privado>/tfplan
 ```
 
-Depois: Secret por stdin (S-11), `kubectl apply -k k8s-overlays/aws`, migrations com o usuário master, usuários de runtime sem DDL, `kubectl port-forward svc/oficina-app 8080:8080` (127.0.0.1) para o os-service. Apagar `tfplan`.
+Depois: Secret por stdin (S-11), aplicar os 3 serviços (`kubectl apply -k k8s-overlays/aws`, `kubectl apply -k <billing>/k8s/overlays/aws`, `kubectl apply -k <execution>/k8s/overlays/aws`) e esperar `kubectl rollout status` de cada Deployment (`kubectl get deploy -A` para os namespaces), migrations com o usuário master, usuários de runtime sem DDL, `kubectl port-forward svc/oficina-app 8080:8080` (127.0.0.1) para o os-service. Apagar `tfplan`.
 
 ### Verificações pós-apply (mesmo card, somente leitura)
 

@@ -17,7 +17,7 @@ patches:
 images:
   # A base remapeia para oficina-mecanica:local; aqui vai para o GHCR pinado por digest.
   # Digest = infra/aws-academy/release-manifest.json (verify-overlay.sh --release confere os dois).
-  # Pacote privado ate o Rafael torna-lo publico na UI do GitHub (UNR-709): sem isso o pull falha no cluster.
+  # Pacote publico no GHCR (pull anonimo, sem imagePullSecrets); se voltar a privado o pull falha no cluster.
   - name: oficina-mecanica
     newName: ghcr.io/rafaelxvr/oficina-mecanica
     digest: sha256:ad58cfdef257018729129b18a47f7612e854fd6b17d7943d6be80b336d5308b3

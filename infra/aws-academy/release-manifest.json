@@ -9,7 +9,7 @@
       "tag": "dd7221e5270ac6b3088349d192b17acee5390d11",
       "digest": "sha256:ad58cfdef257018729129b18a47f7612e854fd6b17d7943d6be80b336d5308b3",
       "ciRun": "42028364204",
-      "visibility": "private"
+      "visibility": "public"
     },
     "billing": {
       "image": "ghcr.io/rafaelxvr/oficina-billing-service",
