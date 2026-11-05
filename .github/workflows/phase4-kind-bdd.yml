@@ -49,13 +49,13 @@ jobs:
     timeout-minutes: 150
     steps:
       - name: Checkout os-service (histórico completo para git archive do SHA pinado)
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           fetch-depth: 0
           path: os
 
       - name: Checkout billing no SHA pinado
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           repository: rafaelxvr/Tech-challenge-15SOAT-billing
           ref: ${{ env.BILLING_SHA }}
@@ -63,7 +63,7 @@ jobs:
           path: billing
 
       - name: Checkout execution no SHA pinado
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           repository: rafaelxvr/Tech-challenge-15SOAT-execution
           ref: ${{ env.EXECUTION_SHA }}
@@ -115,30 +115,17 @@ jobs:
           New-Item -ItemType Directory -Force -Path $env:RESULTS_DIR | Out-Null
           ./scripts/phase4-kind-bdd.ps1 -Action Run -OsSha $env:OS_SHA -BillingSha $env:BILLING_SHA -ExecutionSha $env:EXECUTION_SHA -OutputDir $env:RESULTS_DIR
 
-      - name: Diagnóstico do cluster (só em falha, sem segredos)
+      - name: Diagnóstico do cluster (só em falha, sanitizado antes de gravar)
         if: failure() || cancelled()
         shell: pwsh
+        working-directory: os
         run: |
-          New-Item -ItemType Directory -Force -Path $env:RESULTS_DIR | Out-Null
-          $ctx = "kind-$env:PHASE4_KIND_CLUSTER"
-          $out = Join-Path $env:RESULTS_DIR 'diagnostico.txt'
-          "== processos ==" | Add-Content $out
-          (& ps -eo pid,etime,args 2>&1 | Select-String 'kubectl|pwsh') | ForEach-Object { $_.Line } | Add-Content $out
-          foreach ($ns in 'oficina', 'oficina-billing', 'oficina-execution', 'data', 'infra') {
-            "== pods $ns ==" | Add-Content $out
-            (& kubectl --context $ctx -n $ns get pods -o wide 2>&1) | Add-Content $out
-          }
-          foreach ($d in @(@('oficina', 'oficina-os-service'), @('oficina-billing', 'oficina-billing'), @('oficina-execution', 'oficina-execution'))) {
-            "== logs $($d[1]) ==" | Add-Content $out
-            (& kubectl --context $ctx -n $d[0] logs "deploy/$($d[1])" --tail=200 2>&1) | Add-Content $out
-          }
-          # Nunca publicar valores de credencial que eventualmente apareçam nos logs.
-          $text = (Get-Content -Raw $out) -replace '(?i)(password|secret|token|authorization|api[_-]?key)(["\x27:=\s]+)\S+', '$1$2***'
-          Set-Content -Path $out -Value $text
+          # Nunca grava conteúdo bruto em diagnostico.txt: a coleta fica em memória e só o texto sanitizado chega ao arquivo.
+          ./scripts/phase4-kind-diagnostico.ps1 -OutputPath (Join-Path $env:RESULTS_DIR 'diagnostico.txt')
 
       - name: Publicar artefatos sanitizados
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: phase4-kind-bdd-${{ github.run_id }}
           path: |

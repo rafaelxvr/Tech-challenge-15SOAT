@@ -46,6 +46,7 @@ $Handlers = @{}
 . (Join-Path $PSScriptRoot 'phase4-kind-bdd.handlers.falhas.ps1')
 . (Join-Path $PSScriptRoot 'phase4-kind-bdd.handlers.injecao.ps1')
 . (Join-Path $PSScriptRoot 'phase4-kind-bdd.handlers.dlq.ps1')
+. (Join-Path $PSScriptRoot 'phase4-kind-bdd.handlers.runbook.ps1')
 
 $script:ResolvedOsSha = if ($OsSha) { $OsSha } else { (Invoke-Native git @('-C', $script:RepoRoot, 'rev-parse', 'HEAD')).Output.Trim() }
 
@@ -180,7 +181,7 @@ function Invoke-Run {
         revisoes = [ordered]@{ os = $osSha; billing = $BillingSha; execution = $ExecutionSha }
         imagensImplantadas = $digests
         resumo = $resumo
-        resultados = $resultados
+        resultados = (Protect-Resultados $resultados)   # todo detalhe passa por Hide-Secret antes de serializar
     }
     $arquivo = Join-Path $dir 'bdd-results.json'
     $saida | ConvertTo-Json -Depth 6 | Set-Content -Encoding utf8 $arquivo
