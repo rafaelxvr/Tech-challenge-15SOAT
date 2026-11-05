@@ -27,7 +27,7 @@ function Hide-Secret {
     # Authorization sem esquema reconhecido (ex.: token cru): mascara o valor inteiro.
     $Text = $Text -replace '(?i)(authorization["'']?\s*[:=]\s*["'']?)(?!(?:Bearer|Basic)\s)(?!\*\*\*)[^\s"'',;}]+', '$1***'
     # chave=valor, chave: valor e JSON ("password": "valor").
-    $Text = $Text -replace '(?i)(PGPASSWORD|passwd|password|_pw|secret|token|api[_-]?key)(["'']?\s*[:=]\s*["'']?)(?!\*\*\*)[^\s"'',;}]+', '$1$2***'
+    $Text = $Text -replace '(?i)(PGPASSWORD|passwd|password|_pw|secret|license_key|token|api[_-]?key)(["'']?\s*[:=]\s*["'']?)(?!\*\*\*)[^\s"'',;}]+', '$1$2***'
     # SQL forms such as: ALTER ROLE x PASSWORD 'literal' / PASSWORD $$literal$$ / PASSWORD E'literal'
     $Text = $Text -replace "(?i)(password\s+)(E?'(?:[^']|'')*'|\$\$.*?\$\$)", '$1''***'''
     $Text
@@ -129,6 +129,34 @@ function Invoke-Psql {
     else { $Password = Get-KubeSecretValue data "postgres-$Instance-admin" password }
     $exec += $psql
     Invoke-Kube $exec -StdIn "$Password`n$sets`n$Sql`n" -AllowFailure:$AllowFailure
+}
+
+# Valida o arquivo local de credencial New Relic (fora do repositório) SEM guardar o valor nem a linha em variável: só conta linhas por regex.
+# Contrato (menor privilégio): o arquivo tem SOMENTE `NEW_RELIC_LICENSE_KEY=valor` (valor sem espaços, aspas ou `export`; comentários e linhas em branco são aceitos).
+# `kubectl create secret --from-env-file` copiaria qualquer outra chave do arquivo para os três namespaces; por isso outras chaves são recusadas.
+# As mensagens citam só o caminho e o nome da chave, nunca o conteúdo do arquivo.
+function Assert-NewRelicEnvFile {
+    param([Parameter(Mandatory)][string]$Path)
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { throw "arquivo de credencial New Relic ausente: $Path" }
+    $count = { param($pattern) (Select-String -LiteralPath $Path -Pattern $pattern | Measure-Object).Count }
+    $declared = & $count '^\s*(?:export\s+)?NEW_RELIC_LICENSE_KEY\s*='
+    if (-not $declared) { throw "NEW_RELIC_LICENSE_KEY ausente em $Path" }
+    if ($declared -gt 1) { throw "NEW_RELIC_LICENSE_KEY duplicada em $Path" }
+    if (& $count '^NEW_RELIC_LICENSE_KEY=["'']') { throw "NEW_RELIC_LICENSE_KEY com aspas em $Path; o kubectl --from-env-file não as remove" }
+    if (-not (& $count '^NEW_RELIC_LICENSE_KEY=\S+$')) { throw "NEW_RELIC_LICENSE_KEY vazia ou fora do formato KEY=valor (valor inteiro sem espaços, aspas ou export) em $Path" }
+    if (& $count '^(?!\s*$)(?!\s*#)(?!NEW_RELIC_LICENSE_KEY=)') { throw "arquivo $Path deve conter somente NEW_RELIC_LICENSE_KEY (outras chaves seriam copiadas para os Secrets dos três namespaces); remova-as" }
+}
+
+# Cria/atualiza o Secret `newrelic-license` direto do arquivo (kubectl --from-env-file), sem passar o valor por variável PowerShell.
+# O manifesto trafega por pipe entre dois kubectl e é aplicado server-side: não grava a licença em last-applied-configuration.
+function Set-NewRelicSecret {
+    param([Parameter(Mandatory)][string]$Namespace, [Parameter(Mandatory)][string]$EnvFile)
+    # `apply --server-side` não remove a anotação de um Secret criado por apply client-side em cluster reaproveitado: apaga antes para nunca restar last-applied-configuration com a licença.
+    kubectl --context $script:KubeContext delete secret newrelic-license -n $Namespace --ignore-not-found 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "falha ao limpar o Secret newrelic-license em $Namespace (saída omitida)" }
+    kubectl --context $script:KubeContext create secret generic newrelic-license -n $Namespace "--from-env-file=$EnvFile" --dry-run=client -o yaml 2>$null |
+        kubectl --context $script:KubeContext apply --server-side --force-conflicts -f - 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "falha ao aplicar o Secret newrelic-license em $Namespace (saída omitida: pode conter credencial)" }
 }
 
 function Test-LoopbackAddress {

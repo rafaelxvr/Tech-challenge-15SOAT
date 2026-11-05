@@ -9,6 +9,8 @@
   Down    `kind delete cluster` e prova de que não restou cluster, container, imagem, processo nem porta
 .PARAMETER ClusterName
   Padrão oficina-phase4 (ou $env:PHASE4_KIND_CLUSTER). Use outro nome para ensaiar sem tocar no cluster do runner.
+.PARAMETER Observability
+  Perfil observável (opt-in): injeta NEW_RELIC_LICENSE_KEY (secretKeyRef), OBSERVABILITY_ENABLED=true e o app name nos 3 serviços. Ver infra/phase4-kind/observability/README.md.
 .PARAMETER BillingRepo / ExecutionRepo
   Checkouts locais dos repositórios billing e execution (precisam conter o SHA pinado). O os-service é este repositório.
 #>
@@ -21,7 +23,9 @@ param(
     [ValidatePattern('^[0-9a-f]{7,40}$')][string]$ExecutionSha = '1bf1e6c',
     [string]$OsRepo,
     [string]$BillingRepo,
-    [string]$ExecutionRepo
+    [string]$ExecutionRepo,
+    [switch]$Observability,
+    [string]$NewRelicEnvFile = $(if ($env:PHASE4_NEWRELIC_ENV_FILE) { $env:PHASE4_NEWRELIC_ENV_FILE } else { 'D:\unravel-private\fiap\newrelic.env' })
 )
 if ($ClusterName) { $env:PHASE4_KIND_CLUSTER = $ClusterName }
 . (Join-Path $PSScriptRoot 'phase4-kind.common.ps1')
@@ -197,6 +201,28 @@ function Get-ExecutionManifest {
     (Invoke-Native kubectl @('kustomize', (Join-Path $src 'k8s/local'))).Output
 }
 
+# Perfil observável: o Secret `newrelic-license` nasce direto do arquivo (--from-env-file, server-side) e os Deployments o referenciam por secretKeyRef.
+# Nomes de app exatos exigidos pela observabilidade da Fase 4.
+$script:NewRelicAppNames = @{ os = 'oficina-os-service'; billing = 'oficina-billing-service'; execution = 'oficina-execution-service' }
+
+function Enable-NewRelic {
+    $patchTemplate = Get-Content -Raw (Join-Path $script:KindDir 'observability/newrelic-env-patch.json')
+    try {
+        foreach ($s in $script:Services) {
+            Set-NewRelicSecret $s.Namespace $NewRelicEnvFile
+            $patch = ($patchTemplate -replace '__APP_NAME__', $script:NewRelicAppNames[$s.Key]) | ConvertFrom-Json | ConvertTo-Json -Depth 8 -Compress
+            Invoke-Kube @('patch', "deploy/$($s.Deployment)", '-n', $s.Namespace, '--type=json', '-p', $patch) | Out-Null
+            Write-Host "newrelic: $($s.Namespace)/$($s.Deployment) referencia Secret newrelic-license (key NEW_RELIC_LICENSE_KEY) por secretKeyRef"
+        }
+    }
+    catch {
+        # Higiene: falha no meio não deixa a licença em namespaces sem o wiring completo.
+        foreach ($s in $script:Services) { Invoke-Kube @('delete', 'secret', 'newrelic-license', '-n', $s.Namespace, '--ignore-not-found') -AllowFailure | Out-Null }
+        throw
+    }
+    finally { $patchTemplate = $null }
+}
+
 function Wait-Service {
     param($Svc)
     Invoke-Kube @('rollout', 'status', "deploy/$($Svc.Deployment)", '-n', $Svc.Namespace, '--timeout=300s') | Out-Null
@@ -204,6 +230,8 @@ function Wait-Service {
 }
 
 function Invoke-Up {
+    # Falha cedo e sem eco do valor: antes de buildar imagem ou criar cluster.
+    if ($Observability) { Assert-NewRelicEnvFile $NewRelicEnvFile }
     Invoke-Build
     $pwsh = (Get-Process -Id $PID).Path
     Invoke-Native $pwsh @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'phase4-kind.ps1'), '-Action', 'Up') | ForEach-Object { $_.Output } | Write-Host
@@ -226,6 +254,7 @@ function Invoke-Up {
         Apply-Rendered (Get-ExecutionManifest $execution $work) $execution
     }
     finally { Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue }
+    if ($Observability) { Enable-NewRelic }
     foreach ($s in $script:Services) { Wait-Service $s }
     Write-Host 'Up: OK'
 }
@@ -239,6 +268,24 @@ function Invoke-Verify {
         $h = Invoke-Kube @('exec', '-n', $s.Namespace, "deploy/$($s.Deployment)", '--', 'wget', '-qO-', "http://127.0.0.1:8080$($s.Health)") -AllowFailure
         if ($ready -eq '1' -and $img -eq $s.Image -and $h.Output -match '"status"\s*:\s*"UP"') { Write-Host "PASS $($s.Key) readyReplicas=1 image=$img readiness=UP" }
         else { Write-Host "FAIL $($s.Key) readyReplicas=$ready image=$img readiness=$($h.Output)"; $fail = 1 }
+    }
+    if ($Observability) {
+        foreach ($s in $script:Services) {
+            $tpl = 'jsonpath={.spec.template.spec.containers[0].env[?(@.name=="@N")]@F}'
+            $get = { param($n, $f) (Invoke-Kube @('get', 'deploy', $s.Deployment, '-n', $s.Namespace, '-o', ($tpl.Replace('@N', $n).Replace('@F', $f))) -AllowFailure).Output }
+            $refName = & $get 'NEW_RELIC_LICENSE_KEY' '.valueFrom.secretKeyRef.name'
+            $refKey = & $get 'NEW_RELIC_LICENSE_KEY' '.valueFrom.secretKeyRef.key'
+            $enabled = & $get 'OBSERVABILITY_ENABLED' '.value'
+            $agent = & $get 'NEW_RELIC_AGENT_ENABLED' '.value'
+            $app = & $get 'NEW_RELIC_APP_NAME' '.value'
+            # go-template devolve só "present" e o resultado nunca é impresso (só o booleano): o valor do Secret não vaza nem em erro.
+            $has = (Invoke-Kube @('get', 'secret', 'newrelic-license', '-n', $s.Namespace, '-o', 'go-template={{if .data}}{{if index .data "NEW_RELIC_LICENSE_KEY"}}present{{end}}{{end}}') -AllowFailure).Output
+            # Resíduo de apply client-side: a anotação last-applied-configuration carregaria o valor do Secret. Só "present"/vazio é lido.
+            $residue = (Invoke-Kube @('get', 'secret', 'newrelic-license', '-n', $s.Namespace, '-o', 'go-template={{with .metadata.annotations}}{{if index . "kubectl.kubernetes.io/last-applied-configuration"}}present{{end}}{{end}}') -AllowFailure).Output
+            $ok = ($refName -eq 'newrelic-license') -and ($refKey -eq 'NEW_RELIC_LICENSE_KEY') -and ($has -eq 'present') -and (-not $residue) -and ($enabled -eq 'true') -and ($agent -eq 'true') -and ($app -eq $script:NewRelicAppNames[$s.Key])
+            if ($ok) { Write-Host "PASS $($s.Key) newrelic secretKeyRef=newrelic-license/NEW_RELIC_LICENSE_KEY secret=present sem-last-applied OBSERVABILITY_ENABLED=true app=$app" }
+            else { Write-Host "FAIL $($s.Key) newrelic secretKeyRef=$refName/$refKey secret=$($has -eq 'present') OBSERVABILITY_ENABLED=$enabled AGENT_ENABLED=$agent app=$app"; $fail = 1 }
+        }
     }
     # billing_app precisa de DML nas tabelas que o Flyway do billing criou (default privileges de grants-billing.sql).
     foreach ($t in 'outbox', 'pagamento') {

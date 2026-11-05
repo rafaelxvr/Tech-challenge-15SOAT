@@ -59,6 +59,47 @@ Assert-That 'Invoke-Native errors with stdin never echo quoted literals' (($thre
 $threwJson = try { Invoke-Native pwsh @('-NoProfile', '-Command', "[Console]::Error.WriteLine([Console]::In.ReadToEnd()); exit 3") -StdIn '{"stringData":{"POSTGRES_PASSWORD":"DUMMYjson456"}}'; '' } catch { $_.Exception.Message }
 Assert-That 'Invoke-Native errors with stdin never echo a JSON manifest value' (($threwJson -ne '') -and ($threwJson -notmatch 'DUMMYjson456'))
 
+# New Relic no Kind (UNR-617): secretKeyRef, sem valor versionado, falha clara sem eco do segredo.
+$nrPatch = Get-Content -Raw (Join-Path $kind 'observability/newrelic-env-patch.json')
+Assert-That 'newrelic patch: license key only via secretKeyRef to newrelic-license/NEW_RELIC_LICENSE_KEY' (($nrPatch -match '"name": "NEW_RELIC_LICENSE_KEY", "valueFrom": \{ "secretKeyRef": \{ "name": "newrelic-license", "key": "NEW_RELIC_LICENSE_KEY"') -and ($nrPatch -notmatch '"name": "NEW_RELIC_LICENSE_KEY", "value"'))
+Assert-That 'newrelic patch sets OBSERVABILITY_ENABLED=true and NEW_RELIC_AGENT_ENABLED=true' (($nrPatch -match '"name": "OBSERVABILITY_ENABLED", "value": "true"') -and ($nrPatch -match '"name": "NEW_RELIC_AGENT_ENABLED", "value": "true"'))
+Assert-That 'newrelic patch holds no account id nor literal key' (($nrPatch -notmatch '(?i)ACCOUNT_ID') -and ($nrPatch -notmatch '[0-9A-Fa-f]{32,}'))
+Assert-That 'newrelic app names are the exact service names (no oficina-phase4-*)' (($stack -match "os = 'oficina-os-service'; billing = 'oficina-billing-service'; execution = 'oficina-execution-service'") -and ($stack -notmatch 'oficina-phase4-\$'))
+$common = Get-Content -Raw (Join-Path $PSScriptRoot '../scripts/phase4-kind.common.ps1')
+Assert-That 'secret comes from kubectl --from-env-file applied server-side, no PowerShell variable holds the key' (($common -match '--from-env-file=') -and ($common -match 'apply --server-side') -and ($common -notmatch 'Get-NewRelicLicenseKey') -and ($stack -notmatch '\$licenseKey'))
+$upAt = $stack.IndexOf('function Invoke-Up')
+Assert-That 'stack validates the newrelic file before any cluster/build work' (($stack -match '\[switch\]\$Observability') -and ($stack.IndexOf('Assert-NewRelicEnvFile $NewRelicEnvFile') -gt $upAt) -and ($stack.IndexOf('Assert-NewRelicEnvFile $NewRelicEnvFile') -lt $stack.IndexOf('Invoke-Build', $upAt)))
+Assert-That 'newrelic hygiene: try/catch/finally in Enable-NewRelic and Verify checks secret name+key+flags' (($stack -match 'function Enable-NewRelic[\s\S]*?catch[\s\S]*?finally') -and ($stack -match 'OBSERVABILITY_ENABLED') -and ($stack -match 'go-template'))
+Assert-That 'newrelic secret: stale last-applied removed before apply and Verify checks the residue' (($common -match 'delete secret newrelic-license[\s\S]*?apply --server-side') -and ($stack -match 'last-applied-configuration'))
+Assert-That 'newrelic validator keeps no line/value in a variable' ($common -notmatch '\$lines')
+$nrTmp = Join-Path ([IO.Path]::GetTempPath()) "p4-nr-$([Guid]::NewGuid().ToString('N'))"
+New-Item -ItemType Directory -Path $nrTmp | Out-Null
+try {
+    $msg = { param($path) try { Assert-NewRelicEnvFile $path; '' } catch { $_.Exception.Message } }
+    $m = & $msg (Join-Path $nrTmp 'ausente.env')
+    Assert-That 'newrelic: missing file fails clearly with path' ($m -match 'ausente' -and $m -match [regex]::Escape($nrTmp))
+    Set-Content (Join-Path $nrTmp 'semchave.env') -Value 'OUTRA=DUMMYother789'
+    $m = & $msg (Join-Path $nrTmp 'semchave.env')
+    Assert-That 'newrelic: missing key fails clearly without echoing file content' ($m -match 'NEW_RELIC_LICENSE_KEY ausente' -and $m -notmatch 'DUMMYother789')
+    Set-Content (Join-Path $nrTmp 'vazia.env') -Value 'NEW_RELIC_LICENSE_KEY='
+    Assert-That 'newrelic: empty value fails clearly' ((& $msg (Join-Path $nrTmp 'vazia.env')) -match 'vazia')
+    Set-Content (Join-Path $nrTmp 'aspas.env') -Value 'NEW_RELIC_LICENSE_KEY="DUMMYquoted456"'
+    $m = & $msg (Join-Path $nrTmp 'aspas.env')
+    Assert-That 'newrelic: quoted value rejected without echo' (($m -match 'aspas') -and ($m -notmatch 'DUMMYquoted456'))
+    Set-Content (Join-Path $nrTmp 'extra.env') -Value @('NEW_RELIC_ACCOUNT_ID=DUMMYacct999', 'NEW_RELIC_LICENSE_KEY=DUMMYlicense123')
+    $m = & $msg (Join-Path $nrTmp 'extra.env')
+    Assert-That 'newrelic: extra keys rejected (least privilege) without echo' (($m -match 'somente NEW_RELIC_LICENSE_KEY') -and ($m -notmatch 'DUMMYacct999') -and ($m -notmatch 'DUMMYlicense123'))
+    Set-Content (Join-Path $nrTmp 'espaco.env') -Value 'NEW_RELIC_LICENSE_KEY=DUMMYspace 789'
+    $m = & $msg (Join-Path $nrTmp 'espaco.env')
+    Assert-That 'newrelic: whitespace inside value rejected without echo' (($m -match 'espaco') -and ($m -notmatch 'DUMMYspace'))
+    Set-Content (Join-Path $nrTmp 'cauda.env') -Value 'NEW_RELIC_LICENSE_KEY=DUMMYtrail789 '
+    $m = & $msg (Join-Path $nrTmp 'cauda.env')
+    Assert-That 'newrelic: trailing whitespace rejected without echo' (($m -match 'cauda') -and ($m -notmatch 'DUMMYtrail'))
+    Set-Content (Join-Path $nrTmp 'ok.env') -Value @('# licenca local', '', 'NEW_RELIC_LICENSE_KEY=DUMMYlicense123')
+    Assert-That 'newrelic: valid file passes and returns nothing' ($null -eq (Assert-NewRelicEnvFile (Join-Path $nrTmp 'ok.env')))
+    Assert-That 'Hide-Secret masks license key assignments' ((Hide-Secret 'NEW_RELIC_LICENSE_KEY=DUMMYlicense123') -notmatch 'DUMMYlicense123')
+}
+finally { Remove-Item $nrTmp -Recurse -Force -ErrorAction SilentlyContinue }
 $billingGrants = Get-Content -Raw (Join-Path $kind 'postgres/grants-billing.sql')
 Assert-That 'billing grants: default privileges FOR ROLE migrator give app SELECT, INSERT, UPDATE on tables' ($billingGrants -match "ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public GRANT SELECT, INSERT, UPDATE ON TABLES TO %I")
 Assert-That 'billing grants: default privileges give app USAGE, SELECT on sequences' ($billingGrants -match "GRANT USAGE, SELECT ON SEQUENCES TO %I")
