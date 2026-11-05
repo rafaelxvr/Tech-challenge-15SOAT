@@ -14,19 +14,19 @@
     "billing": {
       "image": "ghcr.io/rafaelxvr/oficina-billing-service",
       "sourceRepo": "rafaelxvr/Tech-challenge-15SOAT-billing",
-      "sourceSha": "b448a75567c557f3e7dcd247620c55131be014d3",
-      "tag": "b448a75567c557f3e7dcd247620c55131be014d3",
-      "digest": "sha256:28f665e250d07982360a4e37e039973451bd052e7f99421b39da683a9261b7da",
-      "ciRun": "42040371062",
+      "sourceSha": "ded6b6c3d9265c34c5e32758789756e04c9823ad",
+      "tag": "ded6b6c3d9265c34c5e32758789756e04c9823ad",
+      "digest": "sha256:dd2fd767f165428496af72cb477da6084a19000c13c6e47672a3079de114f20d",
+      "ciRun": "42080883263",
       "visibility": "public"
     },
     "execution": {
       "image": "ghcr.io/rafaelxvr/oficina-execution-service",
       "sourceRepo": "rafaelxvr/Tech-challenge-15SOAT-execution",
-      "sourceSha": "0881f88b7dd0471d70a5c9e07858f7c7d6fc40cb",
-      "tag": "0881f88b7dd0471d70a5c9e07858f7c7d6fc40cb",
-      "digest": "sha256:761f6a284dbb8d9bafa8ba99f257e59b9156801fa79bdf5636dc2158c6426f5e",
-      "ciRun": "42028414772",
+      "sourceSha": "5538567afc82e6966ab9c9a5b33f2dbac9383daa",
+      "tag": "5538567afc82e6966ab9c9a5b33f2dbac9383daa",
+      "digest": "sha256:657f46e906732e4c5c3ebd7203bc53a4b61209c364cfe18e3fab730f73f32762",
+      "ciRun": "42082959972",
       "visibility": "public"
     }
   }
