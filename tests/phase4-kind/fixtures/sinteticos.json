@@ -1,0 +1,47 @@
+{
+  "aviso": "Somente dados sintéticos. Sem PII real, sem credenciais, sem endpoint AWS. Tokens JWT são gerados em tempo de execução a partir de segredo fora do repositório.",
+  "cliente": { "documento": "39053344705", "observacao": "CPF de teste válido pelos dígitos, já usado por SagaFixtures; nenhuma pessoa real" },
+  "veiculo": { "placaPadrao": "T[A-Z]{2}[0-9][A-Z][0-9]{2}", "marca": "Teste", "modelo": "Teste", "ano": 2025 },
+  "servico": { "valor": "80.00", "quantidade": 1 },
+  "peca": { "valorUnitario": "35.50", "quantidadeNaOs": 2, "estoqueSuficiente": 5, "estoqueInsuficiente": 1 },
+  "totalEsperadoOrcamento": "151.00",
+  "filial": { "padrao": "MATRIZ", "desconhecida": "FILIAL-INEXISTENTE" },
+  "filas": {
+    "billingComandos": "billing-commands.fifo",
+    "execucaoComandos": "execution-commands.fifo",
+    "respostasSaga": "os-saga-replies.fifo",
+    "dlqs": ["billing-commands-dlq.fifo", "execution-commands-dlq.fifo", "os-saga-replies-dlq.fifo"],
+    "maxReceiveCount": 5,
+    "visibilidadePadraoSegundos": 60,
+    "visibilidadeNosTestesDlqSegundos": 5
+  },
+  "envelopes": {
+    "modelo": "src/test/resources/contracts/fixtures/<Tipo>.json",
+    "camposSubstituidosEmExecucao": ["messageId", "sagaId", "osId", "passo", "causationId", "occurredAt", "correlationId", "payload.orcamentoId", "payload.pagamentoId", "payload.execucaoId"],
+    "regras": [
+      "reply.messageId = UUID novo; MessageDeduplicationId = messageId; MessageGroupId = osId",
+      "causationId = messageId do comando respondido; respostas a RegistrarDecisao reutilizam essa causationId",
+      "checkoutUrl começa com https://"
+    ]
+  },
+  "mensagensVenenosas": {
+    "jsonInvalido": "{ isto nao e json",
+    "tipoDesconhecido": { "kind": "REPLY", "type": "TipoQueNaoExiste", "schemaVersion": 1 },
+    "semCamposObrigatorios": { "kind": "COMMAND", "type": "GerarOrcamento", "schemaVersion": 1, "payload": {} }
+  },
+  "pagamento": { "simulacaoAprovado": { "status": "approved" }, "simulacaoRecusado": { "status": "rejected" }, "rotaBilling": "POST /billing/simulacoes/pagamentos/{pagamentoId}", "papel": "ADMIN" },
+  "rotasExecucao": {
+    "fila": "GET /execucao/fila?filialId=MATRIZ",
+    "listar": "GET /execucao/execucoes?osId={osId}",
+    "iniciar": "POST /execucao/{id}/iniciar",
+    "tarefa": "POST /execucao/{id}/tarefas",
+    "concluir": "POST /execucao/{id}/concluir",
+    "papeis": ["ADMIN", "MECANICO"]
+  },
+  "rotasOs": { "saga": "GET /api/ordens-servico/{id}/saga", "papeis": ["ADMIN", "MECANICO"] },
+  "saude": {
+    "os": "/api/actuator/health",
+    "billing": "/billing/actuator/health",
+    "execution": "/execucao/actuator/health"
+  }
+}

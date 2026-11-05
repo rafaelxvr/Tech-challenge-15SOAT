@@ -2,6 +2,7 @@
 name: CI/CD
 
 on:
+  workflow_dispatch:
   push:
     branches: [main, develop]
   pull_request:
@@ -28,10 +29,10 @@ jobs:
       CONTRACT_SET_SHA256: 35d863ecc103d4b4ff271004ac21626cbead715de008479381810cb57440e5b0
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Setup Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@3a4f6e1af504cf6a31855fa899c6aa5355ba6c12 # v4.7.0
         with:
           distribution: temurin
           java-version: "17"
@@ -48,16 +49,37 @@ jobs:
       - name: Build e testes automatizados
         run: ./mvnw -B verify
 
+      - name: Resumo de cobertura JaCoCo (SHA ${{ github.sha }})
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import xml.etree.ElementTree as E
+          raiz = E.parse('target/site/jacoco/jacoco.xml').getroot()
+          for c in raiz.findall('counter'):
+              if c.get('type') == 'LINE':
+                  m, v = int(c.get('missed')), int(c.get('covered'))
+                  print(f'JaCoCo LINE (bundle completo) {v / (m + v):.4f} ({v}/{m + v})')
+          PY
+
+      - name: Relatórios JaCoCo (SHA ${{ github.sha }})
+        if: always()
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+        with:
+          name: jacoco-${{ github.sha }}
+          path: target/site/jacoco
+          if-no-files-found: error
+          retention-days: 14
+
   integration-test:
     name: Testes de integracao com Docker
     needs: build-and-test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Setup Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@3a4f6e1af504cf6a31855fa899c6aa5355ba6c12 # v4.7.0
         with:
           distribution: temurin
           java-version: "17"
@@ -82,19 +104,27 @@ jobs:
       digest: ${{ steps.build.outputs.digest }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
 
       # GHCR exige owner/repo em minúsculas (ex.: SilasFurini → silasfurini)
       - name: Normalizar nome da imagem
         id: names
+        env:
+          REPO_OWNER: ${{ github.repository_owner }}
         run: |
-          OWNER_LC=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          OWNER_LC=$(echo "${REPO_OWNER}" | tr '[:upper:]' '[:lower:]')
           echo "owner_lc=${OWNER_LC}" >> "$GITHUB_OUTPUT"
           echo "image_base=${{ env.REGISTRY }}/${OWNER_LC}/${{ env.IMAGE_NAME }}" >> "$GITHUB_OUTPUT"
 
+      # Buildx dedicado: sem ele o digest do build-push-action não corresponde ao manifesto publicado.
+      - name: Configurar Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
       - name: Login GHCR
         if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -102,15 +132,15 @@ jobs:
 
       - name: Metadados da imagem
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
         with:
           images: ${{ steps.names.outputs.image_base }}
           tags: |
-            type=sha,prefix=
+            type=sha,prefix=,format=long
 
       - name: Build (e push se não for PR)
         id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
           push: ${{ github.event_name != 'pull_request' }}
@@ -118,42 +148,44 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           load: ${{ github.event_name == 'pull_request' }}
 
+      - name: Resumo da imagem publicada
+        if: github.event_name != 'pull_request'
+        env:
+          IMAGE_BASE: ${{ steps.names.outputs.image_base }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          {
+            echo "### Imagem publicada no GHCR"
+            echo "- Imagem: \`${IMAGE_BASE}\`"
+            echo "- Digest: \`${DIGEST}\`"
+            echo "- Referência imutável: \`${IMAGE_BASE}@${DIGEST}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   local-kind-smoke:
     name: Local Kind smoke (no AWS deployment)
-    needs: docker-image
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Usa a imagem construída localmente (sem GHCR): o digest exposto pelo build-push-action
+    # sem buildx dedicado não corresponde ao manifesto publicado ("manifest unknown").
+    needs: [build-and-test, integration-test]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Setup kubectl
-        uses: azure/setup-kubectl@v4
+        uses: azure/setup-kubectl@776406bce94f63e41d621b960d78ee25c8b76ede # v4.0.1
 
       - name: Create Kind cluster
-        uses: helm/kind-action@v1.10.0
+        uses: helm/kind-action@0025e74a8c7512023d06dc019c617aa3cf561fde # v1.10.0
         with:
           cluster_name: oficina-ci
           version: v0.33.0
           wait: 120s
 
-      - name: Login GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Pull e carregar imagem no Kind
+      - name: Construir e carregar imagem no Kind
         run: |
-          DIGEST="${{ needs.docker-image.outputs.digest }}"
-          if [[ ! "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-            echo "Digest de imagem invalido: $DIGEST" >&2
-            exit 1
-          fi
-          IMAGE="${{ needs.docker-image.outputs.image_base }}@${DIGEST}"
-          echo "Usando imagem: $IMAGE"
-          docker pull "$IMAGE"
+          IMAGE="${{ env.IMAGE_NAME }}:ci-${GITHUB_SHA::12}"
+          echo "Usando imagem local: $IMAGE"
+          docker build -t "$IMAGE" .
           kind load docker-image "$IMAGE" --name oficina-ci
           sed -i "s|image: .*oficina-mecanica.*|image: ${IMAGE}|g" k8s/app.yaml
           sed -i "s|imagePullPolicy: IfNotPresent|imagePullPolicy: Never|g" k8s/app.yaml
@@ -165,6 +197,18 @@ jobs:
           kubectl apply -f k8s/secret.yaml
           kubectl apply -f k8s/postgres.yaml
           kubectl -n oficina rollout status deployment/oficina-postgres --timeout=180s
+
+      - name: Configurar confiança JWT efêmera (somente CI, sem segredo versionado)
+        run: |
+          # Par RSA descartável gerado neste runner; nada é commitado nem reutilizado fora do job.
+          openssl genrsa -out "$RUNNER_TEMP/customer.key" 2048
+          PUB="$(openssl rsa -in "$RUNNER_TEMP/customer.key" -pubout 2>/dev/null)"
+          APP_JSON="$(jq -cn --arg pem "$PUB" '{security:{jwt:{customer:{"public-keys":{"ci-kind":$pem}}}}}')"
+          PATCH="$(jq -cn --arg json "$APP_JSON" '{data:{
+            DEPLOYMENT_ENVIRONMENT:"local", JWT_STAFF_ISSUER:"oficina-ci", JWT_STAFF_AUDIENCE:"oficina-api", JWT_STAFF_KEY_ID:"ci-staff",
+            JWT_CUSTOMER_ISSUER:"oficina-ci-customer", JWT_CUSTOMER_AUDIENCE:"oficina-api",
+            SPRING_APPLICATION_JSON:$json}}')"
+          kubectl -n oficina patch configmap oficina-config --type merge -p "$PATCH"
 
       - name: Aplicar manifestos da aplicação (HPA, Service, Deployment)
         run: |
@@ -179,3 +223,76 @@ jobs:
           sleep 5
           curl -sf http://127.0.0.1:8080/api/actuator/health
           echo
+
+      - name: Diagnóstico em caso de falha
+        if: failure()
+        run: |
+          kubectl -n oficina get pods -o wide || true
+          kubectl -n oficina describe pods -l app=oficina-app | tail -60 || true
+          kubectl -n oficina logs -l app=oficina-app --tail=80 --all-containers || true
+
+  # Quality gate do SonarCloud (UNR-618). Ativo com a variável de repositório SONAR_ENABLED=true
+  # ou por execução manual (workflow_dispatch). Quando ativo, não há skip silencioso: sem
+  # SONAR_TOKEN o job FALHA com mensagem explícita.
+  # Organização e chave do projeto ficam no pom.xml (não secretas); só o token é secret.
+  # PR vindo de fork não recebe secrets e fica fora do gate.
+  sonar:
+    name: SonarCloud e quality gate
+    if: ${{ (vars.SONAR_ENABLED == 'true' || github.event_name == 'workflow_dispatch') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      SONAR_MAVEN_PLUGIN: org.sonarsource.scanner.maven:sonar-maven-plugin:4.0.0.4121
+    steps:
+      - name: Checkout (SHA ${{ github.sha }})
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # O scanner do Sonar 4.x exige JVM 21+; o código continua compilando com release 17 (java.version).
+      - name: Set up Java 21
+        uses: actions/setup-java@3a4f6e1af504cf6a31855fa899c6aa5355ba6c12 # v4.7.0
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Exigir configuração do SonarCloud (falha, nunca ignora)
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          set +x
+          faltando=0
+          if [ -z "$SONAR_TOKEN" ]; then
+            echo "::error::Secret SONAR_TOKEN ausente. Cadastre-o em Settings > Secrets and variables > Actions ou desative o gate com SONAR_ENABLED=false."
+            faltando=1
+          fi
+          exit "$faltando"
+
+      # verify gera o JaCoCo XML (target/site/jacoco/jacoco.xml) lido pelo scanner.
+      # qualitygate.wait faz o job falhar se o quality gate reprovar. O token só vai por env, nunca para o log.
+      - name: Análise e espera do quality gate
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          set +x
+          bash ./mvnw -B -q verify "${SONAR_MAVEN_PLUGIN}:sonar"             -Dsonar.host.url=https://sonarcloud.io               -Dsonar.qualitygate.wait=true             -Dsonar.qualitygate.timeout=600
+
+      - name: Evidência do quality gate (SHA ${{ github.sha }})
+        if: always()
+        run: |
+          set +x
+          {
+            echo "### SonarCloud"
+            echo "- Commit analisado: \`${GITHUB_SHA}\`"
+            echo "- Execução: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            if [ -f target/sonar/report-task.txt ]; then
+              echo "- Painel: $(grep '^dashboardUrl=' target/sonar/report-task.txt | cut -d= -f2-)"
+            else
+              echo "- Painel: indisponível (a análise não chegou a publicar)"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
