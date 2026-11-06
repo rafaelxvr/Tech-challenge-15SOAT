@@ -112,7 +112,7 @@ public final class SnapshotScheduler {
         MDC.put("error_code", errorCode);
         MDC.put("failure_type", failure.getClass().getName());
         try {
-            LOG.warn("");
+            LOG.warn("snapshot tick failed");
         } finally {
             MDC.remove("event_name");
             MDC.remove("error_code");
@@ -127,7 +127,7 @@ public final class SnapshotScheduler {
         MDC.put("events_captured_count", Integer.toString(capturedCount));
         MDC.put("events_exported_count", Integer.toString(exportedCount));
         try {
-            LOG.info("");
+            LOG.info("snapshot tick completed");
         } finally {
             MDC.remove("event_name");
             MDC.remove("events_captured_count");
@@ -142,7 +142,7 @@ public final class SnapshotScheduler {
         MDC.put("error_code", "SNAPSHOT_TICK_UNHANDLED");
         MDC.put("failure_type", failure.getClass().getName());
         try {
-            LOG.error("");
+            LOG.error("snapshot tick crashed");
         } finally {
             MDC.remove("event_name");
             MDC.remove("error_code");
