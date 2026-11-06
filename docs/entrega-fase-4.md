@@ -12,7 +12,7 @@ css: "assets/pdf-style.css"
 
 > **RASCUNHO PARA REVISÃO DO RAFAEL — NÃO ENVIAR AO PORTAL.** Atualizado em 06/11/2026 a partir do estado consolidado de 05/11/2026 da auditoria UNR-604. Itens marcados **[PENDENTE]**, **[CONFIRMAR]**, `PENDENTE-AWS` ou `PENDENTE-VIDEO` ainda não têm evidência verificável; este texto distingue "implementado/configurado" de "executado e evidenciado" e não declara deploy em nuvem, vídeo gravado, pagamento real, trace consultável, Quality Gate dos candidatos finais nem envio da submissão. Prazo de entrega: 17/11/2026.
 
-> **Divergência de ambiente registrada (não resolvida aqui).** Os planos anteriores deste texto tratam Kind local/efêmero como alvo de demonstração. A auditoria UNR-604 (estado de 05/11) registra que o vídeo e a prova final de BDD/New Relic/Sonar devem ser produzidos no ambiente AWS Academy e que Kind não vale como ambiente do vídeo. Até decisão do Rafael, ambos aparecem como lacuna: Kind = evidência de CI/integração local; AWS = `PENDENTE-AWS`. O aceite do Kind como evidência de deploy Kubernetes pelos avaliadores **não está confirmado**.
+> **Ambiente do vídeo (decidido pelo Rafael em 03/11; ver [UNR-613](/UNR/issues/UNR-613) e [UNR-71](/UNR/issues/UNR-71)).** A gravação é feita somente no ambiente AWS Academy. O Kind é apenas validação local/CI antes do deploy e não é ambiente do vídeo. Planos anteriores que tratam Kind como alvo de demonstração estão superados. A prova final de BDD/New Relic/Sonar no ambiente AWS Academy é `PENDENTE-AWS`. O aceite do Kind como evidência de deploy Kubernetes pelos avaliadores **não está confirmado**.
 
 **Integrantes:** **[CONFIRMAR]** nome completo e RM de cada integrante (placeholder; dados fornecidos e validados pelo Rafael).
 
@@ -240,13 +240,21 @@ O alvo efetivo é o cluster Kind `oficina-phase4`, efêmero no CI e descartável
 
 ## 7. Qualidade e testes (SonarCloud)
 
-SonarCloud foi habilitado nos três repositórios (`SONAR_ENABLED=true`) por core [#90](https://github.com/rafaelxvr/Tech-challenge-15SOAT/pull/90) e [#92](https://github.com/rafaelxvr/Tech-challenge-15SOAT/pull/92), billing [#9](https://github.com/rafaelxvr/Tech-challenge-15SOAT-billing/pull/9) e execution [#30](https://github.com/rafaelxvr/Tech-challenge-15SOAT-execution/pull/30), [#31](https://github.com/rafaelxvr/Tech-challenge-15SOAT-execution/pull/31). Números abaixo vêm da auditoria; o SHA exato de cada medição não está registrado na fonte consolidada.
+SonarCloud foi habilitado nos três repositórios (`SONAR_ENABLED=true`) por core [#90](https://github.com/rafaelxvr/Tech-challenge-15SOAT/pull/90) e [#92](https://github.com/rafaelxvr/Tech-challenge-15SOAT/pull/92), billing [#9](https://github.com/rafaelxvr/Tech-challenge-15SOAT-billing/pull/9) e execution [#30](https://github.com/rafaelxvr/Tech-challenge-15SOAT-execution/pull/30), [#31](https://github.com/rafaelxvr/Tech-challenge-15SOAT-execution/pull/31). A cobertura por serviço abaixo é a do SonarCloud em cada PR de wiring, lida na API pública do SonarCloud por `pullRequest` ([UNR-625](/UNR/issues/UNR-625)); serviço e SHA identificados pelas contagens de linhas, conferidas com a [UNR-619](/UNR/issues/UNR-619). São medições de **branch de PR**, não de `develop` nem de `main`.
+
+| Serviço | Cobertura (Sonar, PR) | Linhas | PR e SHA medido | Run |
+|---|---|---|---|---|
+| OS (core) | 88,2% | 2812 | [#90](https://github.com/rafaelxvr/Tech-challenge-15SOAT/pull/90), `6c3e2e6` | [41753054595](https://github.com/rafaelxvr/Tech-challenge-15SOAT/actions/runs/41753054595) |
+| Billing | 90,0% | 770 | [#9](https://github.com/rafaelxvr/Tech-challenge-15SOAT-billing/pull/9), `14565af` | [41753288454](https://github.com/rafaelxvr/Tech-challenge-15SOAT-billing/actions/runs/41753288454) |
+| Execution | 93,8% | 818 | [#30](https://github.com/rafaelxvr/Tech-challenge-15SOAT-execution/pull/30), `5877b47` | [41753085418](https://github.com/rafaelxvr/Tech-challenge-15SOAT-execution/actions/runs/41753085418) |
+
+Quality Gate OK nos três PRs. Medição de `develop`/`main` após merge: `PENDENTE`. A UNR-619 mede outra métrica (linhas JaCoCo): core 92,39%, billing 96,23%, execution 96,94%, também de PR/merge ref e `develop`; não são comparáveis aos números do Sonar.
 
 | Requisito | Situação |
 |---|---|
 | Build e testes independentes | Core `main`: [run 41987538517](https://github.com/rafaelxvr/Tech-challenge-15SOAT/actions/runs/41987538517) `SUCCESS`; billing e execution: runs da seção 5.1 (SHAs anteriores) |
 | Fluxo completo e compensações com BDD | Kind local: [run 40884415348](https://github.com/rafaelxvr/Tech-challenge-15SOAT/actions/runs/40884415348) (SHAs históricos). Reexecução em candidatos finais: `PENDENTE-AWS` |
-| Cobertura mínima de 80% por serviço | [UNR-618](/UNR/issues/UNR-618) reporta 88,2% / 93,8% / 90,0%; a ordem dos serviços não está rotulada na fonte consolidada **[CONFIRMAR]** antes de citar por serviço. Todos ≥ 80% conforme essa fonte |
+| Cobertura mínima de 80% por serviço | Sonar em PR: core 88,2% (`6c3e2e6`), billing 90,0% (`14565af`), execution 93,8% (`5877b47`) ([UNR-625](/UNR/issues/UNR-625)); todos ≥ 80%. Não medido em `develop`/`main`: `PENDENTE` |
 | Quality Gate no CI | UNR-618: Quality Gate OK. Core comprovado em `main` pelo run 41987538517; billing e execution nos candidatos finais: `PENDENTE-AWS` ([UNR-612](/UNR/issues/UNR-612)) |
 
 ## 8. Pagamento com Mercado Pago (sandbox)
@@ -272,9 +280,9 @@ Legenda de estado: **Evidenciado** (run/PR e SHA citados); **Parcial** (evidênc
 | Compensação e idempotência (EstoqueInsuficiente, ReparoRecusado, duplicata, reply tardia, DLQ/redrive) | Evidenciado (Kind, SHAs históricos) | Matriz BDD do run 40884415348, revisada em UNR-338/339 e aprovada em UNR-69; 06h/07c cobertos por teste unitário (explícito) | Reexecução e timecodes no ambiente final | `PENDENTE-AWS` + `PENDENTE-VIDEO` — [UNR-612](/UNR/issues/UNR-612), [UNR-613](/UNR/issues/UNR-613) |
 | Mercado Pago sandbox real + estorno | Humano | Billing com Checkout Pro, reconsulta e estorno testados só com doubles; Postman [#85](https://github.com/rafaelxvr/Tech-challenge-15SOAT/pull/85) | Pagamento sandbox real e estorno não executados | Rafael; `PENDENTE-VIDEO` |
 | New Relic e rastreamento distribuído | Parcial (wiring) | PRs da seção 6 mesclados em `develop` | Sem link APM/Distributed Tracing com os três serviços | `PENDENTE-AWS` — [UNR-612](/UNR/issues/UNR-612) |
-| Cobertura ≥ 80% e SonarCloud | Parcial | Core `main` run 41987538517 com Quality Gate; [UNR-618](/UNR/issues/UNR-618): QG OK e 88,2% / 93,8% / 90,0% (seção 7) | SHA da medição e mapeamento por serviço não registrados na fonte; billing/execution finais | `PENDENTE-AWS`; **[CONFIRMAR]** |
+| Cobertura ≥ 80% e SonarCloud | Parcial | Core `main` run 41987538517 com Quality Gate; [UNR-625](/UNR/issues/UNR-625): QG OK; core 88,2%, billing 90,0%, execution 93,8% por PR e SHA (seção 7) | Medições são de PRs; remedir em `develop`/`main` após merge e nos candidatos finais | `PENDENTE`; `PENDENTE-AWS` |
 | CI/CD, S-12 e política de PR | Parcial | Seções 5.1; PRs para `develop`, merge só pelo Rafael; S-12 em [UNR-621](/UNR/issues/UNR-621) | `main` de billing/execution sem proteção; deploy de produção do core `SKIPPED` | Rafael decide política |
-| Kind / Kubernetes automatizado | Parcial | Core `main`: Kind verde no run 41987538517; billing: run 41555654307 | Aceite do Kind pelos avaliadores **não confirmado**; Kind não vale como ambiente do vídeo segundo UNR-604 | Rafael (risco de entrega) |
+| Kind / Kubernetes automatizado | Parcial | Core `main`: Kind verde no run 41987538517; billing: run 41555654307 | Aceite do Kind pelos avaliadores **não confirmado**; Kind não é ambiente do vídeo (decisão do Rafael, 03/11) | Rafael (risco de entrega) |
 | Deploy de avaliação AWS Academy | PENDENTE-AWS | [UNR-611](/UNR/issues/UNR-611): sessão 1 aplicada, medida (≈13m30s) e destruída; inventário final zero; PR #95 (Terraform/overlay) em `develop` | Deploy dos serviços adiado; manifesto de digests bloqueado ([UNR-710](/UNR/issues/UNR-710)); exige aprovação do Rafael por recurso | Rafael / [UNR-612](/UNR/issues/UNR-612) |
 | Runbook D19-R, DLQ/redrive, reconciliação | Parcial | Harness [#91](https://github.com/rafaelxvr/Tech-challenge-15SOAT/pull/91) e runbook [#93](https://github.com/rafaelxvr/Tech-challenge-15SOAT/pull/93) em `develop` | Execução online do BDD | `PENDENTE-AWS` |
 | Vídeo ≤ 15 min | PENDENTE-VIDEO | Roteiro: [`docs/roteiro-video-fase-4.md`](roteiro-video-fase-4.md) ([UNR-613](/UNR/issues/UNR-613)) | Gravação, URL e timecodes | Rafael |
@@ -283,7 +291,7 @@ Legenda de estado: **Evidenciado** (run/PR e SHA citados); **Parcial** (evidênc
 ## 10. Limitações e riscos conhecidos
 
 - **Prazo:** 17/11/2026. Faltam sessão AWS (BDD online, New Relic, Sonar nos candidatos finais), pagamento sandbox real e gravação do vídeo.
-- **Aceite do Kind:** a aceitação do avaliador como evidência de deploy Kubernetes não está confirmada. Há divergência registrada entre "alvo Kind" e "vídeo no AWS Academy" (ver aviso na capa).
+- **Aceite do Kind:** a aceitação do avaliador como evidência de deploy Kubernetes não está confirmada. O vídeo é gravado só no AWS Academy; Kind é validação local antes do deploy (ver aviso na capa).
 - **Evidência de SHA anterior:** BDD e smokes principais foram executados em SHAs históricos; os heads atuais ainda não os repetiram.
 - **Deploy de produção:** pulado/desabilitado por contrato; nenhum deploy de produção ocorreu.
 - **Webhook Mercado Pago:** sem túnel HTTPS, a confirmação usa reconsulta, não a notificação real.
@@ -298,5 +306,5 @@ Este documento **não** afirma que a submissão foi enviada.
 2. `PENDENTE-VIDEO`: ensaio, gravação, URL e timecodes ([UNR-613](/UNR/issues/UNR-613)).
 3. Pagamento sandbox real + estorno (Rafael).
 4. **[CONFIRMAR]** integrantes e RM; acesso do usuário `soat-architecture` aos três repositórios.
-5. **[CONFIRMAR]** promoção de `main` em billing/execution, política de proteção e decisão sobre o ambiente do vídeo (Kind × AWS Academy).
+5. **[CONFIRMAR]** promoção de `main` em billing/execution, política de proteção.
 6. Reconferir SHAs de `develop`/`main` e regenerar o PDF imediatamente antes do envio.

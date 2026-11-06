@@ -9,7 +9,7 @@ Roteiro operacional para ensaio e gravação ([UNR-613](/UNR/issues/UNR-613)). D
 - `PENDENTE-AWS`: capturas que dependem do ambiente AWS Academy (sessão da [UNR-612](/UNR/issues/UNR-612)), sob aprovação do Rafael. Este roteiro não autoriza nem executa ação AWS.
 - Plano B de cada bloco: evidência **pré-capturada ligada ao mesmo SHA**, apresentada como tal. Nunca apresentar fixture ou captura antiga como execução ao vivo.
 - Não exibir console com tokens, variáveis secretas, payloads integrais, PII, ARN ou IDs de recursos. Credenciais de Mercado Pago e New Relic ficam fora de banda.
-- Risco aberto: o aceite do Kind como evidência de deploy Kubernetes pelos avaliadores **não está confirmado**; a auditoria UNR-604 indica que Kind não vale como ambiente do vídeo. Decisão do ambiente: Rafael.
+- Risco aberto: o aceite do Kind como evidência de deploy Kubernetes pelos avaliadores **não está confirmado**; **ambiente do vídeo decidido pelo Rafael em 03/11** ([UNR-613](/UNR/issues/UNR-613), [UNR-71](/UNR/issues/UNR-71)): gravação somente no AWS Academy. Kind aparece apenas como validação local antes do deploy, nunca como ambiente gravado.
 
 ## Grade
 
@@ -52,7 +52,7 @@ Soma: 0:45 + 1:30 + 1:30 + 2:00 + 2:00 + 2:00 + 1:30 + 1:30 + 1:00 + 0:45 = **14
 - **Tela/ação:** abrir OS, diagnóstico, orçamento, aprovação, pagamento, reserva, reparo, finalização; consultar `GET /api/ordens-servico/{id}/saga` a cada etapa.
 - **Prova:** conclusão da OS (`FINALIZADA`).
 - **Evidência esperada:** saga encerrada com sucesso; estados na ordem da seção 3.2.
-- **Plano B:** BDD-01a do [run 40884415348](https://github.com/rafaelxvr/Tech-challenge-15SOAT/actions/runs/40884415348) (Kind, SHAs históricos — dizer isso na fala). Ao vivo no ambiente final: `PENDENTE-AWS` / `PENDENTE-VIDEO`.
+- **Plano B:** BDD-01a do [run 40884415348](https://github.com/rafaelxvr/Tech-challenge-15SOAT/actions/runs/40884415348) (pré-capturado, validação local em Kind com SHAs históricos — dizer isso na fala; não é o ambiente do vídeo). Ao vivo no ambiente final: `PENDENTE-AWS` / `PENDENTE-VIDEO`.
 
 ### 5. EstoqueInsuficiente e compensação (05:45–07:45)
 - **Tela/ação:** OS com peça sem saldo; seguir até a reserva de peças.
@@ -83,9 +83,9 @@ Soma: 0:45 + 1:30 + 1:30 + 2:00 + 2:00 + 2:00 + 1:30 + 1:30 + 1:00 + 0:45 = **14
 - **Plano B:** captura previamente sanitizada do mesmo fluxo. Fake/WireMock **não** vale como prova. Execução real: Rafael; `PENDENTE-VIDEO`.
 
 ### 8. CI, cobertura, Sonar e New Relic (11:15–12:45)
-- **Tela/ação:** runs de CI (core `main`: [41987538517](https://github.com/rafaelxvr/Tech-challenge-15SOAT/actions/runs/41987538517)); Quality Gate e cobertura ([UNR-618](/UNR/issues/UNR-618)); trace distribuído dos três serviços no New Relic.
+- **Tela/ação:** runs de CI (core `main`: [41987538517](https://github.com/rafaelxvr/Tech-challenge-15SOAT/actions/runs/41987538517)); Quality Gate e cobertura por serviço ([UNR-625](/UNR/issues/UNR-625): core 88,2% `6c3e2e6`, billing 90,0% `14565af`, execution 93,8% `5877b47`, medidos em PRs); trace distribuído dos três serviços no New Relic.
 - **Prova:** qualidade e observabilidade.
-- **Evidência esperada:** Quality Gate OK e cobertura ≥ 80% por serviço; trace único atravessando OS, Billing e Execution. O link APM ainda **não existe**: `PENDENTE-AWS`.
+- **Evidência esperada:** Quality Gate OK e cobertura ≥ 80% por serviço (medição de PR; `develop`/`main` `PENDENTE`); trace único atravessando OS, Billing e Execution. O link APM ainda **não existe**: `PENDENTE-AWS`.
 - **Plano B:** mostrar os PRs de wiring mesclados e dizer explicitamente que o trace consultável não foi obtido.
 
 ### 9. D19-R, DLQ/redrive, reconciliação (12:45–13:45)
