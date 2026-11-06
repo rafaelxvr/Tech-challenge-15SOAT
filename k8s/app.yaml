@@ -15,6 +15,12 @@ spec:
       labels:
         app: oficina-app
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: app
           image: ghcr.io/OWNER/oficina-mecanica@sha256:a134339152035ce0044eaa1adc18851c0aee214b2d867f728bff2bfb09dc7c5f
@@ -43,6 +49,14 @@ spec:
               port: http
             initialDelaySeconds: 60
             periodSeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
           resources:
             requests:
               cpu: 250m
@@ -50,6 +64,9 @@ spec:
             limits:
               cpu: "1"
               memory: 768Mi
+      volumes:
+        - name: tmp
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
