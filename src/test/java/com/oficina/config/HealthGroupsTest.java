@@ -3,6 +3,10 @@ package com.oficina.config;
 import org.junit.jupiter.api.Test;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.springframework.boot.env.YamlPropertySourceLoader;
+import org.springframework.core.env.PropertySource;
+import org.springframework.core.io.ClassPathResource;
+import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class HealthGroupsTest {
@@ -29,5 +33,10 @@ class HealthGroupsTest {
     }
     @Test void compose_supplies_the_required_deployment_environment() throws Exception {
         assertThat(Files.readString(Path.of("docker-compose.yml"))).contains("DEPLOYMENT_ENVIRONMENT: local");
+    }
+    @Test void aws_profile_turns_off_the_mail_health_contributor_because_it_has_no_smtp() throws Exception {
+        List<PropertySource<?>> sources = new YamlPropertySourceLoader().load("aws", new ClassPathResource("application-aws.yml"));
+        assertThat(sources).anySatisfy(source ->
+                assertThat(source.getProperty("management.health.mail.enabled")).isEqualTo(false));
     }
 }
