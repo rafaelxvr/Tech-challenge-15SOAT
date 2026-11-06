@@ -50,15 +50,37 @@
                 <path>email</path>
                 <path>phone</path>
                 <path>telefone</path>
-                <value>(?i)bearer\s+[A-Za-z0-9._~+/=-]+</value>
-                <value>\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]*</value>
-                <value>(?i)\b(?:authorization|cookie|set-cookie|password|passwd|senha|secret|segredo|token|api[_-]?key|client[_-]?secret|checkout[_-]?url)\b\W{0,3}[:=]\s*\W{0,2}[^\s,;&amp;"]+</value>
-                <value>[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}</value>
+                <path>Authorization</path>
+                <path>Cookie</path>
+                <path>Set-Cookie</path>
+                <path>Password</path>
+                <path>Senha</path>
+                <path>Secret</path>
+                <path>Token</path>
+                <path>accessToken</path>
+                <path>refreshToken</path>
+                <path>idToken</path>
+                <path>id_token</path>
+                <path>x-api-key</path>
+                <path>X-Api-Key</path>
+                <path>Email</path>
+                <path>Cpf</path>
+                <path>Phone</path>
+                <!-- Every quantifier is bounded on purpose: the appender is synchronous, so an unbounded one lets a
+                     long hostile message (third-party loggers can echo request text) stall the logging thread. -->
+                <value>(?i)\b(?:bearer|basic|digest)\s{1,4}[A-Za-z0-9._~+/=-]{1,4096}</value>
+                <value>\beyJ[A-Za-z0-9_-]{5,2048}\.[A-Za-z0-9_-]{5,2048}\.[A-Za-z0-9_-]{0,2048}</value>
+                <!-- key=value / key: value; the key may carry a short prefix or suffix (id_token, DB_PASSWORD, secretKey). -->
+                <value>(?i)(?:authorization|cookie|set-cookie|password|passwd|senha|secret|segredo|token|api[_-]?key|client[_-]?secret|checkout[_-]?url)[A-Za-z0-9_-]{0,40}\W{0,3}[:=]\s{0,8}(?:"[^"]{0,256}"|'[^']{0,256}'|["']?[^\s,;&amp;"']{1,512})</value>
+                <value>[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,255}\.[A-Za-z]{2,24}</value>
                 <value>\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b</value>
                 <value>(?:\+?55\s?)?\(?\b\d{2}\)?\s?9?\d{4}-?\d{4}\b</value>
-                <value>\b(?:APP_USR|TEST)-[A-Za-z0-9-]{16,}</value>
+                <value>\b(?:APP_USR|TEST)-[A-Za-z0-9-]{16,512}</value>
             </jsonGeneratorDecorator>
         </encoder>
     </appender>
+    <!-- Hibernate echoes column values in constraint violations ("Key (placa)=(...) already exists"); the
+         application reports those failures through its own handler with stable messages. -->
+    <logger name="org.hibernate.engine.jdbc.spi.SqlExceptionHelper" level="OFF"/>
     <root level="INFO"><appender-ref ref="JSON_CONSOLE"/></root>
 </configuration>

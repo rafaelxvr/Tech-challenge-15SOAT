@@ -105,12 +105,58 @@ class StructuredLoggingTest {
                 {"cpf 11144477735 end", "11144477735"},
                 {"phone (11) 91234-5678 end", "91234-5678"},
                 {"mp APP_USR-0000000000000000-000000-aaaa", "APP_USR-0000000000000000"},
+                {"id_token=fictional-idt-5", "fictional-idt-5"},
+                {"DB_PASSWORD=fictional-db-6", "fictional-db-6"},
+                {"jwt_secret=fictional-js-7", "fictional-js-7"},
+                {"secretKey=fictional-sk-8", "fictional-sk-8"},
+                {"access_token=fictional-at-9", "fictional-at-9"},
+                {"Authorization: Basic ZmljdGlvbmFsOmNyZWQ=", "ZmljdGlvbmFsOmNyZWQ"},
+                {"password=\"fictional pass 10\" tail", "pass 10"},
+                {"senha='fictional pass 11' tail", "pass 11"},
         };
         for (String[] c : cases) {
             String line = logThroughRealConfig("staging", ctx -> { }, logger -> logger.info("start " + c[0]));
             JsonNode parsed = json.readTree(line);
             assertThat(line).as(c[0]).doesNotContain(c[1]);
             assertThat(parsed.path("message").asText()).as(c[0]).contains(REDACTED).startsWith("start ");
+        }
+    }
+
+    @Test
+    void staysFastOnLongHostileMessages() throws Exception {
+        String[] hostile = {
+                "a".repeat(20_000) + "@" + "b".repeat(1_000),
+                "token=".repeat(4_000),
+                "password=\"" + "x".repeat(20_000),
+                "eyJ".repeat(7_000),
+                "Bearer " + "A".repeat(20_000),
+                "1".repeat(20_000),
+                "a.".repeat(10_000) + "@" + "b.".repeat(500),
+        };
+        for (String message : hostile) {
+            long started = System.nanoTime();
+            String line = logThroughRealConfig("staging", ctx -> { }, logger -> logger.info(message));
+            long elapsedMs = (System.nanoTime() - started) / 1_000_000;
+            assertThat(json.readTree(line).path("message").asText()).isNotEmpty();
+            assertThat(elapsedMs).as("elapsed ms for %s...", message.substring(0, 12)).isLessThan(10_000);
+        }
+    }
+
+    @Test
+    void silencesTheHibernateConstraintEchoLogger() throws Exception {
+        String echoed = logThroughRealConfig("staging", ctx -> { }, "org.hibernate.engine.jdbc.spi.SqlExceptionHelper",
+                logger -> logger.error("Detail: Key (placa)=(ZZZ9Z99) already exists."));
+        assertThat(echoed).isEmpty();
+    }
+
+    @Test
+    void redactsCaseVariantsOfSensitiveFieldPaths() throws Exception {
+        String[] names = {"Authorization", "Token", "accessToken", "x-api-key", "X-Api-Key", "Cookie", "Email"};
+        for (String name : names) {
+            String line = logThroughRealConfig("staging", ctx -> { },
+                    logger -> logger.info("structured field", keyValue(name, "fictional-value-zzz")));
+            assertThat(line).as(name).doesNotContain("fictional-value-zzz");
+            assertThat(json.readTree(line).path(name).asText()).as(name).isEqualTo(REDACTED);
         }
     }
 
@@ -145,6 +191,12 @@ class StructuredLoggingTest {
 
     private String logThroughRealConfig(String environment, java.util.function.Consumer<LoggerContext> mdcSetup,
                                         java.util.function.Consumer<org.slf4j.Logger> emit) throws Exception {
+        return logThroughRealConfig(environment, mdcSetup, StructuredLoggingTest.class.getName(), emit);
+    }
+
+    private String logThroughRealConfig(String environment, java.util.function.Consumer<LoggerContext> mdcSetup,
+                                        String loggerName, java.util.function.Consumer<org.slf4j.Logger> emit)
+            throws Exception {
         URL resource = getClass().getResource("/logback-spring.xml");
         ByteArrayOutputStream captured = new ByteArrayOutputStream();
         PrintStream original = System.out;
@@ -159,7 +211,7 @@ class StructuredLoggingTest {
 
             // A dedicated LoggerContext has its own MDC adapter; production uses the global context.
             mdcSetup.accept(context);
-            emit.accept(context.getLogger(StructuredLoggingTest.class));
+            emit.accept(context.getLogger(loggerName));
         } finally {
             MDC.clear();
             context.getMDCAdapter().clear();
