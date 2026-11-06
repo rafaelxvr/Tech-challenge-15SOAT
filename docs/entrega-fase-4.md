@@ -38,7 +38,7 @@ Os SHAs de `develop` mudam a cada merge (inclusive o deste PR no OS Service); re
 2. [Arquitetura dos microsserviços](#2-arquitetura-dos-microsserviços)
 3. [Saga orquestrada](#3-saga-orquestrada)
 4. [Divisão de responsabilidades e tecnologias](#4-divisão-de-responsabilidades-e-tecnologias)
-5. [CI/CD, deploy local e evidências de Kind](#5-cicd-deploy-local-e-evidências-de-kind)
+5. [CI/CD, validação local e evidências de Kind](#5-cicd-validação-local-e-evidências-de-kind)
 6. [Observabilidade (New Relic)](#6-observabilidade-new-relic)
 7. [Qualidade e testes (SonarCloud)](#7-qualidade-e-testes-sonarcloud)
 8. [Pagamento com Mercado Pago (sandbox)](#8-pagamento-com-mercado-pago-sandbox)
@@ -56,7 +56,7 @@ O desenho da Fase 4 divide a aplicação da oficina em **três microsserviços i
 
 Os serviços não acessam os bancos uns dos outros. A integração assíncrona usa filas SQS FIFO exercitadas localmente por LocalStack, com contratos JSON versionados. LocalStack é dependência de teste local; não representa provisionamento ou uso de uma conta AWS.
 
-**Situação deste rascunho:** o alvo aprovado para integração e evidência de deploy é um cluster Kind local/efêmero. O estado dos códigos, pipelines, testes, deploys, observabilidade e integração com Mercado Pago deve ser confirmado pelos SHAs e resultados reais antes da submissão; este documento não os declara concluídos.
+**Situação deste rascunho:** o Kind local/efêmero é apenas a validação local/CI pré-deploy; o deploy de avaliação e a gravação do vídeo são reservados ao AWS Academy (decisão de 03/11, [UNR-613](/UNR/issues/UNR-613) e [UNR-71](/UNR/issues/UNR-71)), com evidência `PENDENTE-AWS`. O estado dos códigos, pipelines, testes, deploys, observabilidade e integração com Mercado Pago deve ser confirmado pelos SHAs e resultados reais antes da submissão; este documento não os declara concluídos.
 
 ## 2. Arquitetura dos microsserviços
 
@@ -85,7 +85,7 @@ Os serviços não acessam os bancos uns dos outros. A integração assíncrona u
   `os-saga-replies.fifo` → OS Service
 ```
 
-Diagramas Mermaid versionados: `docs/architecture/c4-*.md` no repositório do OS Service e o diagrama do README do Billing Service. **[PENDENTE]** revisar o diagrama geral contra os nomes e manifestos usados no alvo Kind, sem apresentá-lo como evidência de deploy.
+Diagramas Mermaid versionados: `docs/architecture/c4-*.md` no repositório do OS Service e o diagrama do README do Billing Service. **[PENDENTE]** revisar o diagrama geral contra os nomes e manifestos usados na validação local Kind, sem apresentá-lo como evidência de deploy.
 
 ### 2.2 Bancos isolados
 
@@ -161,7 +161,7 @@ Prazos padrão definidos no plano: diagnóstico 3 dias, resposta automática 5 m
 - Toda espera tem prazo; um poller transforma espera vencida em falha e reenvia compensações não confirmadas, até 5 envios no total, antes de `FALHA_COMPENSACAO` (alerta, resolvida por runbook).
 - Um pagamento confirmado **depois** de o orçamento ser cancelado é estornado automaticamente pelo Billing, sem resposta tardia para uma saga encerrada.
 - `SAGA_ENABLED` e `SAGA_MENSAGERIA_ENABLED` ficam `false` por padrão. Só o perfil BDD/Kind os ativa depois que bancos e filas estiverem saudáveis; com a saga desativada, permanece o fluxo pass-through da Fase 3 e `GET /api/ordens-servico/{id}/saga` responde 404 antes de acessar o repositório.
-- O acesso direto no Kind depende da autenticação JWT e das permissões validadas por cada serviço; não há rota de Lambda/API Gateway no alvo vigente.
+- O acesso direto no Kind depende da autenticação JWT e das permissões validadas por cada serviço; não há rota de Lambda/API Gateway na validação local vigente.
 - OS criadas antes da saga (sem linha em `os_saga`) seguem o fluxo manual da Fase 3.
 
 ### 3.5 Evidência da saga
@@ -198,7 +198,7 @@ A divisão segue os contextos delimitados (atendimento, cobrança, execução) c
 
 **[CONFIRMAR]** versões exatas contra os `pom.xml` dos SHAs efetivamente incluídos na entrega.
 
-## 5. CI/CD, deploy local e evidências de Kind
+## 5. CI/CD, validação local e evidências de Kind
 
 ### 5.1 Pipelines
 
@@ -210,21 +210,21 @@ O plano prevê pipeline independente por repositório para build, testes, cobert
 | Proteção de `main` e checagens obrigatórias | Leitura de 03/11: core protegida sem checks obrigatórios/aprovações; billing e execution sem proteção. Mudança de política depende de aprovação do Rafael **[CONFIRMAR]**. Merge continua somente com o Rafael |
 | Cobertura e qualidade no CI | Ver seção 7 |
 | Deploy de produção do core | [Run 41987538475](https://github.com/rafaelxvr/Tech-challenge-15SOAT/actions/runs/41987538475) `SKIPPED` por contrato (`APP_PRODUCTION_DEPLOYMENT_ENABLED` não definida). **Nenhum deploy de produção ocorreu.** |
-| Deploy automatizado de validação | Kind efêmero no CI do core comprovado no run acima; teardown e health por serviço no ambiente final: `PENDENTE-AWS` |
+| Deploy automatizado de validação | Kind efêmero no CI do core comprovado no run acima (validação pré-deploy); teardown e health por serviço no ambiente AWS Academy: `PENDENTE-AWS` |
 | Segurança S-12 | [UNR-621](/UNR/issues/UNR-621): core `dd7221e5`, billing `ab95f1bd`, execution `0881f88b`; Gitleaks/SAST/SCA sem bloqueio crítico/alto; riscos residuais documentados na tarefa (SHAs curtos conforme a fonte) |
 
-### 5.2 Alvo local de integração e demonstração
+### 5.2 Validação local pré-deploy no Kind
 
-O alvo efetivo é o cluster Kind `oficina-phase4`, efêmero no CI e descartável no desenvolvimento. A topologia usa namespaces `infra`, `data`, `oficina`, `oficina-billing` e `oficina-execution`; PostgreSQL 16 em serviços separados para OS e Billing; LocalStack para SQS FIFO, DLQs e DynamoDB Local; e imagens carregadas localmente no cluster.
+A validação local pré-deploy usa o cluster Kind `oficina-phase4`, efêmero no CI e descartável no desenvolvimento; ele não é o ambiente de deploy de avaliação nem do vídeo (AWS Academy). A topologia usa namespaces `infra`, `data`, `oficina`, `oficina-billing` e `oficina-execution`; PostgreSQL 16 em serviços separados para OS e Billing; LocalStack para SQS FIFO, DLQs e DynamoDB Local; e imagens carregadas localmente no cluster.
 
 - Nomes de serviço: `oficina-app:8080`, `oficina-billing:8081` e `oficina-execution:8082`.
 - Dependências: `postgres-os.data.svc.cluster.local:5432` (`oficina`), `postgres-billing.data.svc.cluster.local:5432` (`billing`) e `localstack.infra.svc.cluster.local:4566` (`sqs,dynamodb`).
 - O gate de banco usa uma credencial de migração separada da credencial de runtime: migração limpa até V10 e fixture V8 atualizada até V10. A role de runtime recebe apenas o DML necessário (inicialmente `SELECT/INSERT/UPDATE`); `DELETE` só será concedido se o código provar que é necessário.
 - O CI deverá criar o cluster descartável, carregar a imagem, aplicar manifestos, validar prontidão/saúde, guardar a evidência e destruir o cluster.
-- Acesso local usa `kubectl port-forward` e validação JWT/roles nos próprios serviços. Não há API Gateway, ALB ou serviço externo de entrada no alvo definido.
-- LocalStack usa somente credenciais fictícias em ambiente local. **Não há provisionamento de recursos AWS, deploy em nuvem, Terraform cloud apply nem credenciais AWS nesta estratégia.**
+- Acesso local usa `kubectl port-forward` e validação JWT/roles nos próprios serviços. Não há API Gateway, ALB ou serviço externo de entrada na validação local definida.
+- LocalStack usa somente credenciais fictícias em ambiente local. **Não há provisionamento de recursos AWS, deploy em nuvem, Terraform cloud apply nem credenciais AWS nesta validação local.**
 
-**[PENDENTE]** anexar o resultado real da integração dos três serviços, o SHA de cada imagem, os health checks e a evidência de teardown. A seleção de Kind não comprova, por si só, o aceite do requisito de deploy Kubernetes pelo avaliador; esse ponto permanece risco de submissão.
+**[PENDENTE]** anexar o resultado real da integração dos três serviços, o SHA de cada imagem, os health checks e a evidência de teardown. O Kind não comprova, por si só, o aceite do requisito de deploy Kubernetes pelo avaliador; esse ponto permanece risco de submissão.
 
 ## 6. Observabilidade (New Relic)
 
@@ -240,7 +240,7 @@ O alvo efetivo é o cluster Kind `oficina-phase4`, efêmero no CI e descartável
 
 ## 7. Qualidade e testes (SonarCloud)
 
-SonarCloud foi habilitado nos três repositórios (`SONAR_ENABLED=true`) por core [#90](https://github.com/rafaelxvr/Tech-challenge-15SOAT/pull/90) e [#92](https://github.com/rafaelxvr/Tech-challenge-15SOAT/pull/92), billing [#9](https://github.com/rafaelxvr/Tech-challenge-15SOAT-billing/pull/9) e execution [#30](https://github.com/rafaelxvr/Tech-challenge-15SOAT-execution/pull/30), [#31](https://github.com/rafaelxvr/Tech-challenge-15SOAT-execution/pull/31). A cobertura por serviço abaixo é a do SonarCloud em cada PR de wiring, lida na API pública do SonarCloud por `pullRequest` ([UNR-625](/UNR/issues/UNR-625)); serviço e SHA identificados pelas contagens de linhas, conferidas com a [UNR-619](/UNR/issues/UNR-619). São medições de **branch de PR**, não de `develop` nem de `main`.
+SonarCloud foi habilitado nos três repositórios (`SONAR_ENABLED=true`) por core [#90](https://github.com/rafaelxvr/Tech-challenge-15SOAT/pull/90) e [#92](https://github.com/rafaelxvr/Tech-challenge-15SOAT/pull/92), billing [#9](https://github.com/rafaelxvr/Tech-challenge-15SOAT-billing/pull/9) e execution [#30](https://github.com/rafaelxvr/Tech-challenge-15SOAT-execution/pull/30), [#31](https://github.com/rafaelxvr/Tech-challenge-15SOAT-execution/pull/31). A cobertura por serviço abaixo é a do SonarCloud em cada PR de wiring, lida na API pública do SonarCloud por `pullRequest` ([UNR-625](/UNR/issues/UNR-625)); serviço, PR e SHA vêm do registro da [UNR-625](/UNR/issues/UNR-625); a [UNR-619](/UNR/issues/UNR-619) confirma os denominadores JaCoCo. São medições de **branch de PR**, não de `develop` nem de `main`.
 
 | Serviço | Cobertura (Sonar, PR) | Linhas | PR e SHA medido | Run |
 |---|---|---|---|---|
