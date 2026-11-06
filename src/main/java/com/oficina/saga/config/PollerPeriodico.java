@@ -43,7 +43,7 @@ public class PollerPeriodico implements SmartLifecycle {
             MDC.put("event_name", "poller_falhou");
             MDC.put("poller", nome);
             MDC.put("error_code", e.getClass().getSimpleName());
-            try { LOG.warn(""); } finally { MDC.remove("event_name"); MDC.remove("poller"); MDC.remove("error_code"); }
+            try { LOG.warn("poller falhou"); } finally { MDC.remove("event_name"); MDC.remove("poller"); MDC.remove("error_code"); }
         }
     }
 

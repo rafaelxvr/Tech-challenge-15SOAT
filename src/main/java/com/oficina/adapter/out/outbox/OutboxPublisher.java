@@ -100,7 +100,7 @@ public class OutboxPublisher {
             MDC.put("event_name", "outbox_publish_failed");
             MDC.put("error_code", "OUTBOX_TRANSACTION_FAILED");
             try {
-                LOG.warn("");
+                LOG.warn("outbox publish failed");
             } finally {
                 MDC.remove("event_name");
                 MDC.remove("error_code");

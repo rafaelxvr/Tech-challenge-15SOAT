@@ -1,14 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
-    <!-- The encoder deliberately omits formatted messages, arguments and exception stacks.  Application
-         code emits stable event names and diagnostic codes through MDC; the Kubernetes forwarder owns delivery. -->
+    <!-- The encoder emits the formatted message, masked twice: by field path (structured fields) and by
+         value (free text inside "message"). Exception stacks stay out on purpose; application code emits
+         stable messages plus event names and diagnostic codes through MDC. The Kubernetes forwarder owns delivery. -->
     <appender name="JSON_CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
             <providers>
                 <timestamp><timeZone>UTC</timeZone><fieldName>timestamp</fieldName></timestamp>
                 <pattern>
-                    <pattern>{"service":"oficina-api","environment":"${OFICINA_ENVIRONMENT:-local}","version":"${APP_VERSION:-unknown}","level":"%level","message":"safe"}</pattern>
+                    <pattern>{"service":"oficina-api","environment":"${OFICINA_ENVIRONMENT:-local}","version":"${APP_VERSION:-unknown}","level":"%level"}</pattern>
                 </pattern>
+                <message/>
+                <!-- Only emits fields passed as StructuredArguments (none today); the path masks below cover them. -->
+                <arguments/>
                 <mdc>
                     <includeMdcKeyName>event_name</includeMdcKeyName>
                     <includeMdcKeyName>error_code</includeMdcKeyName>
@@ -24,6 +28,36 @@
                     <includeMdcKeyName>os_id</includeMdcKeyName>
                 </mdc>
             </providers>
+            <jsonGeneratorDecorator class="net.logstash.logback.mask.MaskingJsonGeneratorDecorator">
+                <defaultMask>[REDACTED]</defaultMask>
+                <path>authorization</path>
+                <path>cookie</path>
+                <path>set-cookie</path>
+                <path>password</path>
+                <path>senha</path>
+                <path>secret</path>
+                <path>segredo</path>
+                <path>token</path>
+                <path>access_token</path>
+                <path>refresh_token</path>
+                <path>api_key</path>
+                <path>apiKey</path>
+                <path>client_secret</path>
+                <path>clientSecret</path>
+                <path>checkout_url</path>
+                <path>checkoutUrl</path>
+                <path>cpf</path>
+                <path>email</path>
+                <path>phone</path>
+                <path>telefone</path>
+                <value>(?i)bearer\s+[A-Za-z0-9._~+/=-]+</value>
+                <value>\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]*</value>
+                <value>(?i)\b(?:authorization|cookie|set-cookie|password|passwd|senha|secret|segredo|token|api[_-]?key|client[_-]?secret|checkout[_-]?url)\b\W{0,3}[:=]\s*\W{0,2}[^\s,;&amp;"]+</value>
+                <value>[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}</value>
+                <value>\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b</value>
+                <value>(?:\+?55\s?)?\(?\b\d{2}\)?\s?9?\d{4}-?\d{4}\b</value>
+                <value>\b(?:APP_USR|TEST)-[A-Za-z0-9-]{16,}</value>
+            </jsonGeneratorDecorator>
         </encoder>
     </appender>
     <root level="INFO"><appender-ref ref="JSON_CONSOLE"/></root>

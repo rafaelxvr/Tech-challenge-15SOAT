@@ -100,7 +100,7 @@ public class ObservabilitySnapshotsConfiguration {
             // fires; this is what lets an operator tell "never started" apart from the other states.
             MDC.put("event_name", "snapshot_poller_started");
             try {
-                LOG.info("");
+                LOG.info("snapshot poller started");
             } finally {
                 MDC.remove("event_name");
             }

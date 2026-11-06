@@ -46,7 +46,7 @@ public class SqsRespostasListener implements SmartLifecycle {
                 gruposComFalha.add(grupo);
                 MDC.put("event_name", "saga_resposta_falhou");
                 MDC.put("error_code", e.getClass().getSimpleName());
-                try { LOG.warn(""); } finally { MDC.remove("event_name"); MDC.remove("error_code"); }
+                try { LOG.warn("saga resposta falhou"); } finally { MDC.remove("event_name"); MDC.remove("error_code"); }
             }
         }
         return processadas;
@@ -67,7 +67,7 @@ public class SqsRespostasListener implements SmartLifecycle {
                 } catch (RuntimeException e) {
                     MDC.put("event_name", "saga_recepcao_falhou");
                     MDC.put("error_code", e.getClass().getSimpleName());
-                    try { LOG.warn(""); } finally { MDC.remove("event_name"); MDC.remove("error_code"); }
+                    try { LOG.warn("saga recepcao falhou"); } finally { MDC.remove("event_name"); MDC.remove("error_code"); }
                     dormir();
                 }
             }

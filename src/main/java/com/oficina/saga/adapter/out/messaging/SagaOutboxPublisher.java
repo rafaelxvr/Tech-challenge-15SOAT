@@ -81,7 +81,7 @@ public class SagaOutboxPublisher {
             databaseRetryAt = clock.instant().plusSeconds(5);
             MDC.put("event_name", "saga_outbox_publish_failed");
             MDC.put("error_code", "SAGA_OUTBOX_TRANSACTION_FAILED");
-            try { LOG.warn(""); } finally { MDC.remove("event_name"); MDC.remove("error_code"); }
+            try { LOG.warn("saga outbox publish failed"); } finally { MDC.remove("event_name"); MDC.remove("error_code"); }
             return false;
         }
     }
