@@ -37,7 +37,7 @@ Valores **de lista**, us-east-1, on-demand, **não medidos**; revalidar no card.
 
 | # | Card | Ação AWS | Custo |
 |---|---|---|---|
-| 1 | Preflight de conta/região/quota | `sts get-caller-identity`, `eks describe-cluster-versions`, `iam get-role` (LabRole, LabEksClusterRole), quota de vCPU/instâncias; somente leitura | 0 |
+| 1 | Preflight de conta/região/quota | `sts get-caller-identity`, `eks describe-cluster-versions`, `iam get-role` (LabRole), quota de vCPU/instâncias; somente leitura | 0 |
 | 2 | `plan` do módulo | `terraform plan` com `-var-file` privado e `plan -out` fora do repositório; conferir no plan JSON `public_access_cidrs == ["<ip>/32"]` | 0 |
 | 3 | `apply` rede + RDS + DynamoDB + SQS | cria os recursos de dados | ~0,05/h |
 | 4 | `apply` EKS + node group | cria cluster e nós | ~0,19/h |

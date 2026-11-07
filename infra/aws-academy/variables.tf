@@ -69,9 +69,9 @@ variable "lab_node_role_name" {
 }
 
 variable "lab_eks_cluster_role_name" {
-  description = "Role existente do control plane do EKS. Nome a confirmar no card de preflight."
+  description = "Role existente do control plane do EKS. LabEksClusterRole nao existe na conta (sessao 1); LabRole confia em eks.amazonaws.com."
   type        = string
-  default     = "LabEksClusterRole"
+  default     = "LabRole"
 }
 
 variable "lab_instance_profile_name" {

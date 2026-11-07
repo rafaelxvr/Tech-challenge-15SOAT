@@ -35,7 +35,7 @@ public class ProcessadorRespostas {
             MDC.put("os_id", envelope.osId().toString());
             if (!inbox.registrar(envelope.messageId(), envelope.type())) {
                 MDC.put("event_name", "saga_resposta_duplicada");
-                LOG.info("");
+                LOG.info("saga resposta duplicada");
                 return;
             }
             ciclo.aplicarResposta(envelope);

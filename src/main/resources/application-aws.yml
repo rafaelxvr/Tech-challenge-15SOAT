@@ -11,6 +11,10 @@ oficina:
     mensageria:
       endpoint: ""
 management:
+  health:
+    mail:
+      # Lab has no SMTP server: MailHealthIndicator would hit localhost:1025 and turn the aggregate health into 503.
+      enabled: false
   endpoints:
     web:
       exposure:

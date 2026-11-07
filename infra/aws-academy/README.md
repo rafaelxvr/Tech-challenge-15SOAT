@@ -13,7 +13,7 @@ Módulo Terraform da Fase 4 para o AWS Academy Learner Lab (UNR-609, plano UNR-5
 | 2× RDS PostgreSQL 16 db.t3.micro | `rds.tf` | os-service e billing separados; não públicos; 5432 só do SG dos workloads; TLS forçado; criptografado; sem backup/snapshot |
 | 3 tabelas DynamoDB on-demand | `dynamodb.tf` | Mesmos nomes/índices do LocalStack (`init.sh`); sem PITR |
 | SQS FIFO + DLQs | `messaging.tf` | Mesmos nomes do Kind; `maxReceiveCount=5`; SSE; sem policy/`Principal:*` |
-| `LabRole`, `LabEksClusterRole`, `LabInstanceProfile` | `data.tf` | Apenas `data` sources. **Nenhum `aws_iam_*`** (verificado por `verify-offline.sh`) |
+| `LabRole` (nós e control plane), `LabInstanceProfile` | `data.tf` | Apenas `data` sources. **Nenhum `aws_iam_*`** (verificado por `verify-offline.sh`) |
 
 Sem NLB/ALB: a entrada é `kubectl port-forward` em `127.0.0.1` (decisão do Rafael, 04/11). Billing consulta o Mercado Pago por polling, sem webhook público.
 

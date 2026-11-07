@@ -26,4 +26,42 @@ grep -qE 'image: ghcr\.io/[^@ ]+@sha256:[0-9a-f]{64}' <<<"$out" || fail "imagem 
 if [ "${1:-}" = "--release" ] && grep -qE 'sha256:0{64}' <<<"$out"; then
   fail "digest placeholder: substitua pelo digest do manifesto de release antes de aplicar"
 fi
+
+# Release: cada servico do manifesto versionado deve bater, por chave, com a imagem+digest do overlay.
+# Uso: --release [--billing <dir-overlay>] [--execution <dir-overlay>]  (overlays dos outros repos, em SHAs pinados)
+if [ "${1:-}" = "--release" ]; then
+  shift
+  manifest="../../infra/aws-academy/release-manifest.json"
+  [ -f "$manifest" ] || fail "manifesto de release ausente: infra/aws-academy/release-manifest.json"
+  declare -A overlay_dir=([os-service]=".")
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --billing) overlay_dir[billing]="${2:?--billing exige o diretorio do overlay aws}"; shift 2 ;;
+      --execution) overlay_dir[execution]="${2:?--execution exige o diretorio do overlay aws}"; shift 2 ;;
+      *) fail "argumento desconhecido: $1" ;;
+    esac
+  done
+  for svc in os-service billing execution; do
+    expected="$(python3 -I - "$manifest" "$svc" <<'PY'
+import json, re, sys
+m = json.load(open(sys.argv[1], encoding="utf-8"))
+if m.get("schema") != "release-manifest/v1":
+    sys.exit("schema invalido")
+s = m["services"][sys.argv[2]]
+if not re.fullmatch(r"sha256:[0-9a-f]{64}", s["digest"]) or re.fullmatch(r"sha256:0{64}", s["digest"]):
+    sys.exit("digest invalido ou placeholder")
+if not re.fullmatch(r"[0-9a-f]{40}", s["sourceSha"]):
+    sys.exit("sourceSha invalido")
+print(s["image"] + "@" + s["digest"])
+PY
+)" || fail "manifesto invalido para $svc"
+    if [ -n "${overlay_dir[$svc]:-}" ]; then
+      rendered="$(kubectl kustomize "${overlay_dir[$svc]}")" || fail "overlay de $svc nao renderiza"
+      grep -qF "image: $expected" <<<"$rendered" || fail "overlay de $svc difere do manifesto (esperado $expected)"
+      [ "$(grep -cE 'image: ghcr\.io/' <<<"$rendered")" = "$(grep -cF "image: $expected" <<<"$rendered")" ] || fail "overlay de $svc tem imagem GHCR fora do manifesto"
+    else
+      echo "AVISO: overlay de $svc nao informado; so o digest do manifesto foi validado (use --$svc <dir>)" >&2
+    fi
+  done
+fi
 echo "verify-overlay: OK"

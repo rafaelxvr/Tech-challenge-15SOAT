@@ -139,12 +139,12 @@ public class CicloOsSagaService implements CicloOsPort {
 
     private static void registrarDescarte(String evento) {
         MDC.put("event_name", evento);
-        try { LOG.info(""); } finally { MDC.remove("event_name"); }
+        try { LOG.info("saga evento registrado"); } finally { MDC.remove("event_name"); }
     }
 
     private static void registrarFalhaPrazo(RuntimeException e) {
         MDC.put("event_name", "saga_prazo_falhou");
         MDC.put("error_code", e.getClass().getSimpleName());
-        try { LOG.warn(""); } finally { MDC.remove("event_name"); MDC.remove("error_code"); }
+        try { LOG.warn("saga prazo falhou"); } finally { MDC.remove("event_name"); MDC.remove("error_code"); }
     }
 }
