@@ -29,8 +29,8 @@ the exact source commit and hashes; filenames alone are not approval evidence.
 ## Release and platform artifacts
 
 Release input includes `schemaVersion: 1`, `environment: staging`, `mode`,
-`sourceCommit`, `contractVersion: phase3-v2`, `databaseSchemaVersion: V8`,
-`migrationVersion: V8`, `image`, `runtimeArtifactDigest`, `previousImage`,
+`sourceCommit`, `contractVersion: phase3-v2`, `databaseSchemaVersion: V10`,
+`migrationVersion: V10`, `image`, `runtimeArtifactDigest`, `previousImage`,
 `migrationImage`, `kubeContext`, `migrationSecretName`, `migrationServiceAccount`,
 `migrationSqlSha256`, `platformInputsSha256`, `terraformVariablesSha256`, and
 `deployerImageDigest`. Do not predeclare `artifactSha256`:

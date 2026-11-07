@@ -2,3 +2,6 @@ mvnw text eol=lf
 .mvn/wrapper/maven-wrapper.properties text eol=lf
 # Contract SHA-256 checks must survive checkout on Windows and Linux.
 contracts/phase3-v*/* text eol=lf
+
+# Contratos canonicos da saga (UNR-64): checksum estavel em Windows e Linux.
+src/test/resources/contracts/** text eol=lf

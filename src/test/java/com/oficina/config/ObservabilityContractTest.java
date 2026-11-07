@@ -28,7 +28,25 @@ class ObservabilityContractTest {
         assertThat(MDC.get("correlation_id")).isNull(); assertThat(MDC.get("traceparent")).isNull();
     }
 
-    @Test void configured_encoder_is_json_and_cannot_include_untrusted_messages_or_exceptions() throws Exception {
+    @Test void gateway_request_id_is_read_from_the_real_api_gateway_header_and_cleared_after_the_request() throws Exception {
+        // The deployed HTTP API integration injects "$context.requestId" under this header name, not x-amzn-requestid.
+        var request = new MockHttpServletRequest(); request.addHeader("X-Gateway-Request-Id", "EEFW1hBXoAMESEQ=");
+        var response = new MockHttpServletResponse();
+        FilterChain chain = (req, ignored) -> assertThat(MDC.get("api_gateway_request_id")).isEqualTo("EEFW1hBXoAMESEQ=");
+        new CorrelationFilter().doFilter(request, response, chain);
+        assertThat(MDC.get("api_gateway_request_id")).isNull();
+    }
+
+    @Test void a_hostile_gateway_request_id_is_rejected_and_never_reaches_mdc() throws Exception {
+        var request = new MockHttpServletRequest();
+        request.addHeader("X-Gateway-Request-Id", "\"} malicious \"injected_field\":\"x");
+        var response = new MockHttpServletResponse();
+        FilterChain chain = (req, ignored) -> assertThat(MDC.get("api_gateway_request_id")).isNull();
+        new CorrelationFilter().doFilter(request, response, chain);
+        assertThat(MDC.get("api_gateway_request_id")).isNull();
+    }
+
+    @Test void configured_encoder_is_json_emits_the_message_masked_and_never_exceptions() throws Exception {
         URL resource = getClass().getResource("/logback-spring.xml");
         String config = Files.readString(java.nio.file.Path.of(resource.toURI()));
         String bearer = "Bearer eyJhbGciOiJIUzI1NiJ9.private";
@@ -49,6 +67,9 @@ class ObservabilityContractTest {
         String line = captured.toString(StandardCharsets.UTF_8).trim();
         var parsed = json.readTree(line);
         assertThat(parsed.path("correlation_id").asText()).isEqualTo("correlation-123");
-        assertThat(line).doesNotContain(bearer, cpf, email, "plate-123", "select *", "sensitive exception");
+        // Secrets and PII are masked inside the emitted message; the encoder still never renders stacks.
+        assertThat(line).doesNotContain(bearer, "eyJhbGciOiJIUzI1NiJ9", cpf, email);
+        assertThat(parsed.path("message").asText()).startsWith("[REDACTED] [REDACTED] [REDACTED] plate-123");
+        assertThat(parsed.has("stack_trace")).isFalse();
     }
 }

@@ -205,6 +205,36 @@ public class OrdemServico {
         entregueEm = atualizadoEm;
     }
 
+    /** Saga: customer approved; the order waits for payment before any stock or repair. */
+    public void aguardarPagamento(Ator ator, Instant ocorridoEm, String observacao) {
+        assertTransicao(StatusOrdemServico.AGUARDANDO_PAGAMENTO, EnumSet.of(StatusOrdemServico.AGUARDANDO_APROVACAO));
+        aplicarNovoStatus(StatusOrdemServico.AGUARDANDO_PAGAMENTO, ator, ocorridoEm, observacao);
+        aprovadoEm = atualizadoEm;
+    }
+
+    /** Saga: payment confirmed, parts reserved and the execution service accepted the repair. */
+    public void iniciarExecucaoPaga(Ator ator, Instant ocorridoEm, String observacao) {
+        assertTransicao(StatusOrdemServico.EM_EXECUCAO, EnumSet.of(StatusOrdemServico.AGUARDANDO_PAGAMENTO));
+        aplicarNovoStatus(StatusOrdemServico.EM_EXECUCAO, ator, ocorridoEm, observacao);
+        iniciadoEm = atualizadoEm;
+    }
+
+    /** Saga: terminal cancellation after compensations; never allowed once the repair started. */
+    public void cancelar(Ator ator, Instant ocorridoEm, String motivo) {
+        assertTransicao(StatusOrdemServico.CANCELADA, EnumSet.of(StatusOrdemServico.RECEBIDA,
+                StatusOrdemServico.EM_DIAGNOSTICO, StatusOrdemServico.AGUARDANDO_APROVACAO,
+                StatusOrdemServico.AGUARDANDO_PAGAMENTO));
+        aplicarNovoStatus(StatusOrdemServico.CANCELADA, ator, ocorridoEm, motivo);
+    }
+
+    /** Billing is authoritative for the quoted amount once the orçamento exists. */
+    public void definirValorOrcado(BigDecimal valor) {
+        if (valor == null || valor.signum() < 0) {
+            throw new BusinessRuleException("Valor orçado deve ser informado e não negativo.");
+        }
+        valorTotal = valor;
+    }
+
     private void assertTransicao(StatusOrdemServico destino, EnumSet<StatusOrdemServico> permitidos) {
         if (!permitidos.contains(status)) {
             throw new BusinessRuleException(

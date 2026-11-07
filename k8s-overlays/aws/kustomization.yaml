@@ -1,0 +1,23 @@
+# Overlay AWS Academy (Learner Lab) do os-service. Offline: renderiza com `kubectl kustomize k8s-overlays/aws`.
+# Diferencas para a base: sem PostgreSQL/Mailhog/Secret/HPA em pod (RDS e Secret por stdin, S-11),
+# Service ClusterIP (entrada por `kubectl port-forward 127.0.0.1`; sem NodePort/LoadBalancer),
+# perfil Spring `aws`, imagem GHCR por digest. billing/execution tem overlays nos proprios repositorios.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: oficina
+resources:
+  - ../../k8s
+patches:
+  - path: remove-local-deps.yaml
+  - path: app-aws.yaml
+  - target:
+      kind: ConfigMap
+      name: oficina-config
+    path: configmap-aws.json
+images:
+  # A base remapeia para oficina-mecanica:local; aqui vai para o GHCR pinado por digest.
+  # Digest = infra/aws-academy/release-manifest.json (verify-overlay.sh --release confere os dois).
+  # Pacote publico no GHCR (pull anonimo, sem imagePullSecrets); se voltar a privado o pull falha no cluster.
+  - name: oficina-mecanica
+    newName: ghcr.io/rafaelxvr/oficina-mecanica
+    digest: sha256:a30e36bd56e4702b92b6065a490f21f8a7f06383df72399c558d0cd9a2d8edc3

@@ -70,7 +70,7 @@ try {
     $tfvarsSha = Sha $tfvarsPath
     $deployerDigest = 'sha256:' + ('c' * 64)
     $manifestPath = Join-Path $temp 'release-manifest.json'
-    $manifest = @{ schemaVersion = 1; environment = 'staging'; sourceCommit = $commit; artifactSha256 = $sourceSha; contractVersion = 'phase3-v2'; migrationVersion = 'V8'; runtimeArtifactDigest = ('sha256:' + ('b' * 64)); promotedFromStaging = $false; deployerImageDigest = $deployerDigest; terraformVariablesSha256 = $tfvarsSha }
+    $manifest = @{ schemaVersion = 1; environment = 'staging'; sourceCommit = $commit; artifactSha256 = $sourceSha; contractVersion = 'phase3-v2'; migrationVersion = 'V10'; runtimeArtifactDigest = ('sha256:' + ('b' * 64)); promotedFromStaging = $false; deployerImageDigest = $deployerDigest; terraformVariablesSha256 = $tfvarsSha }
     Save-Json $manifest $manifestPath
     $manifestSha = Sha $manifestPath
     $windowPath = Join-Path $temp 'cloud-window.json'

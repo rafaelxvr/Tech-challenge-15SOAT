@@ -33,7 +33,8 @@ FROM eclipse-temurin:17-jre-alpine@sha256:27cc0849148c0fd32ee8e95988917becf9bc96
 
 # Criar usuário não-root por segurança. Keep the UID/GID explicit so Kubernetes
 # can verify runAsNonRoot before starting the container.
-RUN addgroup -S -g 10001 oficina && adduser -S -D -u 10001 -G oficina oficina
+# CVEs HIGH do Alpine (brotli-libs, openssl, libexpat) presentes no digest da base; apk upgrade completo traz as correções. Revisar quando o digest da base já as incluir.
+RUN apk upgrade --no-cache     && addgroup -S -g 10001 oficina && adduser -S -D -u 10001 -G oficina oficina
 
 WORKDIR /app
 
@@ -54,17 +55,19 @@ HEALTHCHECK --interval=10s --timeout=2s --start-period=120s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:8080/api/actuator/health/liveness || exit 1
 
 # Variáveis de ambiente padrão
-ENV JAVA_OPTS="-Xms256m -Xmx512m -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0"
-# The JVM automatically consumes JAVA_TOOL_OPTIONS, so this remains active even when callers
-# add memory flags through JAVA_OPTS. The image intentionally contains no New Relic credential.
-ENV JAVA_TOOL_OPTIONS="-javaagent:/app/newrelic/newrelic.jar"
+ENV JAVA_OPTS="-Xms256m -Xmx512m -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError"
+# The agent is attached only by the entrypoint, and only when OBSERVABILITY_ENABLED=true, through
+# JAVA_TOOL_OPTIONS (consumed by the JVM even when callers add memory flags via JAVA_OPTS).
+# The image intentionally contains no New Relic credential.
 ENV SPRING_PROFILES_ACTIVE=prod
 # The image never embeds an agent or ingest key. If the reviewed New Relic agent is supplied by the runtime,
 # its own log forwarding stays disabled because the Kubernetes forwarder is the single application-log sender.
 ENV NEW_RELIC_APPLICATION_LOGGING_FORWARDING_ENABLED=false
+ENV NEW_RELIC_APP_NAME=oficina-os-service
+ENV OBSERVABILITY_ENABLED=false
 ENV NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true
 ENV NEW_RELIC_SPAN_EVENTS_MAX_SAMPLES_STORED=500
 
 # One runtime value labels both JSON logs and Java-agent Transaction events. It is finite and
 # nonsecret; Kubernetes supplies staging or production through DEPLOYMENT_ENVIRONMENT.
-ENTRYPOINT ["sh", "-c", "export OFICINA_ENVIRONMENT=\"${DEPLOYMENT_ENVIRONMENT:?DEPLOYMENT_ENVIRONMENT is required}\"; export NEW_RELIC_LABELS=\"environment:${DEPLOYMENT_ENVIRONMENT}\"; exec java $JAVA_OPTS -jar app.jar"]
+ENTRYPOINT ["sh", "-c", "if [ \"${OBSERVABILITY_ENABLED}\" = true ] && [ -z \"${NEW_RELIC_LICENSE_KEY:-}\" ]; then echo 'ERRO: OBSERVABILITY_ENABLED=true exige NEW_RELIC_LICENSE_KEY (Secret em tempo de execucao).' >&2; exit 78; fi; if [ \"${OBSERVABILITY_ENABLED}\" = true ]; then export JAVA_TOOL_OPTIONS=\"-javaagent:/app/newrelic/newrelic.jar ${JAVA_TOOL_OPTIONS:-}\"; fi; export OFICINA_ENVIRONMENT=\"${DEPLOYMENT_ENVIRONMENT:?DEPLOYMENT_ENVIRONMENT is required}\"; export NEW_RELIC_LABELS=\"environment:${DEPLOYMENT_ENVIRONMENT}\"; exec java $JAVA_OPTS -jar app.jar"]

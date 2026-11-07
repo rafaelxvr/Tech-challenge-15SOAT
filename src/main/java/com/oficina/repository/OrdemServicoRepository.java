@@ -37,6 +37,7 @@ public interface OrdemServicoRepository extends JpaRepository<OrdemServico, UUID
                     ORDER BY
                       CASE CAST(o.status AS string)
                         WHEN 'EM_EXECUCAO' THEN 1
+                        WHEN 'AGUARDANDO_PAGAMENTO' THEN 2
                         WHEN 'AGUARDANDO_APROVACAO' THEN 2
                         WHEN 'EM_DIAGNOSTICO' THEN 3
                         WHEN 'RECEBIDA' THEN 4

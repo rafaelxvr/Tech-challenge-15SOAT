@@ -1,10 +1,8 @@
 package com.oficina.service;
 
-import com.oficina.application.port.out.NotificacaoPort;
-import com.oficina.application.notificacao.StatusOrdemServicoRegistrado;
 import com.oficina.config.SecurityUtils;
-import com.oficina.config.CorrelationFilter;
 import com.oficina.application.observability.OrderTelemetry;
+import com.oficina.application.port.out.CicloOsPort;
 import com.oficina.domain.identidade.Ator;
 import com.oficina.dto.*;
 import com.oficina.entity.*;
@@ -16,7 +14,6 @@ import com.oficina.security.IdentidadeAutenticada;
 import com.oficina.security.TipoPrincipal;
 import org.springframework.security.access.AccessDeniedException;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -27,10 +24,8 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
-import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
@@ -50,7 +45,8 @@ public class OrdemServicoService {
     /** Status excluídos logicamente da listagem operacional (não são apagados do banco). */
     private static final Set<StatusOrdemServico> STATUS_EXCLUIDOS_LISTAGEM = EnumSet.of(
             StatusOrdemServico.FINALIZADA,
-            StatusOrdemServico.ENTREGUE
+            StatusOrdemServico.ENTREGUE,
+            StatusOrdemServico.CANCELADA
     );
 
     private final OrdemServicoRepository ordemServicoRepository;
@@ -58,19 +54,15 @@ public class OrdemServicoService {
     private final VeiculoService veiculoService;
     private final ServicoService servicoService;
     private final PecaService pecaService;
-    private final NotificacaoPort notificacaoPort;
-    private final Clock clock;
+    private final RegistroTransicaoOs registro;
+    private final CicloOsPort cicloOs;
     private OrderTelemetry telemetry = (operation, outcome) -> { };
 
     @Autowired(required = false)
     void setTelemetry(OrderTelemetry telemetry) { this.telemetry = telemetry; }
 
-    @Value("${oficina.historico.zona-compatibilidade}")
-    private String zonaCompatibilidade;
-
     private Instant prepararHistorico(OrdemServico os) {
-        os.setZonaCompatibilidade(ZoneId.of(zonaCompatibilidade));
-        return clock.instant();
+        return registro.preparar(os);
     }
 
     private Ator atorAtual() {
@@ -125,19 +117,21 @@ public class OrdemServicoService {
         ordemServicoRepository.save(os);
         OrdemServico salva = os;
         registrarNotificacao(salva);
+        cicloOs.iniciar(salva.getId());
         return montarDetalhe(salva);
         });
     }
 
     /**
      * Listagem operacional: prioridade Em Execução > Aguardando Aprovação > Diagnóstico > Recebida,
-     * mais antigas primeiro; FINALIZADA e ENTREGUE ficam de fora (exclusão lógica).
+     * mais antigas primeiro; AGUARDANDO_PAGAMENTO divide a prioridade de AGUARDANDO_APROVACAO;
+     * FINALIZADA, ENTREGUE e CANCELADA ficam de fora (exclusão lógica).
      */
     @Transactional(readOnly = true)
     public Page<OrdemServicoResumoResponse> listar(StatusOrdemServico status, Pageable pageable) {
         if (status != null && STATUS_EXCLUIDOS_LISTAGEM.contains(status)) {
             throw new BusinessRuleException(
-                    "Ordens FINALIZADA/ENTREGUE não entram na listagem operacional. Use a consulta por id ou número."
+                    "Ordens FINALIZADA/ENTREGUE/CANCELADA não entram na listagem operacional. Use a consulta por id ou número."
             );
         }
         Pageable semSortCliente = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
@@ -175,8 +169,11 @@ public class OrdemServicoService {
         var pecas = os.getPecas().stream()
                 .map(p -> new AcompanhamentoOsResponse.LinhaOrcamento(p.getPeca().getNome(),
                         p.getQuantidade(), p.getValorUnitario(), p.getValorTotal())).toList();
+        var saga = cicloOs.resumo(os.getId());
         return new AcompanhamentoOsResponse(os.getNumero(), os.getStatus(), os.getValorTotal(),
-                os.getCriadoEm(), ultimo, servicos, pecas, historico);
+                os.getCriadoEm(), ultimo, servicos, pecas, historico,
+                saga.map(CicloOsPort.ResumoSaga::estado).orElse(null),
+                saga.map(CicloOsPort.ResumoSaga::checkoutUrl).orElse(null));
     }
 
     @Transactional
@@ -184,6 +181,7 @@ public class OrdemServicoService {
         return command("order_transition", () -> {
         OrdemServico os = ordemServicoRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, id));
+        exigirConducaoManual(os);
         Ator ator = atorAtual();
         Instant ocorridoEm = prepararHistorico(os);
         String obs = acao != null ? acao.observacao() : null;
@@ -199,6 +197,7 @@ public class OrdemServicoService {
         return command("order_transition", () -> {
         OrdemServico os = ordemServicoRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, id));
+        exigirConducaoManual(os);
         Ator ator = atorAtual();
         Instant ocorridoEm = prepararHistorico(os);
         String obs = acao != null ? acao.observacao() : "Orçamento enviado ao cliente";
@@ -231,9 +230,18 @@ public class OrdemServicoService {
         exigirProprietario(os, numero, cliente);
         if (documentoLegado != null) validarDocumentoCliente(os, documentoLegado);
 
+        boolean aprovado = pedido.decisao() == DecisaoOrcamentoRequest.DecisaoOrcamento.APROVADO;
+
+        if (cicloOs.conduzidaPorSaga(os.getId())) {
+            if (os.getStatus() != StatusOrdemServico.AGUARDANDO_APROVACAO) {
+                throw new BusinessRuleException("Orçamento não está aguardando decisão do cliente.");
+            }
+            cicloOs.registrarDecisao(os.getId(), aprovado);
+            return montarAcompanhamento(os);
+        }
+
         Ator ator = Ator.cliente(cliente.id());
         Instant ocorridoEm = prepararHistorico(os);
-        boolean aprovado = pedido.decisao() == DecisaoOrcamentoRequest.DecisaoOrcamento.APROVADO;
         String observacao = pedido.observacao() != null ? pedido.observacao()
                 : aprovado ? "Orçamento aprovado pelo cliente" : "Orçamento recusado pelo cliente";
         if (aprovado) {
@@ -246,6 +254,12 @@ public class OrdemServicoService {
         OrdemServico salva = ordemServicoRepository.save(os);
         registrarNotificacao(salva);
         return montarAcompanhamento(salva);
+    }
+
+    private void exigirConducaoManual(OrdemServico os) {
+        if (cicloOs.conduzidaPorSaga(os.getId())) {
+            throw new BusinessRuleException("Etapa conduzida pela saga da ordem de serviço.");
+        }
     }
 
     private void exigirCliente(IdentidadeAutenticada cliente, String permissao) {
@@ -265,6 +279,7 @@ public class OrdemServicoService {
         return command("order_transition", () -> {
         OrdemServico os = ordemServicoRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException(ENTIDADE, id));
+        exigirConducaoManual(os);
         Ator ator = atorAtual();
         Instant ocorridoEm = prepararHistorico(os);
         String obs = acao != null ? acao.observacao() : null;
@@ -324,17 +339,7 @@ public class OrdemServicoService {
     }
 
     private void registrarNotificacao(OrdemServico os) {
-        // Persist generated order number, optimistic versions and canonical history before JDBC insertion.
-        ordemServicoRepository.flush();
-        OsHistorico historico = os.getHistorico().stream()
-                .filter(h -> h.getSequencia() != null && h.getSequencia() == os.getSequenciaHistorico())
-                .findFirst().orElseThrow(() -> new IllegalStateException("Canonical history required"));
-        notificacaoPort.notificarAtualizacaoStatus(new StatusOrdemServicoRegistrado(
-                UUID.randomUUID(), StatusOrdemServicoRegistrado.EVENT_TYPE,
-                StatusOrdemServicoRegistrado.SCHEMA_VERSION, os.getId(), os.getNumero(),
-                os.getCliente().getId(), os.getCliente().getVersaoIdentidade(), historico.getSequencia(),
-                historico.getStatusAnterior() == null ? null : historico.getStatusAnterior().name(),
-                historico.getStatusNovo().name(), historico.getOcorridoEm(), CorrelationFilter.correlationId(), CorrelationFilter.traceparent()));
+        registro.notificar(os);
     }
 
     private void validarDocumentoCliente(OrdemServico os, String documentoInformado) {

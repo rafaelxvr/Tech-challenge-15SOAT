@@ -1,0 +1,6 @@
+[
+  { "op": "add", "path": "/spec/template/spec/containers/0/env/-", "value": { "name": "NEW_RELIC_LICENSE_KEY", "valueFrom": { "secretKeyRef": { "name": "newrelic-license", "key": "NEW_RELIC_LICENSE_KEY" } } } },
+  { "op": "add", "path": "/spec/template/spec/containers/0/env/-", "value": { "name": "NEW_RELIC_APP_NAME", "value": "__APP_NAME__" } },
+  { "op": "add", "path": "/spec/template/spec/containers/0/env/-", "value": { "name": "NEW_RELIC_AGENT_ENABLED", "value": "true" } },
+  { "op": "add", "path": "/spec/template/spec/containers/0/env/-", "value": { "name": "OBSERVABILITY_ENABLED", "value": "true" } }
+]

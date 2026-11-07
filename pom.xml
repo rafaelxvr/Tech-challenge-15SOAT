@@ -7,7 +7,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.2.5</version>
+        <version>3.5.16</version>
         <relativePath/>
     </parent>
 
@@ -19,19 +19,24 @@
 
     <properties>
         <java.version>17</java.version>
+        <!-- CVE-2026-54291 (HIGH): corrigido no pgjdbc 42.7.12; o BOM do Spring Boot ainda gerencia 42.7.11. Remover quando o BOM trouxer >= 42.7.12. -->
+        <postgresql.version>42.7.12</postgresql.version>
+        <!-- CVEs HIGH/CRITICAL do scan da imagem (UNR-830): o BOM do Spring Boot 3.5.16 gerencia tomcat 10.1.55 e jackson 2.21.4. Remover quando o BOM trouxer >= estas versões. -->
+        <tomcat.version>10.1.61</tomcat.version>
+        <jackson-bom.version>2.21.8</jackson-bom.version>
         <mapstruct.version>1.5.5.Final</mapstruct.version>
         <jjwt.version>0.12.5</jjwt.version>
-        <springdoc.version>2.5.0</springdoc.version>
+        <springdoc.version>2.8.9</springdoc.version>
         <testcontainers.version>1.19.8</testcontainers.version>
         <jacoco.version>0.8.11</jacoco.version>
-        <lombok.version>1.18.32</lombok.version>
         <aws.sdk.version>2.54.18</aws.sdk.version>
         <logstash.logback.encoder.version>8.1</logstash.logback.encoder.version>
-        <!-- SonarQube (docker compose: http://localhost:9000) -->
+        <!-- SonarCloud: organização e chave do projeto ficam nas propriedades abaixo (não secretas); token só por SONAR_TOKEN. Local: -Dsonar.host.url=http://localhost:9000 -->
         <sonar.maven.plugin.version>4.0.0.4121</sonar.maven.plugin.version>
-        <sonar.projectKey>com.oficina:oficina-mecanica</sonar.projectKey>
         <sonar.projectName>Oficina Mecânica</sonar.projectName>
-        <sonar.host.url>http://localhost:9000</sonar.host.url>
+        <sonar.organization>rafaelxvr</sonar.organization>
+        <sonar.projectKey>rafaelxvr_Tech-challenge-15SOAT</sonar.projectKey>
+        <sonar.host.url>https://sonarcloud.io</sonar.host.url>
         <sonar.coverage.jacoco.xmlReportPaths>${project.build.directory}/site/jacoco/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
     </properties>
 
@@ -140,6 +145,10 @@
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-core</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+        </dependency>
 
         <!-- ======================== -->
         <!--           JWT            -->
@@ -232,6 +241,13 @@
         </dependency>
 
         <dependency>
+            <groupId>com.networknt</groupId>
+            <artifactId>json-schema-validator</artifactId>
+            <version>1.4.0</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
@@ -249,6 +265,18 @@
             <groupId>org.testcontainers</groupId>
             <artifactId>postgresql</artifactId>
             <version>${testcontainers.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>localstack</artifactId>
+            <version>${testcontainers.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.awaitility</groupId>
+            <artifactId>awaitility</artifactId>
             <scope>test</scope>
         </dependency>
 
@@ -336,6 +364,9 @@
                                 <include>com/oficina/entity/*</include>
                                 <include>com/oficina/validation/*</include>
                                 <include>com/oficina/service/*</include>
+                                <include>com/oficina/saga/domain/*</include>
+                                <include>com/oficina/saga/application/*</include>
+                                <include>com/oficina/saga/application/mensagem/*</include>
                             </includes>
                             <rules>
                                 <rule>
@@ -354,7 +385,7 @@
                 </executions>
             </plugin>
 
-            <!-- SonarQube: mvn verify sonar:sonar -Dsonar.token=SEU_TOKEN -->
+            <!-- SonarCloud: mvn verify sonar:sonar -Dsonar.organization=ORG -Dsonar.projectKey=CHAVE (token em SONAR_TOKEN) -->
             <plugin>
                 <groupId>org.sonarsource.scanner.maven</groupId>
                 <artifactId>sonar-maven-plugin</artifactId>

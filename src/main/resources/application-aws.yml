@@ -1,0 +1,21 @@
+# Perfil AWS Academy (Learner Lab). Sem endpoint explicito: SDK usa os endpoints reais da regiao.
+# Credenciais dos pods: role do no pela default chain (IRSA nao existe no Lab). AwsLearnerLabGuard falha o
+# startup se houver endpoint fora de *.amazonaws.com, credencial estatica/dummy ou regiao fora do Lab.
+oficina:
+  aws:
+    credenciais: cadeia-padrao
+  outbox:
+    # Outbox legado de notificacoes depende de IRSA (AWS_ROLE_ARN); fica desligado no Lab.
+    enabled: false
+  saga:
+    mensageria:
+      endpoint: ""
+management:
+  health:
+    mail:
+      # Lab has no SMTP server: MailHealthIndicator would hit localhost:1025 and turn the aggregate health into 503.
+      enabled: false
+  endpoints:
+    web:
+      exposure:
+        include: health

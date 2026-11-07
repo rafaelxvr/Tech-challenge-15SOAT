@@ -71,7 +71,7 @@ class RelatorioPeriodoTest extends PostgresIntegrationSupport {
         var empty = reports.consultar(day,day.plusDays(1),zone);
         assertThat(empty.elegiveis()).isZero();
         assertThat(empty.excluidas()).isZero();
-        assertThat(empty.duracoes()).hasSize(6).allSatisfy((s,d) -> {
+        assertThat(empty.duracoes()).hasSize(8).allSatisfy((s,d) -> {
             assertThat(d.totalSegundos()).isZero();
             assertThat(d.amostras()).isZero();
         });
@@ -83,6 +83,17 @@ class RelatorioPeriodoTest extends PostgresIntegrationSupport {
         assertThat(report.excluidas()).isEqualTo(1);
         assertThat(report.criadas()).isZero();
         assertThat(report.duracoes().values()).allSatisfy(d -> assertThat(d.amostras()).isZero());
+    }
+
+    @Test void caminhoPagoComAguardandoPagamentoEntraNaCoorte() {
+        String[] statuses = {"RECEBIDA","EM_DIAGNOSTICO","AGUARDANDO_APROVACAO","AGUARDANDO_PAGAMENTO",
+                "EM_EXECUCAO","FINALIZADA","ENTREGUE"};
+        order("2026-09-15T04:00:00Z",true,statuses,0,5,15,20,25,40,60);
+        var report = reports.consultar(day,day.plusDays(1),zone);
+        assertThat(report.elegiveis()).isEqualTo(1);
+        assertThat(report.excluidas()).isZero();
+        assertThat(report.duracoes().get(StatusOrdemServico.AGUARDANDO_PAGAMENTO).totalSegundos())
+                .isEqualByComparingTo("300");
     }
 
     @Test void midnightUsesBrazilHalfOpenCohortWithoutTruncatingEarlierLifecycle() {

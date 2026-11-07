@@ -182,8 +182,8 @@ if ($hpa.spec.minReplicas -ne $minimum -or $hpa.spec.maxReplicas -ne ($minimum *
     @($hpa.spec.metrics).Count -ne 1 -or $hpa.spec.metrics[0].resource.name -cne 'cpu' -or
     $hpa.spec.metrics[0].resource.target.averageUtilization -ne 60) { throw 'Existing HPA differs from the environment capacity contract.' }
 if ($release.mode -cne 'FirstWriter' -and
-    ($deployment.spec.template.metadata.annotations.'oficina.io/schema-version' -cne 'V8' -or
-     $deployment.spec.template.metadata.annotations.'oficina.io/security-contract' -cne 'phase3-v2')) { throw 'Compatible rollout/rollback requires the current V8 security contract.' }
+    ($deployment.spec.template.metadata.annotations.'oficina.io/schema-version' -cne 'V10' -or
+     $deployment.spec.template.metadata.annotations.'oficina.io/security-contract' -cne 'phase3-v2')) { throw 'Compatible rollout/rollback requires the current V10 security contract.' }
 
 $startedAt = [DateTimeOffset]::UtcNow
 $migration = 'NOT_RUN_ROLLBACK'
@@ -213,7 +213,7 @@ if ($release.mode -cne 'Rollback') {
         $job.spec.template.spec.containers[0].image -cne $release.bootstrapImage) { throw 'Bootstrap Job did not prove completion for the reviewed immutable image.' }
     $bootstrapReceipt = Read-BootstrapJobReceipt $jobName
     $bootstrapReceiptSha256 = $bootstrapReceipt.Sha256
-    $migration = 'BOOTSTRAP_V2_V8_VERIFIED'
+    $migration = 'BOOTSTRAP_V2_V10_VERIFIED'
 }
 # Strategic merge retains platform probes, resources, secret refs and other env entries.
 Invoke-ReleaseKubectl @('patch', 'deployment', 'oficina-app', '--type=strategic', '--patch-file', (Join-Path $OutputDirectory 'rollout-patch.json')) | Out-Null
@@ -221,7 +221,7 @@ Invoke-ReleaseKubectl @('rollout', 'status', 'deployment/oficina-app', '--timeou
 if ($release.mode -ceq 'FirstWriter') { Invoke-ReleaseKubectl @('apply', '-f', (Join-Path $OutputDirectory 'hpa.json')) | Out-Null }
 $targetImage = if ($release.mode -ceq 'Rollback') { $release.rollback.image } else { $release.image }
 @{schemaVersion=1; environment=$release.environment; sourceCommit=$release.sourceCommit; releaseSha256=$ExpectedReleaseSha256;
-    image=$targetImage; databaseSchemaVersion='V8'; contractVersion='phase3-v2'; migration=$migration; bootstrapReceiptSha256=$bootstrapReceiptSha256;
+    image=$targetImage; databaseSchemaVersion='V10'; contractVersion='phase3-v2'; migration=$migration; bootstrapReceiptSha256=$bootstrapReceiptSha256;
     runtimePublicConfigMapSha256=$(if($initializeStaging){$release.runtimePublicConfigMapSha256}else{$null});
     stagingPrerequisitesSha256=$(if($initializeStaging){$contract.Platform.StagingPrerequisitesSha256}else{$null});
     platformPrerequisitesReceiptSha256=$(if($initializeStaging){$contract.Platform.PlatformPrerequisitesReceiptSha256}else{$null});

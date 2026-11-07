@@ -17,7 +17,7 @@ try {
     $platform=[ordered]@{Environment='staging';Image=($prefix+'oficina@sha256:'+('a'*64));DbHost='private.example.test';AppIrsaRoleArn='arn:aws:iam::123456789012:role/oficina-staging-app'}
     $platformPath=Join-Path $temp 'platform.json'; Save $platform $platformPath
     $review=[ordered]@{schemaVersion=1;environment='staging';sourceCommit=('b'*40);databaseHost='private.example.test';caSha256=('f'*64);master=[ordered]@{arn='arn:aws:secretsmanager:us-east-1:123456789012:secret:rds!db-example';versionId=('1'*32)};roles=[ordered]@{migration=[ordered]@{arn='arn:aws:secretsmanager:us-east-1:123456789012:secret:oficina/staging/migration-AbCdEf';versionId=('2'*32)};app=[ordered]@{arn='arn:aws:secretsmanager:us-east-1:123456789012:secret:oficina/staging/app-AbCdEf';versionId=('3'*32)};auth=[ordered]@{arn='arn:aws:secretsmanager:us-east-1:123456789012:secret:oficina/staging/auth-AbCdEf';versionId=('4'*32)};notification=[ordered]@{arn='arn:aws:secretsmanager:us-east-1:123456789012:secret:oficina/staging/notification-AbCdEf';versionId=('5'*32)}}}
-    $release=[ordered]@{schemaVersion=1;environment='staging';mode='FirstWriter';sourceCommit=('b'*40);contractVersion='phase3-v2';databaseSchemaVersion='V8';platformInputsSha256=(Hash $platformPath);image=$platform.Image;previousImage=$platform.Image;migrationImage=($prefix+'flyway@sha256:'+('c'*64));bootstrapImage=($prefix+'bootstrap@sha256:'+('d'*64));bootstrapReview=$review;kubeContext='arn:aws:eks:us-east-1:123456789012:cluster/oficina';migrationSecretName='oficina-migration-staging';migrationServiceAccount='oficina-migration-staging';migrationSqlSha256=(Get-AppMigrationDigest)}
+    $release=[ordered]@{schemaVersion=1;environment='staging';mode='FirstWriter';sourceCommit=('b'*40);contractVersion='phase3-v2';databaseSchemaVersion='V10';platformInputsSha256=(Hash $platformPath);image=$platform.Image;previousImage=$platform.Image;migrationImage=($prefix+'flyway@sha256:'+('c'*64));bootstrapImage=($prefix+'bootstrap@sha256:'+('d'*64));bootstrapReview=$review;kubeContext='arn:aws:eks:us-east-1:123456789012:cluster/oficina';migrationSecretName='oficina-migration-staging';migrationServiceAccount='oficina-migration-staging';migrationSqlSha256=(Get-AppMigrationDigest)}
     $releasePath=Join-Path $temp 'release.json'; Save $release $releasePath
     $release=Get-Content -LiteralPath $releasePath -Raw | ConvertFrom-Json
 
@@ -37,14 +37,14 @@ try {
     Assert ($job.spec.template.spec.securityContext.runAsNonRoot -eq $true -and $job.spec.template.spec.securityContext.runAsUser -eq 10001 -and $job.spec.template.spec.securityContext.runAsGroup -eq 10001) 'Bootstrap Pod must use the image UID/GID under runAsNonRoot.'
     Assert ((Get-Content -LiteralPath (Join-Path $rendered 'migration-job.json') -Raw) -notmatch '(?i)password|username|secretString|secretValue') 'Rendered workload must not contain credential values.'
 
-    $receipt=[ordered]@{schemaVersion=2;environment='staging';sourceCommit=('b'*40);outputs=[ordered]@{schemaVersion='V8';authViewVersion='V5';recipientViewVersion='V7';migrationSecretArn=$review.roles.migration.arn;migrationSecretVersionId=$review.roles.migration.versionId;appSecretArn=$review.roles.app.arn;appSecretVersionId=$review.roles.app.versionId;authLookupSecretArn=$review.roles.auth.arn;authLookupSecretVersionId=$review.roles.auth.versionId;notificationLookupSecretArn=$review.roles.notification.arn;notificationLookupSecretVersionId=$review.roles.notification.versionId}}
+    $receipt=[ordered]@{schemaVersion=2;environment='staging';sourceCommit=('b'*40);outputs=[ordered]@{schemaVersion='V10';authViewVersion='V5';recipientViewVersion='V7';migrationSecretArn=$review.roles.migration.arn;migrationSecretVersionId=$review.roles.migration.versionId;appSecretArn=$review.roles.app.arn;appSecretVersionId=$review.roles.app.versionId;authLookupSecretArn=$review.roles.auth.arn;authLookupSecretVersionId=$review.roles.auth.versionId;notificationLookupSecretArn=$review.roles.notification.arn;notificationLookupSecretVersionId=$review.roles.notification.versionId}}
     $receiptJson=$receipt | ConvertTo-Json -Depth 20 -Compress
     $validated=Read-BootstrapReceipt $receiptJson $release '123456789012'
-    Assert ($validated.Receipt.outputs.schemaVersion -ceq 'V8') 'Receipt parser must prove V8.'
-    Reject { Read-BootstrapReceipt (($receipt | ConvertTo-Json -Depth 20 -Compress).Replace('"V8"','"V7"')) $release '123456789012' }
+    Assert ($validated.Receipt.outputs.schemaVersion -ceq 'V10') 'Receipt parser must prove V10.'
+    Reject { Read-BootstrapReceipt (($receipt | ConvertTo-Json -Depth 20 -Compress).Replace('"V10"','"V9"')) $release '123456789012' }
     Reject { Read-BootstrapReceipt (($receipt | ConvertTo-Json -Depth 20 -Compress).Replace($review.roles.app.versionId,('9'*32))) $release '123456789012' }
     Reject { Read-BootstrapReceipt (($receipt | ConvertTo-Json -Depth 20 -Compress).Replace('"schemaVersion":2','"schemaVersion":"2"')) $release '123456789012' }
-    Reject { Read-BootstrapReceipt (($receipt | ConvertTo-Json -Depth 20 -Compress).Replace('"schemaVersion":"V8"','"schemaVersion":8')) $release '123456789012' }
+    Reject { Read-BootstrapReceipt (($receipt | ConvertTo-Json -Depth 20 -Compress).Replace('"schemaVersion":"V10"','"schemaVersion":8')) $release '123456789012' }
     foreach ($field in @('environment','sourceCommit')) {
         $badReceipt = $receipt | ConvertTo-Json -Depth 20 | ConvertFrom-Json
         $badReceipt.$field = @()

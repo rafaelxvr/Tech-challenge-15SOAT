@@ -40,7 +40,7 @@ $maximum = $replicas * 2
 $hpa = @{apiVersion='autoscaling/v2'; kind='HorizontalPodAutoscaler'; metadata=@{name='oficina-app'; namespace=$namespace}; spec=@{scaleTargetRef=@{apiVersion='apps/v1'; kind='Deployment'; name='oficina-app'}; minReplicas=$replicas; maxReplicas=$maximum; metrics=@(@{type='Resource'; resource=@{name='cpu'; target=@{type='Utilization'; averageUtilization=60}}})}}
 $targetImage = if ($release.mode -ceq 'Rollback') { $release.rollback.image } else { $release.image }
 $strategy = if ($release.mode -ceq 'FirstWriter') { @{type='Recreate'; rollingUpdate=$null} } else { @{type='RollingUpdate'; rollingUpdate=@{maxSurge=0; maxUnavailable=1}} }
-$rollout = @{spec=@{replicas=$replicas; strategy=$strategy; template=@{metadata=@{annotations=@{'oficina.io/release-sha256'=$ExpectedReleaseSha256; 'oficina.io/schema-version'='V8'; 'oficina.io/security-contract'='phase3-v2'}}; spec=@{containers=@(@{name='app'; image=$targetImage; env=@(@{name='SPRING_FLYWAY_ENABLED'; value='false'}, @{name='SPRING_JPA_HIBERNATE_DDL_AUTO'; value='validate'})})}}}}
+$rollout = @{spec=@{replicas=$replicas; strategy=$strategy; template=@{metadata=@{annotations=@{'oficina.io/release-sha256'=$ExpectedReleaseSha256; 'oficina.io/schema-version'='V10'; 'oficina.io/security-contract'='phase3-v2'}}; spec=@{containers=@(@{name='app'; image=$targetImage; env=@(@{name='SPRING_FLYWAY_ENABLED'; value='false'}, @{name='SPRING_JPA_HIBERNATE_DDL_AUTO'; value='validate'})})}}}}
 $drain = @{spec=@{replicas=0; strategy=@{type='Recreate'; rollingUpdate=$null}}}
 New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
 $entries = @(@{Name='hpa.json'; Value=$hpa}, @{Name='rollout-patch.json'; Value=$rollout}, @{Name='drain-patch.json'; Value=$drain})
