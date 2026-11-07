@@ -75,3 +75,7 @@ npx newman run postman/Oficina-Fase4-Kind.postman_collection.json \
 ```
 
 Nunca anexe relatórios do Newman sem revisar: use `--reporters cli` ou remova cabeçalhos `Authorization` e bodies antes de compartilhar. A pasta 04 não grava payloads do Mercado Pago, só ids técnicos nas variáveis do environment (limpos na pasta 06).
+
+## 6. Validação offline da coleção
+
+`python scripts/postman/validate-collection.py` (requer PyYAML) confere, sem cluster: cada request dos três serviços contra os contratos versionados (`docs/openapi.yaml`, `docs/phase4/api/billing-openapi.json`, `docs/phase4/api/execution-openapi.json`), auth bearer nas rotas protegidas, ausência de valores em variáveis secretas e tokens, e a ordem das pastas e do fluxo feliz 03.1 a 03.14. Exceções documentadas no script: `POST /billing/simulacoes/pagamentos/{id}` (só no perfil `gateway-fake`) e `GET /billing/pagamentos?osId=` (consulta ainda inexistente; a coleção tolera 404). Os snapshots de billing (`585c786`) e execution (PR #45 do execution) devem ser atualizados quando os contratos mudarem.

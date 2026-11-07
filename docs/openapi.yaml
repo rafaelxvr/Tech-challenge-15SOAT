@@ -843,6 +843,61 @@ paths:
                 $ref: '#/components/schemas/ApiResponseMetricasTempoResponse'
       security:
         - bearerAuth: []
+  /ordens-servico/{id}/saga:
+    get:
+      tags:
+        - Saga da OS
+      summary: Estado atual, compensações pendentes e trilha de passos da saga
+      description: Exige ADMIN ou MECANICO. Responde 404 quando a saga está desligada ou a OS não tem saga.
+      operationId: detalhar
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseSagaDetalhe'
+        '404':
+          description: Saga desligada ou inexistente para a OS
+      security:
+        - bearerAuth: []
+  /admin/relatorios/ordens:
+    get:
+      tags:
+        - Relatórios administrativos
+      summary: Contagem de OS e duração por status em um período (somente ADMIN)
+      operationId: consultar
+      parameters:
+        - name: inicio
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: fimExclusive
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseRelatorioPeriodo'
+        '400':
+          description: Período inválido (INVALID_PERIOD)
+      security:
+        - bearerAuth: []
 components:
   schemas:
     VeiculoRequest:
@@ -1823,6 +1878,101 @@ components:
           type: string
         data:
           type: object
+    SagaPasso:
+      type: object
+      properties:
+        ordem:
+          type: integer
+          format: int32
+        etapa:
+          type: string
+        evento:
+          type: string
+        estado:
+          type: string
+        ocorridoEm:
+          type: string
+          format: date-time
+    SagaDetalhe:
+      type: object
+      properties:
+        sagaId:
+          type: string
+          format: uuid
+        osId:
+          type: string
+          format: uuid
+        estado:
+          type: string
+        etapa:
+          type: string
+        versaoOrcamento:
+          type: integer
+          format: int32
+        prazo:
+          type: string
+          format: date-time
+        motivoFalha:
+          type: string
+        compensacoesPendentes:
+          type: array
+          items:
+            type: string
+        passos:
+          type: array
+          items:
+            $ref: '#/components/schemas/SagaPasso'
+    ApiResponseSagaDetalhe:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/SagaDetalhe'
+    DuracaoResponse:
+      type: object
+      properties:
+        totalSegundos:
+          type: number
+        amostras:
+          type: integer
+          format: int64
+        mediaSegundos:
+          type: string
+    RelatorioPeriodo:
+      type: object
+      properties:
+        criadas:
+          type: integer
+          format: int64
+        elegiveis:
+          type: integer
+          format: int64
+        excluidas:
+          type: integer
+          format: int64
+        duracoes:
+          type: object
+          description: Mapa StatusOrdemServico -> DuracaoResponse
+          additionalProperties:
+            $ref: '#/components/schemas/DuracaoResponse'
+    ApiResponseRelatorioPeriodo:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/RelatorioPeriodo'
   securitySchemes:
     bearerAuth:
       type: http
