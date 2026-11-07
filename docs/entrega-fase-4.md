@@ -85,7 +85,7 @@ Os serviços não acessam os bancos uns dos outros. A integração assíncrona u
   `os-saga-replies.fifo` → OS Service
 ```
 
-Diagramas Mermaid versionados: `docs/architecture/c4-*.md` no repositório do OS Service e o diagrama do README do Billing Service. **[PENDENTE]** revisar o diagrama geral contra os nomes e manifestos usados na validação local Kind, sem apresentá-lo como evidência de deploy.
+Diagramas Mermaid versionados: `docs/architecture/c4-*.md` no repositório do OS Service e o diagrama do README do Billing Service. Diagrama geral da validação local Kind, reconciliado com os manifestos: `docs/architecture/phase4-kind-geral.md` (não é evidência de deploy em nuvem).
 
 ### 2.2 Bancos isolados
 
@@ -278,7 +278,7 @@ Legenda de estado: **Evidenciado** (run/PR e SHA citados); **Parcial** (evidênc
 | Requisito | Estado | Evidência verificável (SHA/ambiente) | Lacuna | Dono / próximo gate |
 |---|---|---|---|---|
 | Três serviços independentes, persistência isolada (SQL + NoSQL) | Parcial | Repositórios, SHAs de `main` e digests na capa; seção 2.2; smokes de isolamento e grants negativos no [run 40884415348](https://github.com/rafaelxvr/Tech-challenge-15SOAT/actions/runs/40884415348) (SHAs históricos, Kind) | Revalidar nos SHAs finais de `main` | `PENDENTE-AWS` — [UNR-947](/UNR/issues/UNR-947) |
-| APIs REST documentadas | Parcial | Core `docs/openapi.yaml`; billing `docs/openapi.json`; Springdoc nos três; coleção Postman [#85](https://github.com/rafaelxvr/Tech-challenge-15SOAT/pull/85) mesclada em `develop` | Execution sem spec OpenAPI versionada localizada na auditoria **[CONFIRMAR]** | TechLead/Backend |
+| APIs REST documentadas | Parcial | Core `docs/openapi.yaml`; billing `docs/openapi.json`; Springdoc nos três; coleção Postman [#85](https://github.com/rafaelxvr/Tech-challenge-15SOAT/pull/85) mesclada em `develop` | Spec do execution em PR [#45](https://github.com/rafaelxvr/Tech-challenge-15SOAT-execution/pull/45) (aguarda merge em `develop` do execution); snapshots em `docs/phase4/api/`; coleção validada offline por `python scripts/postman/validate-collection.py` ([UNR-961](/UNR/issues/UNR-961)) | TechLead/Backend |
 | Mensageria, contratos, inbox/outbox, Saga | Evidenciado (SHAs históricos) | Seções 2.3 e 3; [run 40884415348](https://github.com/rafaelxvr/Tech-challenge-15SOAT/actions/runs/40884415348): 34 PASS, 2 por teste unitário, 0 FAIL | Reexecutar se PRs de instrumentação alteraram envelopes | Rafael/QA |
 | Fluxo feliz ponta a ponta | Evidenciado (Kind, SHAs históricos) | BDD-01a no mesmo run, cleanup zerado | Prova no ambiente final | `PENDENTE-AWS` + `PENDENTE-VIDEO` |
 | Compensação e idempotência (EstoqueInsuficiente, ReparoRecusado, duplicata, reply tardia, DLQ/redrive) | Evidenciado (Kind, SHAs históricos) | Matriz BDD do run 40884415348, revisada em UNR-338/339 e aprovada em UNR-69; 06h/07c cobertos por teste unitário (explícito) | Reexecução e timecodes no ambiente final | `PENDENTE-AWS` + `PENDENTE-VIDEO` — [UNR-947](/UNR/issues/UNR-947), [UNR-613](/UNR/issues/UNR-613) |
