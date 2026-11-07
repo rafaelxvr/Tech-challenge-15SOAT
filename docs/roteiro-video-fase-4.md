@@ -6,7 +6,7 @@ Roteiro operacional para ensaio e gravação ([UNR-613](/UNR/issues/UNR-613)). D
 
 - Duração-alvo total: **14min30s**, com 30s de margem até o limite de 15min.
 - `PENDENTE-VIDEO`: URL e timecodes reais só existem após a gravação.
-- `PENDENTE-AWS`: capturas que dependem do ambiente AWS Academy (sessão da [UNR-612](/UNR/issues/UNR-612)), sob aprovação do Rafael. Este roteiro não autoriza nem executa ação AWS.
+- `PENDENTE-AWS`: capturas que dependem do ambiente AWS Academy (sessão AWS 3, [UNR-947](/UNR/issues/UNR-947)), sob aprovação do Rafael. Este roteiro não autoriza nem executa ação AWS.
 - Plano B de cada bloco: evidência **pré-capturada ligada ao mesmo SHA**, apresentada como tal. Nunca apresentar fixture ou captura antiga como execução ao vivo.
 - Não exibir console com tokens, variáveis secretas, payloads integrais, PII, ARN ou IDs de recursos. Credenciais de Mercado Pago e New Relic ficam fora de banda.
 - Risco aberto: o aceite do Kind como evidência de deploy Kubernetes pelos avaliadores **não está confirmado**; **ambiente do vídeo decidido pelo Rafael em 03/11** ([UNR-613](/UNR/issues/UNR-613), [UNR-71](/UNR/issues/UNR-71)): gravação somente no AWS Academy. Kind aparece apenas como validação local antes do deploy, nunca como ambiente gravado.
@@ -37,10 +37,14 @@ Soma: 0:45 + 1:30 + 1:30 + 2:00 + 2:00 + 2:00 + 1:30 + 1:30 + 1:00 + 0:45 = **14
 - **Plano B:** imagem estática da capa do PDF.
 
 ### 2. Repositórios, SHAs e arquitetura (00:45–02:15)
-- **Tela/ação:** três repositórios no GitHub; tabela de SHAs de `main`/`develop`; diagrama da seção 2.1; bancos isolados (SQL e NoSQL).
+- **Tela/ação:** três repositórios no GitHub; tabela de SHAs e digests de `main` (capa; mesmos valores do `release-manifest.json`); diagrama da seção 2.1; bancos isolados (SQL e NoSQL).
 - **Prova:** serviços independentes e bancos isolados.
-- **Evidência esperada:** SHAs exibidos coincidem com os da capa no dia da gravação (reconferir antes).
-- **Plano B:** captura da tabela de SHAs com data e hora.
+- **Evidência esperada:** SHAs exibidos coincidem com os da capa no dia da gravação (reconferir antes). Valores de 07/11/2026:
+  - core `7f4ae87720300733534b2076587df4eb507d02e2`, digest `sha256:a30e36bd56e4702b92b6065a490f21f8a7f06383df72399c558d0cd9a2d8edc3`, [run 42328032698](https://github.com/rafaelxvr/Tech-challenge-15SOAT/actions/runs/42328032698);
+  - billing `89902b2b474b1658bcff85ffb28c710c88fb796b`, digest `sha256:6097c2c72266be158c181b2fb03874ff3c4b716f3af253c229aee30ad899be51`, [run 42328059868](https://github.com/rafaelxvr/Tech-challenge-15SOAT-billing/actions/runs/42328059868);
+  - execution `ab3437204a4fb42594cf08b6489dc99c160cee83`, digest `sha256:18f3bcbe5bf834a4d306aeef54e32a9d32e7143347afb53bf14df2f50cbc8a87`, [run 42328065780](https://github.com/rafaelxvr/Tech-challenge-15SOAT-execution/actions/runs/42328065780).
+  - O manifesto prova SHA, digest e CI; não prova deploy no AWS Academy (`PENDENTE-AWS`).
+- **Plano B:** captura da tabela de SHAs e digests com data e hora.
 
 ### 3. Contratos, filas, inbox/outbox e Saga (02:15–03:45)
 - **Tela/ação:** JSON Schemas de `contracts/`, filas FIFO e DLQs, ADR 006, tabela de compensações (seção 3.3).
@@ -83,9 +87,9 @@ Soma: 0:45 + 1:30 + 1:30 + 2:00 + 2:00 + 2:00 + 1:30 + 1:30 + 1:00 + 0:45 = **14
 - **Plano B:** captura previamente sanitizada do mesmo fluxo. Fake/WireMock **não** vale como prova. Execução real: Rafael; `PENDENTE-VIDEO`.
 
 ### 8. CI, cobertura, Sonar e New Relic (11:15–12:45)
-- **Tela/ação:** runs de CI (core `main`: [41987538517](https://github.com/rafaelxvr/Tech-challenge-15SOAT/actions/runs/41987538517)); Quality Gate e cobertura por serviço ([UNR-625](/UNR/issues/UNR-625): core 88,2% `6c3e2e6`, billing 90,0% `14565af`, execution 93,8% `5877b47`, medidos em PRs); trace distribuído dos três serviços no New Relic.
+- **Tela/ação:** runs de CI de `main` (core [42328032698](https://github.com/rafaelxvr/Tech-challenge-15SOAT/actions/runs/42328032698), billing [42328059868](https://github.com/rafaelxvr/Tech-challenge-15SOAT-billing/actions/runs/42328059868), execution [42328065780](https://github.com/rafaelxvr/Tech-challenge-15SOAT-execution/actions/runs/42328065780), todos `success`); Quality Gate e cobertura Sonar por serviço em `main` (consulta pública de 07/11/2026): core 88,0% (`7f4ae87`), billing 91,9% (`89902b2`), execution 93,6% (`ab34372`); trace distribuído dos três serviços no New Relic.
 - **Prova:** qualidade e observabilidade.
-- **Evidência esperada:** Quality Gate OK e cobertura ≥ 80% por serviço (medição de PR; `develop`/`main` `PENDENTE`); trace único atravessando OS, Billing e Execution. O link APM ainda **não existe**: `PENDENTE-AWS`.
+- **Evidência esperada:** Quality Gate OK e cobertura ≥ 80% por serviço (medição em `main`, por SHA; Sonar no ambiente AWS Academy não executado); trace único atravessando OS, Billing e Execution. O link APM ainda **não existe**: `PENDENTE-AWS`.
 - **Plano B:** mostrar os PRs de wiring mesclados e dizer explicitamente que o trace consultável não foi obtido.
 
 ### 9. D19-R, DLQ/redrive, reconciliação (12:45–13:45)
@@ -102,6 +106,6 @@ Soma: 0:45 + 1:30 + 1:30 + 2:00 + 2:00 + 2:00 + 1:30 + 1:30 + 1:00 + 0:45 = **14
 
 ## Verificações pré-gravação
 
-- Reconferir SHAs de `main`/`develop` e regenerar o PDF.
+- Reconferir SHAs de `main`/`develop`, digests do manifesto e métricas do Sonar, e regenerar o PDF.
 - Inventário AWS final zero e `terraform destroy` ao final da gravação: Rafael ([UNR-613](/UNR/issues/UNR-613)).
 - Revisar a tela inteira em busca de segredo, PII, ARN ou ID de recurso antes de publicar.
