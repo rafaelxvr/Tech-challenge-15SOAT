@@ -5,28 +5,28 @@
     "os-service": {
       "image": "ghcr.io/rafaelxvr/oficina-mecanica",
       "sourceRepo": "rafaelxvr/Tech-challenge-15SOAT",
-      "sourceSha": "dd7221e5270ac6b3088349d192b17acee5390d11",
-      "tag": "dd7221e5270ac6b3088349d192b17acee5390d11",
-      "digest": "sha256:ad58cfdef257018729129b18a47f7612e854fd6b17d7943d6be80b336d5308b3",
-      "ciRun": "42028364204",
+      "sourceSha": "7f4ae87720300733534b2076587df4eb507d02e2",
+      "tag": "7f4ae87720300733534b2076587df4eb507d02e2",
+      "digest": "sha256:a30e36bd56e4702b92b6065a490f21f8a7f06383df72399c558d0cd9a2d8edc3",
+      "ciRun": "42328032698",
       "visibility": "public"
     },
     "billing": {
       "image": "ghcr.io/rafaelxvr/oficina-billing-service",
       "sourceRepo": "rafaelxvr/Tech-challenge-15SOAT-billing",
-      "sourceSha": "ded6b6c3d9265c34c5e32758789756e04c9823ad",
-      "tag": "ded6b6c3d9265c34c5e32758789756e04c9823ad",
-      "digest": "sha256:dd2fd767f165428496af72cb477da6084a19000c13c6e47672a3079de114f20d",
-      "ciRun": "42080883263",
+      "sourceSha": "89902b2b474b1658bcff85ffb28c710c88fb796b",
+      "tag": "89902b2b474b1658bcff85ffb28c710c88fb796b",
+      "digest": "sha256:6097c2c72266be158c181b2fb03874ff3c4b716f3af253c229aee30ad899be51",
+      "ciRun": "42328059868",
       "visibility": "public"
     },
     "execution": {
       "image": "ghcr.io/rafaelxvr/oficina-execution-service",
       "sourceRepo": "rafaelxvr/Tech-challenge-15SOAT-execution",
-      "sourceSha": "5538567afc82e6966ab9c9a5b33f2dbac9383daa",
-      "tag": "5538567afc82e6966ab9c9a5b33f2dbac9383daa",
-      "digest": "sha256:657f46e906732e4c5c3ebd7203bc53a4b61209c364cfe18e3fab730f73f32762",
-      "ciRun": "42082959972",
+      "sourceSha": "ab3437204a4fb42594cf08b6489dc99c160cee83",
+      "tag": "ab3437204a4fb42594cf08b6489dc99c160cee83",
+      "digest": "sha256:18f3bcbe5bf834a4d306aeef54e32a9d32e7143347afb53bf14df2f50cbc8a87",
+      "ciRun": "42328065780",
       "visibility": "public"
     }
   }
