@@ -42,6 +42,33 @@ with tempfile.TemporaryDirectory() as directory:
         else:
             raise AssertionError(f"unsafe image accepted: {bad}")
 
+    raw = convert(
+        '<a href="file:///C:/Users/Rafael/secret.txt">local</a>\n'
+        '<a href="/UNR/issues/UNR-1">paperclip</a>\n'
+        '<a href="  JavaScript:alert(1)">js</a>\n'
+        '<a href="https://example.org/ok">web</a>\n'
+        '<a href="#sec">ancora</a>'
+    )
+    check("file:" not in raw and "/UNR/issues" not in raw and "javascript:" not in raw.lower(), "raw html links must be flattened")
+    check("<a href=" in raw and raw.count("<a ") == 2 and raw.count("</a>") == 2, "raw html keeps only https and anchors")
+    check(">local</span>" in raw and ">paperclip</span>" in raw, "raw html links keep their text")
+    for bad in (
+        '<img src="file:///C:/Users/Rafael/secret.png">',
+        '<img src="https://example.org/remote.png">',
+        '<img src="/abs.png">',
+        '<img src="../outside.svg">',
+        '<img src="img.svg" srcset="https://example.org/x.png 2x">',
+        '<script src="https://example.org/x.js"></script>',
+        '<iframe src="https://example.org"></iframe>',
+    ):
+        try:
+            convert(bad)
+        except renderer.UnsafeAssetError:
+            checks += 1
+        else:
+            raise AssertionError(f"unsafe raw html accepted: {bad}")
+    check("data:image/svg+xml;base64," in convert('<img src="img.svg" alt="x">'), "raw html local image is embedded")
+
     toc = convert("[TOC]\n\n## 1. Seção única\n\ntexto")
     check('href="#1-seção-única"' in toc and 'id="1-seção-única"' in toc, "toc links must match heading ids")
 

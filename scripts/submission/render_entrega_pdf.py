@@ -24,12 +24,12 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from html import escape
+from html.parser import HTMLParser
 from pathlib import Path
 
 import markdown
-from markdown.extensions import Extension
 from markdown.extensions.toc import slugify_unicode
-from markdown.treeprocessors import Treeprocessor
 from pypdf import PdfReader
 
 BROWSERS = [
@@ -38,6 +38,7 @@ BROWSERS = [
 ]
 EXTENSIONS = ["tables", "fenced_code", "attr_list", "md_in_html", "sane_lists"]
 PUBLIC_LINK = re.compile(r"^https?://", re.IGNORECASE)
+FORBIDDEN_TAGS = {"script", "iframe", "object", "embed", "link", "base", "source", "video", "audio", "form", "svg", "style", "meta"}
 FORBIDDEN_PDF_URIS = ("file:", "/UNR/issues/")
 
 
@@ -45,29 +46,74 @@ class UnsafeAssetError(ValueError):
     """A local image that is absolute, missing or outside the allowed directory."""
 
 
-class LinkAndImagePolicy(Treeprocessor):
-    """Keep public and internal links, flatten the rest, embed local images."""
+class LinkAndImagePolicy(HTMLParser):
+    """Enforce the link and image policy on the final HTML, raw HTML included.
 
-    def __init__(self, md, asset_root: Path):
-        super().__init__(md)
+    Python-Markdown restores raw HTML after its tree phase, so the policy runs on the
+    finished document: public and internal links stay, other links become plain text,
+    local images are embedded, and tags that can fetch or run anything are rejected.
+    """
+
+    def __init__(self, asset_root: Path):
+        super().__init__(convert_charrefs=False)
         self.asset_root = asset_root.resolve()
+        self.out = []
+        self.anchors = []
 
-    def run(self, root):
-        for parent in root.iter():
-            for child in list(parent):
-                if child.tag == "a":
-                    self._apply_link_policy(child)
-                elif child.tag == "img":
-                    child.set("src", self._embed(child.get("src", "")))
+    def apply(self, html: str) -> str:
+        self.feed(html)
+        self.close()
+        return "".join(self.out)
 
-    @staticmethod
-    def _apply_link_policy(anchor):
-        href = anchor.get("href", "")
-        if href.startswith("#") or PUBLIC_LINK.match(href):
-            return
-        anchor.tag = "span"
-        anchor.attrib.pop("href", None)
-        anchor.attrib.pop("title", None)
+    def handle_starttag(self, tag, attrs):
+        self.out.append(self._start(tag, attrs, self_closing=False))
+
+    def handle_startendtag(self, tag, attrs):
+        self.out.append(self._start(tag, attrs, self_closing=True))
+
+    def handle_endtag(self, tag):
+        if tag == "a" and self.anchors:
+            tag = self.anchors.pop()
+        self.out.append(f"</{tag}>")
+
+    def handle_data(self, data):
+        self.out.append(data)
+
+    def handle_entityref(self, name):
+        self.out.append(f"&{name};")
+
+    def handle_charref(self, name):
+        self.out.append(f"&#{name};")
+
+    def handle_comment(self, data):
+        self.out.append(f"<!--{data}-->")
+
+    def handle_decl(self, decl):
+        self.out.append(f"<!{decl}>")
+
+    def handle_pi(self, data):
+        raise UnsafeAssetError("processing instructions are not allowed in the document")
+
+    def _start(self, tag, attrs, self_closing):
+        if tag in FORBIDDEN_TAGS:
+            raise UnsafeAssetError(f"<{tag}> is not allowed in the document")
+        attrs = [(name, value) for name, value in attrs if not name.lower().startswith("on")]
+        if tag == "a":
+            href = (dict(attrs).get("href") or "").strip()
+            keep = href.startswith("#") or bool(PUBLIC_LINK.match(href))
+            self.anchors.append("a" if keep else "span")
+            if not keep:
+                tag = "span"
+                attrs = [(n, v) for n, v in attrs if n.lower() not in ("href", "title")]
+        elif tag == "img":
+            names = {name.lower() for name, _ in attrs}
+            if names & {"srcset", "sizes"}:
+                raise UnsafeAssetError("image srcset is not allowed")
+            attrs = [(n, self._embed((v or "").strip()) if n.lower() == "src" else v) for n, v in attrs]
+        rendered = "".join(
+            f" {name}" if value is None else f' {name}="{escape(value, quote=True)}"' for name, value in attrs
+        )
+        return f"<{tag}{rendered}{' /' if self_closing else ''}>"
 
     def _embed(self, src: str) -> str:
         if src.startswith("data:"):
@@ -83,26 +129,16 @@ class LinkAndImagePolicy(Treeprocessor):
         return f"data:{mime};base64,{base64.b64encode(target.read_bytes()).decode('ascii')}"
 
 
-class LinkAndImageExtension(Extension):
-    def __init__(self, asset_root: Path):
-        super().__init__()
-        self.asset_root = asset_root
-
-    def extendMarkdown(self, md):
-        md.treeprocessors.register(LinkAndImagePolicy(md, self.asset_root), "link_image_policy", 5)
-
-
 def convert_markdown(body: str, asset_root: Path) -> str:
-    """Markdown to HTML with a generated table of contents ([TOC]) and the link policy."""
+    """Markdown to HTML with a generated table of contents ([TOC]); the link policy runs on the final HTML."""
     engine = markdown.Markdown(
         extensions=[
             *EXTENSIONS,
             "toc",
-            LinkAndImageExtension(asset_root),
         ],
         extension_configs={"toc": {"slugify": slugify_unicode, "toc_depth": "2-2"}},
     )
-    return render_task_lists(engine.convert(body))
+    return LinkAndImagePolicy(asset_root).apply(render_task_lists(engine.convert(body)))
 
 
 def audit_pdf(pdf: Path) -> list:
