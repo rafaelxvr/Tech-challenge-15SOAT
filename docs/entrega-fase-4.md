@@ -8,7 +8,8 @@ css: "assets/pdf-style.css"
 
 # Tech Challenge — Fase 4
 
-## Microsserviços e Saga Pattern na Plataforma de Gestão de Oficina Mecânica
+Microsserviços e Saga Pattern na Plataforma de Gestão de Oficina Mecânica
+{: .subtitle }
 
 > **RASCUNHO PARA REVISÃO DO RAFAEL — NÃO ENVIAR AO PORTAL.** Atualizado em 07/11/2026 com os SHAs, runs de CI e digests finais promovidos em `main` ([UNR-954](/UNR/issues/UNR-954)), sobre o estado consolidado de 05/11/2026 da auditoria UNR-604. Itens marcados **[PENDENTE]**, **[CONFIRMAR]**, `PENDENTE-AWS` ou `PENDENTE-VIDEO` ainda não têm evidência verificável; este texto distingue "implementado/configurado" de "executado e evidenciado" e não declara deploy em nuvem, vídeo gravado, pagamento real, trace consultável, BDD/New Relic no ambiente AWS Academy nem envio da submissão. Prazo de entrega: 17/11/2026.
 
@@ -30,21 +31,10 @@ Cada imagem é publicada no GHCR (`ghcr.io/rafaelxvr/oficina-mecanica`, `oficina
 
 **Revisor:** **[CONFIRMAR]** acesso do usuário `soat-architecture` nos três repositórios (na Fase 3 constava nos quatro daquela fase; não verificado para a Fase 4).
 
-<div class="page-break"></div>
+Sumário
+{: .toc-title }
 
-## Sumário
-
-1. [Resumo executivo](#1-resumo-executivo)
-2. [Arquitetura dos microsserviços](#2-arquitetura-dos-microsserviços)
-3. [Saga orquestrada](#3-saga-orquestrada)
-4. [Divisão de responsabilidades e tecnologias](#4-divisão-de-responsabilidades-e-tecnologias)
-5. [CI/CD, validação local e evidências de Kind](#5-cicd-validação-local-e-evidências-de-kind)
-6. [Observabilidade (New Relic)](#6-observabilidade-new-relic)
-7. [Qualidade e testes (SonarCloud)](#7-qualidade-e-testes-sonarcloud)
-8. [Pagamento com Mercado Pago (sandbox)](#8-pagamento-com-mercado-pago-sandbox)
-9. [Matriz de rastreabilidade do enunciado](#9-matriz-de-rastreabilidade-do-enunciado)
-10. [Limitações e riscos conhecidos](#10-limitações-e-riscos-conhecidos)
-11. [Pendências finais](#11-pendências-finais)
+[TOC]
 
 ## 1. Resumo executivo
 
@@ -62,28 +52,9 @@ Os serviços não acessam os bancos uns dos outros. A integração assíncrona u
 
 ### 2.1 Diagrama geral
 
-```text
-                         Cliente / equipe da oficina
-                                  |
-                                  | JWT; acesso local via port-forward
-                                  v
-    +-----------------------------------------------------------------------+
-    | Kind `oficina-phase4` (efêmero no CI; ambiente local descartável)     |
-    |                                                                       |
-    |  `oficina`                 `oficina-billing`   `oficina-execution`    |
-    |  OS Service                Billing Service     Execution Service     |
-    |  saga + OS                 orçamento/pagamento diagnóstico/reparo    |
-    |      |                          |                    |               |
-    |  PostgreSQL 16             PostgreSQL 16        DynamoDB Local        |
-    |  DB `oficina`              DB `billing`         (via LocalStack)      |
-    |      |                          |                    |               |
-    |      +---------- LocalStack: SQS FIFO + DLQs -------------------------|
-    +-----------------------------------------------------------------------+
+![Diagrama geral da Fase 4: Cliente, os três microsserviços no Kind oficina-phase4, bancos isolados e filas FIFO no LocalStack](architecture/rendered/phase4-overview.svg)
 
-  `billing-commands.fifo` → Billing
-  `execution-commands.fifo` → Execution
-  `os-saga-replies.fifo` → OS Service
-```
+Fonte versionada do diagrama: `docs/architecture/phase4-overview.mmd` (SVG renderizado em `docs/architecture/rendered/phase4-overview.svg`).
 
 Diagramas Mermaid versionados: `docs/architecture/c4-*.md` no repositório do OS Service e o diagrama do README do Billing Service. Diagrama geral da validação local Kind, reconciliado com os manifestos: `docs/architecture/phase4-kind-geral.md` (não é evidência de deploy em nuvem).
 
