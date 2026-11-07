@@ -60,6 +60,26 @@ with tempfile.TemporaryDirectory() as directory:
         '<img src="img.svg" srcset="https://example.org/x.png 2x">',
         '<script src="https://example.org/x.js"></script>',
         '<iframe src="https://example.org"></iframe>',
+        '<div style="background-image:url(https://example.org/leak.png)">x</div>',
+        '<p style="background:url(https://example.org/leak.png)">x</p>',
+        '<input type="image" src="https://example.org/leak.png">',
+        '<table background="https://example.org/leak.png"><tr><td>x</td></tr></table>',
+        '<video poster="https://example.org/leak.png"></video>',
+        '<p data="https://example.org/leak.png">x</p>',
+        '<p action="https://example.org/leak">x</p>',
+        '<p formaction="https://example.org/leak">x</p>',
+        '<p xlink:href="https://example.org/leak.png">x</p>',
+        '<p srcset="https://example.org/leak.png 2x">x</p>',
+        '<td BACKGROUND="https://example.org/leak.png">x</td>',
+        '<p src="https://example.org/leak.png">x</p>',
+        '<div style="BACKGROUND : UrL (https://example.org/l.png)">x</div>',
+        '<div style="background:u/**/rl(https://example.org/l.png)">x</div>',
+        r'<div style="background:\75rl(https://example.org/l.png)">x</div>',
+        '<div style="background:url&#40;https://example.org/l.png)">x</div>',
+        "<div style=\"@import 'https://example.org/a.css'\">x</div>",
+        '<div style="background:image-set(https://example.org/l.png 1x)">x</div>',
+        '<div style="background:-webkit-image-set(https://example.org/l.png 1x)">x</div>',
+        '<div style="width:expression(alert(1))">x</div>',
     ):
         try:
             convert(bad)
@@ -68,6 +88,17 @@ with tempfile.TemporaryDirectory() as directory:
         else:
             raise AssertionError(f"unsafe raw html accepted: {bad}")
     check("data:image/svg+xml;base64," in convert('<img src="img.svg" alt="x">'), "raw html local image is embedded")
+
+    benign = convert('<div style="color: red; text-align:center" onclick="x()" data-x="1" foo="bar">ok</div>')
+    check('style="color: red; text-align:center"' in benign, "harmless inline style is kept")
+    check("onclick" not in benign and "foo=" not in benign and "data-x" not in benign, "unlisted attributes are dropped")
+
+    page = renderer.build_html(SOURCE, {}, "<p>x</p>")
+    check(
+        '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; img-src data:; '
+        "style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'\">" in page,
+        "built html carries the exact CSP",
+    )
 
     toc = convert("[TOC]\n\n## 1. Seção única\n\ntexto")
     check('href="#1-seção-única"' in toc and 'id="1-seção-única"' in toc, "toc links must match heading ids")

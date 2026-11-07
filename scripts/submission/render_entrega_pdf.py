@@ -24,7 +24,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from html import escape
+from html import escape, unescape
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -38,7 +38,25 @@ BROWSERS = [
 ]
 EXTENSIONS = ["tables", "fenced_code", "attr_list", "md_in_html", "sane_lists"]
 PUBLIC_LINK = re.compile(r"^https?://", re.IGNORECASE)
-FORBIDDEN_TAGS = {"script", "iframe", "object", "embed", "link", "base", "source", "video", "audio", "form", "svg", "style", "meta"}
+FORBIDDEN_TAGS = {
+    "script", "iframe", "object", "embed", "link", "base", "source", "video", "audio", "form", "svg", "style", "meta",
+    "input", "frame", "frameset", "applet", "portal", "image", "track", "button",
+}
+# Attributes that can load, submit or navigate to a resource. Only a[href] (link policy) and
+# img[src] (embedded as data:) are accepted; anywhere else they fail the build.
+LOADING_ATTRS = {
+    "src", "href", "srcset", "sizes", "background", "poster", "data", "action", "formaction", "ping",
+    "longdesc", "usemap", "codebase", "classid", "archive", "icon", "manifest", "cite", "profile", "lowsrc", "dynsrc",
+}
+SAFE_ATTRS = {
+    "id", "class", "title", "lang", "dir", "role", "style", "colspan", "rowspan", "scope", "headers", "start",
+    "reversed", "alt", "width", "height",
+}
+FORBIDDEN_CSS = re.compile(r"(?:url|image-set|expression)\s*\(|@|\\", re.IGNORECASE)
+CSS_COMMENT = re.compile(r"/\*.*?(?:\*/|$)", re.DOTALL)
+CONTENT_SECURITY_POLICY = (
+    "default-src 'none'; img-src data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"
+)
 FORBIDDEN_PDF_URIS = ("file:", "/UNR/issues/")
 
 
@@ -95,25 +113,47 @@ class LinkAndImagePolicy(HTMLParser):
         raise UnsafeAssetError("processing instructions are not allowed in the document")
 
     def _start(self, tag, attrs, self_closing):
+        tag = tag.lower()
         if tag in FORBIDDEN_TAGS:
             raise UnsafeAssetError(f"<{tag}> is not allowed in the document")
-        attrs = [(name, value) for name, value in attrs if not name.lower().startswith("on")]
+        attrs = self._filter_attrs(tag, [(name.lower(), value) for name, value in attrs])
         if tag == "a":
             href = (dict(attrs).get("href") or "").strip()
             keep = href.startswith("#") or bool(PUBLIC_LINK.match(href))
             self.anchors.append("a" if keep else "span")
             if not keep:
                 tag = "span"
-                attrs = [(n, v) for n, v in attrs if n.lower() not in ("href", "title")]
+                attrs = [(n, v) for n, v in attrs if n not in ("href", "title")]
         elif tag == "img":
-            names = {name.lower() for name, _ in attrs}
-            if names & {"srcset", "sizes"}:
-                raise UnsafeAssetError("image srcset is not allowed")
-            attrs = [(n, self._embed((v or "").strip()) if n.lower() == "src" else v) for n, v in attrs]
+            attrs = [(n, self._embed((v or "").strip()) if n == "src" else v) for n, v in attrs]
         rendered = "".join(
             f" {name}" if value is None else f' {name}="{escape(value, quote=True)}"' for name, value in attrs
         )
         return f"<{tag}{rendered}{' /' if self_closing else ''}>"
+
+    @staticmethod
+    def _filter_attrs(tag, attrs):
+        """Closed attribute policy: loading attributes fail, anything outside the allowlist is dropped."""
+        kept = []
+        for name, value in attrs:
+            if name.startswith("on"):
+                continue
+            if name.rsplit(":", 1)[-1] in LOADING_ATTRS:
+                if (tag, name) not in (("a", "href"), ("img", "src")):
+                    raise UnsafeAssetError(f"<{tag} {name}> is not allowed in the document")
+                kept.append((name, value))
+            elif name == "style":
+                LinkAndImagePolicy._check_style(value or "")
+                kept.append((name, value))
+            elif name in SAFE_ATTRS or name.startswith("aria-"):
+                kept.append((name, value))
+        return kept
+
+    @staticmethod
+    def _check_style(value):
+        css = CSS_COMMENT.sub("", unescape(value))
+        if FORBIDDEN_CSS.search(css):
+            raise UnsafeAssetError("inline style may not load resources (url, image-set, expression, @rules, escapes)")
 
     def _embed(self, src: str) -> str:
         if src.startswith("data:"):
@@ -205,6 +245,7 @@ def build_html(source: Path, meta, body_html: str) -> str:
 <html lang="{lang}">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="{CONTENT_SECURITY_POLICY}">
 <title>{title}</title>
 <style>
 {css}
@@ -257,6 +298,8 @@ def main() -> int:
                 str(find_browser()),
                 "--headless=new",
                 "--disable-gpu",
+                "--disable-background-networking",
+                "--host-resolver-rules=MAP * ~NOTFOUND",
                 "--no-pdf-header-footer",
                 "--generate-pdf-document-outline",
                 f"--print-to-pdf={args.output.resolve()}",
