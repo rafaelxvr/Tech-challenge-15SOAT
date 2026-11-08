@@ -106,6 +106,12 @@ with tempfile.TemporaryDirectory() as directory:
         '<p>x <script src="http://127.0.0.1:9/c',
         '<p>x <!--',
         '<p>x <?x',
+        # Duplicate attributes: html.parser keeps the last, Chromium the first (UNR-1062).
+        '<a href="https://example.org/ok" href="javascript:alert(2)">x</a>',
+        '<a href="javascript:alert(1)" href="https://example.org/ok">x</a>',
+        '<a HREF="https://example.org/ok" href="javascript:alert(2)">x</a>',
+        '<p class="a" class="b">x</p>',
+        '<img src="img.svg" src="https://example.org/leak.png">',
     ):
         try:
             convert(bad)
@@ -130,8 +136,34 @@ with tempfile.TemporaryDirectory() as directory:
         "built html carries the exact CSP",
     )
 
+    hostile = renderer.build_html(SOURCE, {"title": "</title><script>alert(1)</script>", "lang": 'x"><script>alert(2)</script>'}, "<p>x</p>")
+    check("<script" not in hostile and "</title><" not in hostile, "front matter title/lang must be escaped")
+    check('<title>&lt;/title&gt;' in hostile and 'lang="x&quot;&gt;' in hostile, "title/lang are html-escaped")
+
     toc = convert("[TOC]\n\n## 1. Seção única\n\ntexto")
     check('href="#1-seção-única"' in toc and 'id="1-seção-única"' in toc, "toc links must match heading ids")
+
+    from pypdf import PdfWriter
+    from pypdf.generic import ArrayObject, DictionaryObject, FloatObject, NameObject, TextStringObject
+
+    def link_pdf(uri):
+        writer = PdfWriter()
+        writer.add_blank_page(100, 100)
+        action = DictionaryObject({NameObject("/S"): NameObject("/URI"), NameObject("/URI"): TextStringObject(uri)})
+        annotation = DictionaryObject({
+            NameObject("/Type"): NameObject("/Annot"), NameObject("/Subtype"): NameObject("/Link"),
+            NameObject("/Rect"): ArrayObject([FloatObject(0), FloatObject(0), FloatObject(10), FloatObject(10)]),
+            NameObject("/A"): action,
+        })
+        writer.pages[0][NameObject("/Annots")] = ArrayObject([writer._add_object(annotation)])
+        target = root / "link.pdf"
+        with open(target, "wb") as handle:
+            writer.write(handle)
+        return target
+
+    for bad_uri in ("javascript:alert(1)", "JavaScript:alert(2)", "data:text/html,x", "vbscript:x", "mailto:a@b.c"):
+        check(any("forbidden link" in p for p in renderer.audit_pdf(link_pdf(bad_uri))), f"audit must reject {bad_uri}")
+    check(not any("forbidden link" in p for p in renderer.audit_pdf(link_pdf("https://example.org/a"))), "audit accepts https")
 
     pdf = root / "out.pdf"
     result = subprocess.run(

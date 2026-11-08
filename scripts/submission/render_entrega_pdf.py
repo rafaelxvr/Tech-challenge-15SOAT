@@ -144,7 +144,13 @@ class LinkAndImagePolicy(HTMLParser):
         tag = tag.lower()
         if tag in FORBIDDEN_TAGS or tag not in ALLOWED_TAGS:
             raise UnsafeAssetError(f"<{tag}> is not allowed in the document")
-        attrs = self._filter_attrs(tag, [(name.lower(), value) for name, value in attrs])
+        attrs = [(name.lower(), value) for name, value in attrs]
+        names = [name for name, _ in attrs]
+        if len(names) != len(set(names)):
+            # html.parser keeps the last duplicate, Chromium the first: the policy and the browser would
+            # judge different values, so an ambiguous tag fails the build.
+            raise UnsafeAssetError(f"<{tag}> has duplicate attributes, which are not allowed in the document")
+        attrs = self._filter_attrs(tag, attrs)
         if tag == "a":
             href = (dict(attrs).get("href") or "").strip()
             keep = href.startswith("#") or bool(PUBLIC_LINK.match(href))
@@ -218,7 +224,7 @@ def audit_pdf(pdf: Path) -> list:
             annotation = annotation.get_object()
             action = annotation.get("/A")
             uri = str(action.get_object().get("/URI", "")) if action else ""
-            if any(bad in uri for bad in FORBIDDEN_PDF_URIS):
+            if uri and (not PUBLIC_LINK.match(uri) or any(bad in uri for bad in FORBIDDEN_PDF_URIS)):
                 problems.append(f"page {number}: forbidden link {uri[:80]}")
             if annotation.get("/Dest") is not None or (action and "/D" in action.get_object()):
                 internal += 1
@@ -267,8 +273,8 @@ def build_html(source: Path, meta, body_html: str) -> str:
     css_name = meta.get("css", "assets/pdf-style.css")
     css_path = (source.parent / css_name).resolve()
     css = css_path.read_text(encoding="utf-8") if css_path.is_file() else ""
-    title = meta.get("title", source.stem)
-    lang = meta.get("lang", "pt-BR")
+    title = escape(meta.get("title", source.stem), quote=True)
+    lang = escape(meta.get("lang", "pt-BR"), quote=True)
     return f"""<!DOCTYPE html>
 <html lang="{lang}">
 <head>
