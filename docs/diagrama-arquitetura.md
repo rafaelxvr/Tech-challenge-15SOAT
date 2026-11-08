@@ -1,3 +1,5 @@
+> Diagrama da Fase 3. A visão geral da Fase 4 (Kind, três serviços, filas e DLQs) está em `docs/architecture/phase4-kind-geral.md`.
+
 ## 1. Visão geral da solução
 
 ```mermaid

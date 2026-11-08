@@ -1,0 +1,262 @@
+{
+  "openapi" : "3.1.0",
+  "info" : {
+    "title" : "OpenAPI definition",
+    "version" : "v0"
+  },
+  "servers" : [ {
+    "url" : "http://localhost/billing",
+    "description" : "Generated server url"
+  } ],
+  "tags" : [ {
+    "name" : "Billing",
+    "description" : "Consulta de orçamentos e pagamentos (staff ADMIN)"
+  } ],
+  "paths" : {
+    "/webhooks/mercadopago" : {
+      "post" : {
+        "tags" : [ "webhook-mercado-pago-controller" ],
+        "operationId" : "receber",
+        "parameters" : [ {
+          "name" : "x-signature",
+          "in" : "header",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "x-request-id",
+          "in" : "header",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "data.id",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "type",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/Notificacao"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        }
+      }
+    },
+    "/pagamentos/{id}/reconsulta" : {
+      "post" : {
+        "tags" : [ "Billing" ],
+        "summary" : "Reconsulta o pagamento no provedor (alternativa ao webhook) e aplica o resultado verificado",
+        "operationId" : "reconsultar",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "object",
+                  "additionalProperties" : { }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pagamentos/{id}" : {
+      "get" : {
+        "tags" : [ "Billing" ],
+        "summary" : "Situação de um pagamento",
+        "operationId" : "pagamento",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PagamentoResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/orcamentos" : {
+      "get" : {
+        "tags" : [ "Billing" ],
+        "summary" : "Orçamentos de uma ordem de serviço, por versão",
+        "operationId" : "orcamentos",
+        "parameters" : [ {
+          "name" : "osId",
+          "in" : "query",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/OrcamentoResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components" : {
+    "schemas" : {
+      "Dados" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string"
+          }
+        }
+      },
+      "Notificacao" : {
+        "type" : "object",
+        "properties" : {
+          "type" : {
+            "type" : "string"
+          },
+          "data" : {
+            "$ref" : "#/components/schemas/Dados"
+          }
+        }
+      },
+      "PagamentoResponse" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "orcamentoId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "osId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "estado" : {
+            "type" : "string"
+          },
+          "valor" : {
+            "type" : "number"
+          },
+          "checkoutUrl" : {
+            "type" : "string"
+          },
+          "expiraEm" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }
+      },
+      "Item" : {
+        "type" : "object",
+        "properties" : {
+          "tipo" : {
+            "type" : "string"
+          },
+          "referenciaId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "descricao" : {
+            "type" : "string"
+          },
+          "quantidade" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "precoUnitario" : {
+            "type" : "number"
+          }
+        }
+      },
+      "OrcamentoResponse" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "osId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "versao" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "estado" : {
+            "type" : "string"
+          },
+          "total" : {
+            "type" : "number"
+          },
+          "criadoEm" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "itens" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/Item"
+            }
+          }
+        }
+      }
+    }
+  }
+}
