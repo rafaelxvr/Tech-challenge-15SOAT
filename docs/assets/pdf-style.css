@@ -8,8 +8,8 @@ body {
   background: #ffffff;
   color: #172033;
   font-family: "Segoe UI", Arial, sans-serif;
-  font-size: 9.2pt;
-  line-height: 1.28;
+  font-size: 10pt;
+  line-height: 1.32;
 }
 
 h1, h2, h3 {
@@ -43,8 +43,26 @@ p, ul, ol {
 
 table {
   border-collapse: collapse;
-  font-size: 8pt;
+  font-size: 8.5pt;
+  table-layout: auto;
   width: 100%;
+}
+
+thead {
+  display: table-header-group;
+}
+
+tr {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+td, th {
+  overflow-wrap: break-word;
+}
+
+a, code {
+  overflow-wrap: anywhere;
 }
 
 th, td {
@@ -63,6 +81,7 @@ pre, code {
 }
 
 pre {
+  font-size: 8.5pt;
   background: #f5f7f9;
   border: 1px solid #d8e0e6;
   margin: 0.4rem 0;
@@ -93,7 +112,7 @@ img {
 
 .small {
   color: #4d5d6c;
-  font-size: 7.5pt;
+  font-size: 8.5pt;
   margin: 0.25rem 0 0;
 }
 
@@ -106,4 +125,28 @@ blockquote {
   border-left: 4px solid #1f6f9f;
   margin: 0.45rem 0;
   padding: 0.35rem 0.65rem;
+}
+
+.toc ul {
+  margin: 0.2rem 0;
+}
+
+.toc a {
+  color: #123b63;
+  text-decoration: none;
+}
+
+.subtitle {
+  color: #123b63;
+  font-size: 13pt;
+  font-weight: 600;
+}
+
+.toc-title {
+  border-bottom: 1px solid #b9cfdf;
+  color: #123b63;
+  font-size: 15pt;
+  font-weight: 700;
+  margin: 0.75rem 0 0.4rem;
+  page-break-after: avoid;
 }

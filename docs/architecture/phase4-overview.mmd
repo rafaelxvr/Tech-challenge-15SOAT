@@ -1,0 +1,26 @@
+%% Diagrama geral da Fase 4 (secao 2.1 de docs/entrega-fase-4.md).
+%% Ambiente Kind efemero de validacao local; nao e evidencia de deploy em nuvem.
+%% Renderizar: npx -y @mermaid-js/mermaid-cli -i docs/architecture/phase4-overview.mmd -o docs/architecture/rendered/phase4-overview.svg
+flowchart TB
+  CLI["Cliente / equipe da oficina<br/>JWT; acesso local via port-forward"]
+
+  subgraph KIND["Kind oficina-phase4 (efemero no CI; ambiente local descartavel)"]
+    direction TB
+    OS["OS Service<br/>ns oficina<br/>saga + OS"]
+    BIL["Billing Service<br/>ns oficina-billing<br/>orcamento e pagamento"]
+    EXE["Execution Service<br/>ns oficina-execution<br/>diagnostico e reparo"]
+    PGOS[("PostgreSQL 16<br/>DB oficina")]
+    PGBIL[("PostgreSQL 16<br/>DB billing")]
+    DDB[("DynamoDB Local<br/>via LocalStack")]
+    LS{{"LocalStack: SQS FIFO + DLQs<br/>billing-commands.fifo<br/>execution-commands.fifo<br/>os-saga-replies.fifo"}}
+  end
+
+  CLI --> OS
+  CLI --> BIL
+  CLI --> EXE
+  OS --> PGOS
+  BIL --> PGBIL
+  EXE --> DDB
+  OS <--> LS
+  BIL <--> LS
+  EXE <--> LS
