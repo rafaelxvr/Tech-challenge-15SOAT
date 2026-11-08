@@ -20,4 +20,4 @@ images:
   # Pacote publico no GHCR (pull anonimo, sem imagePullSecrets); se voltar a privado o pull falha no cluster.
   - name: oficina-mecanica
     newName: ghcr.io/rafaelxvr/oficina-mecanica
-    digest: sha256:a30e36bd56e4702b92b6065a490f21f8a7f06383df72399c558d0cd9a2d8edc3
+    digest: sha256:86a3db437b3009219045fbd8c6ecda0dcc0d02b76c7e7e88051906f2e5ae3d59
