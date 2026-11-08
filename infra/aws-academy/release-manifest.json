@@ -9,7 +9,8 @@
       "tag": "47277f75d94b9e126514e0e02e55e1cdb129a6e2",
       "digest": "sha256:86a3db437b3009219045fbd8c6ecda0dcc0d02b76c7e7e88051906f2e5ae3d59",
       "ciRun": "42515666357",
-      "visibility": "public"
+      "visibility": "public",
+      "deliveryRef": "refs/tags/fase4-entrega-2026-11-08"
     },
     "billing": {
       "image": "ghcr.io/rafaelxvr/oficina-billing-service",
@@ -18,7 +19,8 @@
       "tag": "e4e31147c34e48795a31021dd7265908f7539070",
       "digest": "sha256:0d7ef41cdd4f97a7dafdb21396da3365bd594de26bb9c76b9a4fb51cb33afe6c",
       "ciRun": "42510613712",
-      "visibility": "public"
+      "visibility": "public",
+      "deliveryRef": "refs/tags/fase4-entrega-2026-11-08"
     },
     "execution": {
       "image": "ghcr.io/rafaelxvr/oficina-execution-service",
@@ -27,7 +29,8 @@
       "tag": "eaac4225fd85799a730653f794cc9407c8677d24",
       "digest": "sha256:203d108eb96e4c9146ef733405a1d093efcbccaef4ba1d5d50ab9601cc11c358",
       "ciRun": "42508903210",
-      "visibility": "public"
+      "visibility": "public",
+      "deliveryRef": "refs/tags/fase4-entrega-2026-11-08"
     }
   }
 }

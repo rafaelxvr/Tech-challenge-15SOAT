@@ -37,7 +37,7 @@ Soma: 0:45 + 1:30 + 1:30 + 2:00 + 2:00 + 2:00 + 1:30 + 1:30 + 1:00 + 0:45 = **14
 - **Plano B:** imagem estática da capa do PDF.
 
 ### 2. Repositórios, SHAs e arquitetura (00:45–02:15)
-- **Tela/ação:** três repositórios no GitHub; tabela de SHAs e digests de `main` (capa; mesmos valores do `release-manifest.json`); diagrama da seção 2.1; bancos isolados (SQL e NoSQL).
+- **Tela/ação:** três repositórios no GitHub; tabela de SHAs e digests de `main` (capa; mesmos valores do `release-manifest.json`; `sourceSha`/digest provam a origem da imagem, e o overlay de entrega vem da tag `deliveryRef` `fase4-entrega-2026-11-08`, a ser criada pelo operador após a última promoção); diagrama da seção 2.1; bancos isolados (SQL e NoSQL).
 - **Prova:** serviços independentes e bancos isolados.
 - **Evidência esperada:** SHAs exibidos coincidem com os da capa no dia da gravação (reconferir antes). Valores de 08/11/2026:
   - core `47277f75d94b9e126514e0e02e55e1cdb129a6e2`, digest `sha256:86a3db437b3009219045fbd8c6ecda0dcc0d02b76c7e7e88051906f2e5ae3d59`, [run 42515666357](https://github.com/rafaelxvr/Tech-challenge-15SOAT/actions/runs/42515666357);
