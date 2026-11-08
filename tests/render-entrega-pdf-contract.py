@@ -80,6 +80,25 @@ with tempfile.TemporaryDirectory() as directory:
         '<div style="background:image-set(https://example.org/l.png 1x)">x</div>',
         '<div style="background:-webkit-image-set(https://example.org/l.png 1x)">x</div>',
         '<div style="width:expression(alert(1))">x</div>',
+        # HTML5 parser differentials: html.parser and Chromium disagree on these contexts (UNR-1041).
+        '<!--> <img src="http://127.0.0.1:9/c1"> -->',
+        '<!---> <img src="http://127.0.0.1:9/c1"> -->',
+        '<!-- comentario -->',
+        '<!DOCTYPE html>',
+        '<![CDATA[ x ]]>',
+        '<?php echo 1 ?>',
+        '<math><title><img src="http://127.0.0.1:9/c1"></title></math>',
+        '<math><textarea><img src="http://127.0.0.1:9/c1"></textarea></math>',
+        '<math><annotation-xml encoding="text/html"><title><img src="http://127.0.0.1:9/c1"></title></annotation-xml></math>',
+        '<math><xmp><img src="http://127.0.0.1:9/c1"></xmp></math>',
+        '<template><img src="http://127.0.0.1:9/c1"></template>',
+        '<noscript><img src="http://127.0.0.1:9/c1"></noscript>',
+        '<plaintext><img src="http://127.0.0.1:9/c1">',
+        '<noembed><img src="http://127.0.0.1:9/c1"></noembed>',
+        '<noframes><img src="http://127.0.0.1:9/c1"></noframes>',
+        '<svg><title><img src="http://127.0.0.1:9/c1"></title></svg>',
+        '<custom-tag>x</custom-tag>',
+        '<p>x</unknown>',
     ):
         try:
             convert(bad)

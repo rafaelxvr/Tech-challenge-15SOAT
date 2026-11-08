@@ -38,7 +38,17 @@ BROWSERS = [
 ]
 EXTENSIONS = ["tables", "fenced_code", "attr_list", "md_in_html", "sane_lists"]
 PUBLIC_LINK = re.compile(r"^https?://", re.IGNORECASE)
+# Closed tag allowlist: what Markdown (with the enabled extensions) and the PDF layout emit. Anything else
+# fails the build, so html.parser and Chromium can never disagree about a context they both would enter.
+ALLOWED_TAGS = {
+    "a", "b", "blockquote", "br", "code", "div", "em", "h1", "h2", "h3", "h4", "h5", "h6", "hr", "i", "img",
+    "li", "ol", "p", "pre", "small", "span", "strong", "sub", "sup", "table", "tbody", "td", "th", "thead", "tr", "ul",
+}
+# Contexts whose parsing differs between html.parser and HTML5 (foreign content, raw text, RCDATA, templates).
+# Not in ALLOWED_TAGS already; listed to give an explicit error.
 FORBIDDEN_TAGS = {
+    "math", "template", "noscript", "title", "textarea", "xmp", "plaintext", "noembed", "noframes", "annotation-xml",
+    "foreignobject", "desc", "mi", "mo", "mn", "ms", "mtext", "select", "option", "optgroup", "details", "dialog",
     "script", "iframe", "object", "embed", "link", "base", "source", "video", "audio", "form", "svg", "style", "meta",
     "input", "frame", "frameset", "applet", "portal", "image", "track", "button",
 }
@@ -90,11 +100,17 @@ class LinkAndImagePolicy(HTMLParser):
         self.out.append(self._start(tag, attrs, self_closing=True))
 
     def handle_endtag(self, tag):
+        tag = tag.lower()
+        if tag not in ALLOWED_TAGS:
+            raise UnsafeAssetError(f"</{tag}> is not allowed in the document")
         if tag == "a" and self.anchors:
             tag = self.anchors.pop()
         self.out.append(f"</{tag}>")
 
     def handle_data(self, data):
+        # A markup opener left in text is a construct html.parser did not tokenize but Chromium may.
+        if "<!" in data or "<?" in data or re.search(r"</?[a-zA-Z]", data):
+            raise UnsafeAssetError("unparsed markup in text is not allowed in the document")
         self.out.append(data)
 
     def handle_entityref(self, name):
@@ -104,17 +120,20 @@ class LinkAndImagePolicy(HTMLParser):
         self.out.append(f"&#{name};")
 
     def handle_comment(self, data):
-        self.out.append(f"<!--{data}-->")
+        raise UnsafeAssetError("HTML comments are not allowed in the document")
 
     def handle_decl(self, decl):
-        self.out.append(f"<!{decl}>")
+        raise UnsafeAssetError("HTML declarations are not allowed in the document")
+
+    def unknown_decl(self, data):
+        raise UnsafeAssetError("HTML declarations are not allowed in the document")
 
     def handle_pi(self, data):
         raise UnsafeAssetError("processing instructions are not allowed in the document")
 
     def _start(self, tag, attrs, self_closing):
         tag = tag.lower()
-        if tag in FORBIDDEN_TAGS:
+        if tag in FORBIDDEN_TAGS or tag not in ALLOWED_TAGS:
             raise UnsafeAssetError(f"<{tag}> is not allowed in the document")
         attrs = self._filter_attrs(tag, [(name.lower(), value) for name, value in attrs])
         if tag == "a":
