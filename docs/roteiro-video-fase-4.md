@@ -37,12 +37,12 @@ Soma: 0:45 + 1:30 + 1:30 + 2:00 + 2:00 + 2:00 + 1:30 + 1:30 + 1:00 + 0:45 = **14
 - **Plano B:** imagem estática da capa do PDF.
 
 ### 2. Repositórios, SHAs e arquitetura (00:45–02:15)
-- **Tela/ação:** três repositórios no GitHub; tabela de SHAs e digests de `main` (capa; mesmos valores do `release-manifest.json`); diagrama da seção 2.1; bancos isolados (SQL e NoSQL).
+- **Tela/ação:** três repositórios no GitHub; tabela de SHAs e digests de `main` (capa; mesmos valores do `release-manifest.json`; `sourceSha`/digest provam a origem da imagem, e o overlay de entrega vem da tag `deliveryRef` `fase4-entrega-2026-11-08`, a ser criada pelo operador após a última promoção); diagrama da seção 2.1; bancos isolados (SQL e NoSQL).
 - **Prova:** serviços independentes e bancos isolados.
-- **Evidência esperada:** SHAs exibidos coincidem com os da capa no dia da gravação (reconferir antes). Valores de 07/11/2026:
-  - core `7f4ae87720300733534b2076587df4eb507d02e2`, digest `sha256:a30e36bd56e4702b92b6065a490f21f8a7f06383df72399c558d0cd9a2d8edc3`, [run 42328032698](https://github.com/rafaelxvr/Tech-challenge-15SOAT/actions/runs/42328032698);
-  - billing `89902b2b474b1658bcff85ffb28c710c88fb796b`, digest `sha256:6097c2c72266be158c181b2fb03874ff3c4b716f3af253c229aee30ad899be51`, [run 42328059868](https://github.com/rafaelxvr/Tech-challenge-15SOAT-billing/actions/runs/42328059868);
-  - execution `ab3437204a4fb42594cf08b6489dc99c160cee83`, digest `sha256:18f3bcbe5bf834a4d306aeef54e32a9d32e7143347afb53bf14df2f50cbc8a87`, [run 42328065780](https://github.com/rafaelxvr/Tech-challenge-15SOAT-execution/actions/runs/42328065780).
+- **Evidência esperada:** SHAs exibidos coincidem com os da capa no dia da gravação (reconferir antes). Valores de 08/11/2026:
+  - core `47277f75d94b9e126514e0e02e55e1cdb129a6e2`, digest `sha256:86a3db437b3009219045fbd8c6ecda0dcc0d02b76c7e7e88051906f2e5ae3d59`, [run 42515666357](https://github.com/rafaelxvr/Tech-challenge-15SOAT/actions/runs/42515666357);
+  - billing `e4e31147c34e48795a31021dd7265908f7539070`, digest `sha256:0d7ef41cdd4f97a7dafdb21396da3365bd594de26bb9c76b9a4fb51cb33afe6c`, [run 42510613712](https://github.com/rafaelxvr/Tech-challenge-15SOAT-billing/actions/runs/42510613712);
+  - execution `eaac4225fd85799a730653f794cc9407c8677d24`, digest `sha256:203d108eb96e4c9146ef733405a1d093efcbccaef4ba1d5d50ab9601cc11c358`, [run 42508903210](https://github.com/rafaelxvr/Tech-challenge-15SOAT-execution/actions/runs/42508903210).
   - O manifesto prova SHA, digest e CI; não prova deploy no AWS Academy (`PENDENTE-AWS`).
 - **Plano B:** captura da tabela de SHAs e digests com data e hora.
 
@@ -87,7 +87,7 @@ Soma: 0:45 + 1:30 + 1:30 + 2:00 + 2:00 + 2:00 + 1:30 + 1:30 + 1:00 + 0:45 = **14
 - **Plano B:** captura previamente sanitizada do mesmo fluxo. Fake/WireMock **não** vale como prova. Execução real: Rafael; `PENDENTE-VIDEO`.
 
 ### 8. CI, cobertura, Sonar e New Relic (11:15–12:45)
-- **Tela/ação:** runs de CI de `main` (core [42328032698](https://github.com/rafaelxvr/Tech-challenge-15SOAT/actions/runs/42328032698), billing [42328059868](https://github.com/rafaelxvr/Tech-challenge-15SOAT-billing/actions/runs/42328059868), execution [42328065780](https://github.com/rafaelxvr/Tech-challenge-15SOAT-execution/actions/runs/42328065780), todos `success`); Quality Gate e cobertura Sonar por serviço em `main` (consulta pública de 07/11/2026): core 88,0% (`7f4ae87`), billing 91,9% (`89902b2`), execution 93,6% (`ab34372`); trace distribuído dos três serviços no New Relic.
+- **Tela/ação:** runs de CI de `main` (core [42515666357](https://github.com/rafaelxvr/Tech-challenge-15SOAT/actions/runs/42515666357), billing [42510613712](https://github.com/rafaelxvr/Tech-challenge-15SOAT-billing/actions/runs/42510613712), execution [42508903210](https://github.com/rafaelxvr/Tech-challenge-15SOAT-execution/actions/runs/42508903210), todos `success`); Quality Gate e cobertura Sonar por serviço em `main` (consulta pública de 08/11/2026): core 88,0% (`47277f7`), billing 91,9% (`e4e3114`), execution 93,6% (`eaac422`); trace distribuído dos três serviços no New Relic.
 - **Prova:** qualidade e observabilidade.
 - **Evidência esperada:** Quality Gate OK e cobertura ≥ 80% por serviço (medição em `main`, por SHA; Sonar no ambiente AWS Academy não executado); trace único atravessando OS, Billing e Execution. O link APM ainda **não existe**: `PENDENTE-AWS`.
 - **Plano B:** mostrar os PRs de wiring mesclados e dizer explicitamente que o trace consultável não foi obtido.
