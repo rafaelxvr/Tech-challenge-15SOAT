@@ -32,7 +32,12 @@ fi
 check_delivery_ref() {
   local svc="$1" dir="$2" ref="$3" pending="$4" head tagged
   git -C "$dir" rev-parse --show-toplevel >/dev/null 2>&1 || fail "overlay de $svc nao esta em um checkout git (necessario para provar o deliveryRef)"
-  [ -z "$(git -C "$dir" status --porcelain --untracked-files=no -- . 2>/dev/null)" ] || fail "overlay de $svc tem alteracoes locais; use checkout limpo no deliveryRef"
+  # Arvore INTEIRA do checkout (sem pathspec): o overlay referencia bases fora do proprio diretorio
+  # (ex.: ../../k8s) e qualquer alteracao rastreada ou arquivo nao rastreado (nao ignorado) muda o render.
+  # Falha fechada: se o git status falhar, o checkout nao e considerado limpo.
+  local dirty
+  dirty="$(git -C "$dir" status --porcelain --untracked-files=normal 2>/dev/null)" || fail "nao foi possivel ler o estado git do checkout de $svc"
+  [ -z "$dirty" ] || fail "checkout de $svc tem alteracoes locais (rastreadas ou nao rastreadas) em qualquer parte da arvore; use checkout limpo no deliveryRef"
   if tagged="$(git -C "$dir" rev-parse --verify --quiet "$ref^{commit}")"; then
     head="$(git -C "$dir" rev-parse HEAD)"
     [ "$head" = "$tagged" ] || fail "checkout de $svc ($head) difere do deliveryRef $ref ($tagged)"
