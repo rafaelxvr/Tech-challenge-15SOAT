@@ -90,8 +90,16 @@ class LinkAndImagePolicy(HTMLParser):
 
     def apply(self, html: str) -> str:
         self.feed(html)
+        self._reject_residue()
         self.close()
+        self._reject_residue()
         return "".join(self.out)
+
+    def _reject_residue(self):
+        # An incomplete tag, comment or PI at EOF stays unconsumed (or is flushed as text on close);
+        # the HTML appended later by build_html would let Chromium reinterpret it as live markup.
+        if self.rawdata:
+            raise UnsafeAssetError("incomplete markup at the end of the document is not allowed")
 
     def handle_starttag(self, tag, attrs):
         self.out.append(self._start(tag, attrs, self_closing=False))
@@ -108,8 +116,9 @@ class LinkAndImagePolicy(HTMLParser):
         self.out.append(f"</{tag}>")
 
     def handle_data(self, data):
-        # A markup opener left in text is a construct html.parser did not tokenize but Chromium may.
-        if "<!" in data or "<?" in data or re.search(r"</?[a-zA-Z]", data):
+        # Legitimate text reaches here escaped (&lt;); a literal "<" is a construct html.parser did not
+        # tokenize (or split, e.g. an incomplete tag at EOF) but Chromium may treat as markup.
+        if "<" in data:
             raise UnsafeAssetError("unparsed markup in text is not allowed in the document")
         self.out.append(data)
 

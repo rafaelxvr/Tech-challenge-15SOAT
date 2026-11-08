@@ -99,6 +99,13 @@ with tempfile.TemporaryDirectory() as directory:
         '<svg><title><img src="http://127.0.0.1:9/c1"></title></svg>',
         '<custom-tag>x</custom-tag>',
         '<p>x</unknown>',
+        # Incomplete constructs exactly at EOF (UNR-1048): Python 3.12 may split them into "<" + rest.
+        '<p>x <img src="http://127.0.0.1:9/c',
+        '<p>x <input type=image src="http://127.0.0.1:9/c',
+        '<p>x <table background="http://127.0.0.1:9/c',
+        '<p>x <script src="http://127.0.0.1:9/c',
+        '<p>x <!--',
+        '<p>x <?x',
     ):
         try:
             convert(bad)
@@ -107,6 +114,10 @@ with tempfile.TemporaryDirectory() as directory:
         else:
             raise AssertionError(f"unsafe raw html accepted: {bad}")
     check("data:image/svg+xml;base64," in convert('<img src="img.svg" alt="x">'), "raw html local image is embedded")
+
+    escaped = convert("a < b e `<img src=x>` e <b\n\n```html\n<div>x</div>\n```")
+    check("&lt;" in escaped and "<img" not in escaped and "<div>" not in escaped, "literal < in text and code stays escaped")
+    check("&lt;div&gt;x&lt;/div&gt;" in escaped, "fenced code keeps escaped markup")
 
     benign = convert('<div style="color: red; text-align:center" onclick="x()" data-x="1" foo="bar">ok</div>')
     check('style="color: red; text-align:center"' in benign, "harmless inline style is kept")
