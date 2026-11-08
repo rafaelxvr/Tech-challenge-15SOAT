@@ -48,6 +48,9 @@ jobs:
         shell: pwsh
         run: ./tests/pipeline-contract.ps1
 
+      - name: Contrato offline do verify-overlay (M-1 e proveniencia tag == sourceSha)
+        run: ./tests/verify-overlay-tree-contract.sh
+
       - name: Build e testes automatizados
         run: ./mvnw -B verify
 

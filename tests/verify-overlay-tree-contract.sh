@@ -67,4 +67,52 @@ grep -q 'AVISO' <<<"$out" || { echo "FALHOU: --delivery-tag-pending sem aviso"; 
 printf 'extra\n' > "$fx/k8s/nao-rastreado.yaml"
 if out="$(cd "$fx/k8s-overlays/aws" && ./verify-overlay.sh --release --delivery-tag-pending 2>&1)"; then echo "FALHOU: --delivery-tag-pending nao pode ignorar arvore suja"; exit 1; fi
 echo "ok: --delivery-tag-pending continua recusando arvore suja"
+
+# Proveniencia: tag deve ser SHA de 40 hex e igual a sourceSha (fail-closed). Cada caso comita o manifesto
+# alterado na fixture (arvore limpa) para que a recusa venha da tag, nao de arvore suja.
+git -C "$fx" tag "${ref#refs/tags/}"
+manifest_fx="$fx/infra/aws-academy/release-manifest.json"
+manifest_ok="$(cat "$manifest_fx")"
+mutate_tag() { # $1 = servico, $2 = novo valor de tag ("__remover__" remove o campo)
+  python3 -I - "$manifest_fx" "$1" "$2" <<'PY'
+import json, sys
+p, svc, val = sys.argv[1:4]
+m = json.load(open(p, encoding="utf-8"))
+if val == "__remover__":
+    del m["services"][svc]["tag"]
+else:
+    m["services"][svc]["tag"] = val
+json.dump(m, open(p, "w", encoding="utf-8"), indent=2)
+PY
+  git -C "$fx" add -A
+  git -C "$fx" -c user.name=teste -c user.email=teste@example.invalid commit -q -m "tag $1"
+  git -C "$fx" tag -f "${ref#refs/tags/}" >/dev/null
+}
+restore_manifest() {
+  printf '%s
+' "$manifest_ok" > "$manifest_fx"
+  git -C "$fx" add -A
+  git -C "$fx" -c user.name=teste -c user.email=teste@example.invalid commit -q --allow-empty -m restaurar
+  git -C "$fx" tag -f "${ref#refs/tags/}" >/dev/null
+}
+expect_tag_fail() {
+  local out
+  if out="$(verify)"; then echo "FALHOU ($1): esperado recusa, mas passou"; exit 1; fi
+  grep -q 'manifesto invalido' <<<"$out" && grep -q "$2" <<<"$out" || { echo "FALHOU ($1): recusa por motivo errado"; echo "$out"; exit 1; }
+  if grep -q 'verify-overlay: OK' <<<"$out"; then echo "FALHOU ($1): imprimiu OK"; exit 1; fi
+  echo "ok: $1"
+}
+other_sha="0123456789abcdef0123456789abcdef01234567"
+for svc in os-service billing execution; do
+  mutate_tag "$svc" "$other_sha"
+  expect_tag_fail "tag divergente de sourceSha em $svc falha" 'tag diverge de sourceSha'
+  restore_manifest
+  mutate_tag "$svc" "latest"
+  expect_tag_fail "tag nao-SHA em $svc falha" 'tag ausente ou invalida'
+  restore_manifest
+  mutate_tag "$svc" "__remover__"
+  expect_tag_fail "tag ausente em $svc falha" 'tag ausente ou invalida'
+  restore_manifest
+done
+expect_ok "manifesto com tag == sourceSha continua passando"
 echo "verify-overlay-tree-contract: OK"

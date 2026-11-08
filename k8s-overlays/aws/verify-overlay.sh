@@ -79,6 +79,11 @@ if not re.fullmatch(r"sha256:[0-9a-f]{64}", s["digest"]) or re.fullmatch(r"sha25
     sys.exit("digest invalido ou placeholder")
 if not re.fullmatch(r"[0-9a-f]{40}", s["sourceSha"]):
     sys.exit("sourceSha invalido")
+tag = s.get("tag")
+if not isinstance(tag, str) or not re.fullmatch(r"[0-9a-f]{40}", tag):
+    sys.exit("tag ausente ou invalida (esperado SHA de 40 hex)")
+if tag != s["sourceSha"]:
+    sys.exit("tag diverge de sourceSha (proveniencia da imagem nao comprovada)")
 refs = {v.get("deliveryRef") for v in m["services"].values()}
 ref = s.get("deliveryRef")
 if len(refs) != 1 or not isinstance(ref, str) or not re.fullmatch(r"refs/tags/[A-Za-z0-9._-]+", ref):
