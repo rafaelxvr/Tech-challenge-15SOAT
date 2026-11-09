@@ -6,7 +6,7 @@ Roteiro operacional para ensaio e gravação ([UNR-613](/UNR/issues/UNR-613)). D
 
 - Duração-alvo total: **14min30s**, com 30s de margem até o limite de 15min.
 - `PENDENTE-VIDEO`: URL e timecodes reais só existem após a gravação.
-- `PENDENTE-AWS`: capturas que dependem do ambiente AWS Academy (sessão AWS 3, [UNR-947](/UNR/issues/UNR-947)), sob aprovação do Rafael. Este roteiro não autoriza nem executa ação AWS.
+- `PENDENTE-AWS`: capturas que dependem do ambiente AWS Academy (nova sessão AWS pós-V11, sessão AWS 4, [UNR-947](/UNR/issues/UNR-947); a sessão AWS 3 já ocorreu e revelou o defeito de centavos), sob aprovação do Rafael. Este roteiro não autoriza nem executa ação AWS.
 - Plano B de cada bloco: evidência **pré-capturada ligada ao mesmo SHA**, apresentada como tal. Nunca apresentar fixture ou captura antiga como execução ao vivo.
 - Não exibir console com tokens, variáveis secretas, payloads integrais, PII, ARN ou IDs de recursos. Credenciais de Mercado Pago e New Relic ficam fora de banda.
 - Risco aberto: o aceite do Kind como evidência de deploy Kubernetes pelos avaliadores **não está confirmado**; **ambiente do vídeo decidido pelo Rafael em 03/11** ([UNR-613](/UNR/issues/UNR-613), [UNR-71](/UNR/issues/UNR-71)): gravação somente no AWS Academy. Kind aparece apenas como validação local antes do deploy, nunca como ambiente gravado.
@@ -37,10 +37,10 @@ Soma: 0:45 + 1:30 + 1:30 + 2:00 + 2:00 + 2:00 + 1:30 + 1:30 + 1:00 + 0:45 = **14
 - **Plano B:** imagem estática da capa do PDF.
 
 ### 2. Repositórios, SHAs e arquitetura (00:45–02:15)
-- **Tela/ação:** três repositórios no GitHub; tabela de SHAs e digests de `main` (capa; mesmos valores do `release-manifest.json`; `sourceSha`/digest provam a origem da imagem, e o overlay de entrega vem da tag `deliveryRef` `fase4-entrega-2026-11-08`, a ser criada pelo operador após a última promoção); diagrama da seção 2.1; bancos isolados (SQL e NoSQL).
+- **Tela/ação:** três repositórios no GitHub; tabela de SHAs e digests de `main` (capa; mesmos valores do `release-manifest.json`; `sourceSha`/digest provam a origem da imagem, e o overlay de entrega vem da tag `deliveryRef` `fase4-entrega-2026-11-09`, a ser criada pelo operador após a última promoção); diagrama da seção 2.1; bancos isolados (SQL e NoSQL).
 - **Prova:** serviços independentes e bancos isolados.
-- **Evidência esperada:** SHAs exibidos coincidem com os da capa no dia da gravação (reconferir antes). Valores de 08/11/2026:
-  - core `47277f75d94b9e126514e0e02e55e1cdb129a6e2`, digest `sha256:86a3db437b3009219045fbd8c6ecda0dcc0d02b76c7e7e88051906f2e5ae3d59`, [run 42515666357](https://github.com/rafaelxvr/Tech-challenge-15SOAT/actions/runs/42515666357);
+- **Evidência esperada:** SHAs exibidos coincidem com os da capa no dia da gravação (reconferir antes). Valores de 09/11/2026 (core) e 08/11/2026 (billing e execution):
+  - core `13cd27dce67784d3e99de669ea6de142fcf5152a`, digest `sha256:aa35819039d1b4a3c63ac8be557e2f15b99dae807dc4b58a145d36236d034804`, [run 42697251364](https://github.com/rafaelxvr/Tech-challenge-15SOAT/actions/runs/42697251364);
   - billing `e4e31147c34e48795a31021dd7265908f7539070`, digest `sha256:0d7ef41cdd4f97a7dafdb21396da3365bd594de26bb9c76b9a4fb51cb33afe6c`, [run 42510613712](https://github.com/rafaelxvr/Tech-challenge-15SOAT-billing/actions/runs/42510613712);
   - execution `eaac4225fd85799a730653f794cc9407c8677d24`, digest `sha256:203d108eb96e4c9146ef733405a1d093efcbccaef4ba1d5d50ab9601cc11c358`, [run 42508903210](https://github.com/rafaelxvr/Tech-challenge-15SOAT-execution/actions/runs/42508903210).
   - O manifesto prova SHA, digest e CI; não prova deploy no AWS Academy (`PENDENTE-AWS`).
@@ -84,10 +84,11 @@ Soma: 0:45 + 1:30 + 1:30 + 2:00 + 2:00 + 2:00 + 1:30 + 1:30 + 1:00 + 0:45 = **14
 - **Tela/ação:** Postman com a coleção ([PR #85](https://github.com/rafaelxvr/Tech-challenge-15SOAT/pull/85)): preferência, pagamento sandbox, reconsulta, estorno.
 - **Prova:** integração Mercado Pago.
 - **Evidência esperada:** pagamento confirmado por reconsulta e estorno concluído; sem tokens, `external_reference` truncado, sem payload integral.
+- **Preços em reais (V11):** o catálogo exibe valores em reais (ex.: Alinhamento R$ 120,00; Troca de Óleo R$ 80,00), após a `V11__corrigir_precos_semeados_para_reais.sql`. Na sessão AWS 3 o checkout cobrou R$ 17.000 onde o esperado era R$ 170 (centavos gravados em colunas de reais pelo seed V2; [UNR-1105](/UNR/issues/UNR-1105), [UNR-1110](/UNR/issues/UNR-1110)). A cobrança correta com a V11 aplicada ainda não foi reexecutada (`PENDENTE-AWS`); não declarar como evidenciada antes da nova sessão.
 - **Plano B:** captura previamente sanitizada do mesmo fluxo. Fake/WireMock **não** vale como prova. Execução real: Rafael; `PENDENTE-VIDEO`.
 
 ### 8. CI, cobertura, Sonar e New Relic (11:15–12:45)
-- **Tela/ação:** runs de CI de `main` (core [42515666357](https://github.com/rafaelxvr/Tech-challenge-15SOAT/actions/runs/42515666357), billing [42510613712](https://github.com/rafaelxvr/Tech-challenge-15SOAT-billing/actions/runs/42510613712), execution [42508903210](https://github.com/rafaelxvr/Tech-challenge-15SOAT-execution/actions/runs/42508903210), todos `success`); Quality Gate e cobertura Sonar por serviço em `main` (consulta pública de 08/11/2026): core 88,0% (`47277f7`), billing 91,9% (`e4e3114`), execution 93,6% (`eaac422`); trace distribuído dos três serviços no New Relic.
+- **Tela/ação:** runs de CI de `main` (core [42697251364](https://github.com/rafaelxvr/Tech-challenge-15SOAT/actions/runs/42697251364), billing [42510613712](https://github.com/rafaelxvr/Tech-challenge-15SOAT-billing/actions/runs/42510613712), execution [42508903210](https://github.com/rafaelxvr/Tech-challenge-15SOAT-execution/actions/runs/42508903210), todos `success`); Quality Gate e cobertura Sonar por serviço em `main` (consulta pública de 09/11/2026 para o core e 08/11/2026 para billing e execution): core 88,0% (`13cd27d`), billing 91,9% (`e4e3114`), execution 93,6% (`eaac422`); trace distribuído dos três serviços no New Relic.
 - **Prova:** qualidade e observabilidade.
 - **Evidência esperada:** Quality Gate OK e cobertura ≥ 80% por serviço (medição em `main`, por SHA; Sonar no ambiente AWS Academy não executado); trace único atravessando OS, Billing e Execution. O link APM ainda **não existe**: `PENDENTE-AWS`.
 - **Plano B:** mostrar os PRs de wiring mesclados e dizer explicitamente que o trace consultável não foi obtido.
