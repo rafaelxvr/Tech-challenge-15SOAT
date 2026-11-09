@@ -6,7 +6,7 @@ Roteiro operacional para ensaio e gravação ([UNR-613](/UNR/issues/UNR-613)). D
 
 - Duração-alvo total: **14min30s**, com 30s de margem até o limite de 15min.
 - `PENDENTE-VIDEO`: URL e timecodes reais só existem após a gravação.
-- `PENDENTE-AWS`: capturas que dependem do ambiente AWS Academy (sessão AWS 3, [UNR-947](/UNR/issues/UNR-947)), sob aprovação do Rafael. Este roteiro não autoriza nem executa ação AWS.
+- `PENDENTE-AWS`: capturas que dependem do ambiente AWS Academy (nova sessão AWS pós-V11, sessão AWS 4, [UNR-947](/UNR/issues/UNR-947); a sessão AWS 3 já ocorreu e revelou o defeito de centavos), sob aprovação do Rafael. Este roteiro não autoriza nem executa ação AWS.
 - Plano B de cada bloco: evidência **pré-capturada ligada ao mesmo SHA**, apresentada como tal. Nunca apresentar fixture ou captura antiga como execução ao vivo.
 - Não exibir console com tokens, variáveis secretas, payloads integrais, PII, ARN ou IDs de recursos. Credenciais de Mercado Pago e New Relic ficam fora de banda.
 - Risco aberto: o aceite do Kind como evidência de deploy Kubernetes pelos avaliadores **não está confirmado**; **ambiente do vídeo decidido pelo Rafael em 03/11** ([UNR-613](/UNR/issues/UNR-613), [UNR-71](/UNR/issues/UNR-71)): gravação somente no AWS Academy. Kind aparece apenas como validação local antes do deploy, nunca como ambiente gravado.
