@@ -140,7 +140,7 @@ Prazos padrão definidos no plano: diagnóstico 3 dias, resposta automática 5 m
 | Evidência | Situação |
 |---|---|
 | Fluxo completo e compensações testados com BDD (Kind local) | Executado: [run 40884415348](https://github.com/rafaelxvr/Tech-challenge-15SOAT/actions/runs/40884415348) — 34 PASS, 2 cenários cobertos por teste unitário, 0 FAIL, cleanup zerado, incluindo feliz, estoque insuficiente e reparo recusado. **Limite:** pinou SHAs históricos (core `7a8ea6c`, billing `17a37b9`, execution `1bf1e6c`), não os SHAs finais de `main` da tabela da capa. Reexecução nos candidatos finais: `PENDENTE-AWS` ([UNR-947](/UNR/issues/UNR-947)). |
-| Migração de banco | **[PENDENTE]** evidenciar instalação limpa até V10 e fixture V8 atualizada até V10 em run ligado a SHA atual |
+| Migração de banco | **[PENDENTE]** evidenciar instalação limpa até V11 e fixture V8 atualizada até V11 em run ligado a SHA atual |
 | Smoke e deploy local no Kind | Em `main` final (08/11/2026): core [run 42515666357](https://github.com/rafaelxvr/Tech-challenge-15SOAT/actions/runs/42515666357) `success`, com o job `Local Kind smoke (no AWS deployment)` verde; billing [run 42510613712](https://github.com/rafaelxvr/Tech-challenge-15SOAT-billing/actions/runs/42510613712) `success`, com o job `Deploy em Kind efêmero (SHA exato)` verde. Execution [run 42508903210](https://github.com/rafaelxvr/Tech-challenge-15SOAT-execution/actions/runs/42508903210) `success`, com o job `Kind efêmero (execution + LocalStack)` verde. Jobs conferidos na API pública do GitHub; os logs não foram auditados aqui |
 | Aceite do Kind como evidência de Kubernetes pelo avaliador | **[CONFIRMAR]** risco externo ainda aberto; não declarar aceite sem confirmação |
 
@@ -192,7 +192,7 @@ A validação local pré-deploy usa o cluster Kind `oficina-phase4`, efêmero no
 
 - Nomes de serviço: `oficina-app:8080`, `oficina-billing:8081` e `oficina-execution:8082`.
 - Dependências: `postgres-os.data.svc.cluster.local:5432` (`oficina`), `postgres-billing.data.svc.cluster.local:5432` (`billing`) e `localstack.infra.svc.cluster.local:4566` (`sqs,dynamodb`).
-- O gate de banco usa uma credencial de migração separada da credencial de runtime: migração limpa até V10 e fixture V8 atualizada até V10. A role de runtime recebe apenas o DML necessário (inicialmente `SELECT/INSERT/UPDATE`); `DELETE` só será concedido se o código provar que é necessário.
+- O gate de banco usa uma credencial de migração separada da credencial de runtime: migração limpa até V11 e fixture V8 atualizada até V11. A role de runtime recebe apenas o DML necessário (inicialmente `SELECT/INSERT/UPDATE`); `DELETE` só será concedido se o código provar que é necessário.
 - O CI deverá criar o cluster descartável, carregar a imagem, aplicar manifestos, validar prontidão/saúde, guardar a evidência e destruir o cluster.
 - Acesso local usa `kubectl port-forward` e validação JWT/roles nos próprios serviços. Não há API Gateway, ALB ou serviço externo de entrada na validação local definida.
 - LocalStack usa somente credenciais fictícias em ambiente local. **Não há provisionamento de recursos AWS, deploy em nuvem, Terraform cloud apply nem credenciais AWS nesta validação local.**

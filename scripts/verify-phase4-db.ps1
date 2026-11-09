@@ -1,8 +1,8 @@
 <#
 .SYNOPSIS
-  Reproducible proof of the Phase 4 os database: Flyway V1..V10 on an empty database, V8-fixture upgrade
-  to V10, least-privilege runtime grants (D15/D16) and credential/instance isolation. Runs against the
-  disposable Kind cluster only. Prints clean-install=V10, upgrade-fixture=V10, runtime-grants=PASS.
+  Reproducible proof of the Phase 4 os database: Flyway V1..V11 on an empty database, V8-fixture upgrade
+  to V11, least-privilege runtime grants (D15/D16) and credential/instance isolation. Runs against the
+  disposable Kind cluster only. Prints clean-install=V11, upgrade-fixture=V11, runtime-grants=PASS.
 #>
 [CmdletBinding()]
 param()
@@ -163,9 +163,9 @@ try {
     Invoke-Flyway $clean
     Grant-Runtime $clean
     $cleanVersion = Get-SchemaVersion $clean
-    Assert-That "clean-install=V$cleanVersion" ($cleanVersion -eq 10)
+    Assert-That "clean-install=V$cleanVersion" ($cleanVersion -eq 11)
 
-    Write-Host '== upgrade fixture (V8 data -> V10)'
+    Write-Host '== upgrade fixture (V8 data -> V11)'
     Initialize-Database $upgrade -Create
     Invoke-Flyway $upgrade '8'
     $v8 = Get-SchemaVersion $upgrade
@@ -174,7 +174,7 @@ try {
     Invoke-Flyway $upgrade
     Grant-Runtime $upgrade
     $upVersion = Get-SchemaVersion $upgrade
-    Assert-That "upgrade-fixture=V$upVersion" ($upVersion -eq 10)
+    Assert-That "upgrade-fixture=V$upVersion" ($upVersion -eq 11)
     $kept = Invoke-Psql -Instance os -Database $upgrade -User $Migrator -Password $migPw -Sql "SELECT count(*) FROM ordens_servico WHERE id = '00000000-0000-0000-0000-0000000000b1'"
     Assert-That 'V8 fixture order survives the upgrade' ($kept.Output.Trim() -eq '1') $kept.Output
 
@@ -188,7 +188,7 @@ try {
     Initialize-Database 'oficina'
     Invoke-Flyway 'oficina'
     Grant-Runtime 'oficina'
-    Assert-That 'oficina at V10' ((Get-SchemaVersion 'oficina') -eq 10)
+    Assert-That 'oficina at V11' ((Get-SchemaVersion 'oficina') -eq 11)
 }
 finally {
     foreach ($db in $clean, $upgrade) {

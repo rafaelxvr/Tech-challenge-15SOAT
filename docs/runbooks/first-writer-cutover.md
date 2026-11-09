@@ -13,17 +13,17 @@ The separately reviewed release JSON has these fields:
 | Field | Required value |
 | --- | --- |
 | `schemaVersion`, `environment`, `mode` | `1`; `staging` or `production`; `FirstWriter`, `Compatible` or `Rollback` |
-| `sourceCommit`, `contractVersion`, `databaseSchemaVersion` | Exact reviewed source commit; `phase3-v2`; `V10` |
-| `platformInputsSha256`, `migrationSqlSha256` | SHA-256 of platform JSON; canonical V1–V10 SQL index from `Get-AppMigrationDigest` |
+| `sourceCommit`, `contractVersion`, `databaseSchemaVersion` | Exact reviewed source commit; `phase3-v2`; `V11` |
+| `platformInputsSha256`, `migrationSqlSha256` | SHA-256 of platform JSON; canonical V1–V11 SQL index from `Get-AppMigrationDigest` |
 | `image`, `previousImage`, `migrationImage`, `bootstrapImage` | Same-account `ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/REPOSITORY@sha256:DIGEST`; current intended APP, expected existing APP, retained legacy migration reference, and dedicated Java BootstrapMain image |
 | `bootstrapReview` | Exact `BootstrapReview` v1 object: source/environment-bound database host and CA hash plus the managed master and four runtime ARN/immutable VersionId references; no credential values |
 | `kubeContext` | Explicit reviewed EKS ARN, same account/region; the caller's default context is ignored |
 | `migrationSecretName`, `migrationServiceAccount` | Both `oficina-migration-ENVIRONMENT`, distinct from APP identity |
-| `rollback` (Rollback only) | `image`, `databaseSchemaVersion: V10`, `contractVersion: phase3-v2`, `compatibilityEvidence` reviewed artifact/reference |
+| `rollback` (Rollback only) | `image`, `databaseSchemaVersion: V11`, `contractVersion: phase3-v2`, `compatibilityEvidence` reviewed artifact/reference |
 
 `ExpectedReleaseSha256` is supplied independently by the reviewer. A checksum binds reviewed bytes, not reviewer identity: the future launcher must resolve these from versioned approved receipts, enforce branch/window/lock rules and bind `sourceCommit` to the verified source archive and APP image provenance. The renderer does not fabricate that attestation. Migration SQL is copied from that source archive into an immutable ConfigMap; its digest covers each sorted filename and SHA-256, joined as `filename:sha256\n`. Historical migrations are unchanged.
 
-The dedicated `docker/bootstrap/Dockerfile` image supplies Java 17, `BootstrapMain`, the locked runtime dependencies and a wrapper that verifies the review digest, runs the role/bootstrap/V1–V10 sequence and emits the reference-only receipt. It runs non-root with a read-only root filesystem and only the review, public CA, receipt and `/tmp` mounts writable. The immutable image digest and release review bytes are independently pinned. `BootstrapMain` disables Flyway clean/baseline/out-of-order, validates migrations, has no retry through the Job (`backoffLimit: 0`), a 600-second deadline, and receives no credential values or Kubernetes service-account token. The retained `migrationImage` field remains part of the release schema for compatibility evidence; the writer path executes `bootstrapImage`.
+The dedicated `docker/bootstrap/Dockerfile` image supplies Java 17, `BootstrapMain`, the locked runtime dependencies and a wrapper that verifies the review digest, runs the role/bootstrap/V1–V11 sequence and emits the reference-only receipt. It runs non-root with a read-only root filesystem and only the review, public CA, receipt and `/tmp` mounts writable. The immutable image digest and release review bytes are independently pinned. `BootstrapMain` disables Flyway clean/baseline/out-of-order, validates migrations, has no retry through the Job (`backoffLimit: 0`), a 600-second deadline, and receives no credential values or Kubernetes service-account token. The retained `migrationImage` field remains part of the release schema for compatibility evidence; the writer path executes `bootstrapImage`.
 
 ## Offline review
 
@@ -45,12 +45,12 @@ sequenceDiagram
     E->>K: Delete HPA, set Recreate and replicas zero
     E->>K: Wait for all old APP pods to disappear
   else Compatible or Rollback
-    E->>K: Require existing V10 and phase3-v2 annotations
+    E->>K: Require existing V11 and phase3-v2 annotations
   end
   alt Not Rollback
     E->>K: Create immutable review ConfigMap and Job
     K->>J: Run reviewed BootstrapMain image with IRSA and exact secret references
-    J-->>E: Complete condition plus bounded V2 receipt proving V10/V5/V7
+    J-->>E: Complete condition plus bounded V2 receipt proving V11/V5/V7
   end
   alt Successful migration or compatible rollback receipt
     E->>K: Strategic image patch with Flyway disabled and Hibernate validate
@@ -64,7 +64,7 @@ FirstWriter removes the HPA before setting replicas to zero and waits for **all*
 
 Migration/drain failure stops without restoring writers or HPA. Post-rollout failure also stops without `rollout undo`; inspect restricted Job/executor evidence and recover deliberately. A new release receipt is required to retry a Job; no automatic deletion or repair is performed. Existing Job/ConfigMap cleanup is a reviewed retention operation after evidence capture. The local receipt starts `IN_PROGRESS` and becomes `ROLLOUT_COMPLETE` only after rollout and any HPA restoration succeed, preventing a failed retry from retaining an old successful receipt. Receipt timestamps bound the operation; actual first-writer interruption must be measured from external availability observations during the future rehearsal.
 
-Rollback never runs reverse migrations. It requires a reviewed immutable target that has been demonstrated compatible with **the current V10 schema and phase3-v2 security contract**. The current Deployment must carry those same annotations and match the reviewed `image`; the target comes exclusively from `rollback.image`. A known insecure pre-cutover writer is not an eligible rollback artifact. A symbolic compatibility reference is an input requirement, not proof: the reviewer must inspect its test evidence before approving the release digest. If no compatible artifact exists, keep the environment stopped and roll forward.
+Rollback never runs reverse migrations. It requires a reviewed immutable target that has been demonstrated compatible with **the current V11 schema and phase3-v2 security contract**. The current Deployment must carry those same annotations and match the reviewed `image`; the target comes exclusively from `rollback.image`. A known insecure pre-cutover writer is not an eligible rollback artifact. A symbolic compatibility reference is an input requirement, not proof: the reviewer must inspect its test evidence before approving the release digest. If no compatible artifact exists, keep the environment stopped and roll forward.
 
 ## Unfulfilled activation prerequisites
 
@@ -82,11 +82,11 @@ API compatibility remains unchanged: `criadoEm` history fields are preserved; `o
 
 ### Bootstrap, platform access and release activation
 
-The initializer that securely creates separate roles/credentials, installs least-privilege grants/default privileges and proves schema/view/role-denial contracts is now the source Job contract. A successful Job must emit and pass the V2 receipt parser before any writer patch; an absent, malformed, mismatched or secret-bearing receipt leaves writers stopped. Existing V2/V4 development account seeds must be disabled/rotated by that reviewed bootstrap before traffic; this source task neither changes old migrations nor releases those credentials. Database V10, auth view V5 and recipient view V7 must be verified privately before enabling FUN/APP routes.
+The initializer that securely creates separate roles/credentials, installs least-privilege grants/default privileges and proves schema/view/role-denial contracts is now the source Job contract. A successful Job must emit and pass the V2 receipt parser before any writer patch; an absent, malformed, mismatched or secret-bearing receipt leaves writers stopped. Existing V2/V4 development account seeds must be disabled/rotated by that reviewed bootstrap before traffic; this source task neither changes old migrations nor releases those credentials. Database V11, auth view V5 and recipient view V7 must be verified privately before enabling FUN/APP routes.
 
 Platform prerequisites include the stable namespace/Deployment/Service/HPA (and production PDB), public key and pinned CA ConfigMap, separately provisioned migration Secret/service account, and a migration-specific NetworkPolicy allowing only DNS/database connectivity. APP's default-deny policies do not automatically permit this new pod label. Review narrowly scoped namespace RBAC for Job create/get/watch, immutable ConfigMap create, HPA delete/create/update, Deployment get/patch/watch, pod list and service-account get; current platform deployer RBAC must not be assumed to supply them. The renderer does not grant IAM, read secret values, initialize roles or create platform routes.
 
-The [I7 activation prerequisites](../i7-pipeline-contracts.md) still apply: approved window, exact branch/OIDC identity, per-state concurrency/shared coordination where required, provenance, versioned output publication and production promotion. The disposable Kind V4→V10 upgrade, runtime-role denial tests, capacity envelope, migration-tool image validation and live availability/rollback rehearsal remain staged acceptance gaps. No production execution is authorized by a rendered file.
+The [I7 activation prerequisites](../i7-pipeline-contracts.md) still apply: approved window, exact branch/OIDC identity, per-state concurrency/shared coordination where required, provenance, versioned output publication and production promotion. The disposable Kind V4→V11 upgrade, runtime-role denial tests, capacity envelope, migration-tool image validation and live availability/rollback rehearsal remain staged acceptance gaps. No production execution is authorized by a rendered file.
 
 ## Contrato de release V1–V10 (UNR-104)
 
@@ -97,3 +97,12 @@ A baseline `5d9dc24` tem dez migrations (V1–V10); o contrato de release passou
 - `BootstrapMain` migra com Flyway `target("10")` e `grantRuntime` exige `flyway_schema_history` com versão 10 concluída. As quatro tabelas da saga (`os_saga`, `os_saga_passo`, `saga_outbox`, `saga_inbox`) recebem grants como as demais; tabela ausente falha o bootstrap.
 - Compatibilidade/rollback: sem migrations reversas. O rollback só aceita imagem imutável comprovadamente compatível com o schema V10 e `phase3-v2`; um writer V8 não é alvo de rollback elegível (desconhece `os_saga` e os novos valores de `status_os`: `AGUARDANDO_PAGAMENTO`, `CANCELADA`). Ambientes já em V8 sobem para V10 por roll-forward (V9 e V10 são aditivas).
 - Índice de digest (SHA-256 por arquivo, ordenado por nome como em `Get-AppMigrationDigest`): V1 `69fae1bd…3b0c`, V10 `fab7b681…0986`, V2 `f4023a59…a60`, V3 `be8e0800…3a5`, V4 `061ca0cd…54f5`, V5 `ed32a6d1…d11b`, V6 `45ae9241…f005`, V7 `45484234…52d7`, V8 `4a7d542c…ed10`, V9 `8ffe904a…5023`; digest do índice `2f03e8c5e247c8eed80d56795b47d8c6723fad28b24142c27364b575dae49077` (arquivos com fim de linha LF).
+
+## Contrato de release V1–V11 (UNR-1110/UNR-1115)
+
+A V11 (`V11__corrigir_precos_semeados_para_reais.sql`) converte os preços semeados pelo V2 de centavos para reais, alterando somente linhas que ainda coincidem com a impressão digital completa do seed (serviços: nome, descrição, tempo estimado e valor; peças: código, nome, descrição, valor, estoque, mínimo e unidade). O contrato de release avançou de V1–V10 para V1–V11 e substitui o descrito acima:
+
+- `Get-AppMigrationDigest` exige exatamente onze arquivos `*.sql`; `databaseSchemaVersion`, `migrationVersion`, annotation `oficina.io/schema-version`, recibo de bootstrap v2 e outputs do banco usam `V11` (views continuam `V5`/`V7`).
+- `BootstrapMain` migra com Flyway `target("11")` e `grantRuntime` exige `flyway_schema_history` com versão 11 concluída.
+- Compatibilidade/rollback: sem migrations reversas; o rollback só aceita imagem imutável compatível com o schema V11 e `phase3-v2`. A V11 só altera valores de catálogo (sem mudança de estrutura), e o rollback manual de dados está descrito no cabeçalho da migration.
+- Digest (arquivos com fim de linha LF, calculado no commit desta entrega): V11 `794854d4…b202`; digest do índice de onze arquivos `9245b5b8df8f46cd7ed45d4405b174c10aa6b8acbb5c4068ce7772c9724da412`. Os prefixos por arquivo da seção V1–V10 acima são históricos e não foram recalculados.
