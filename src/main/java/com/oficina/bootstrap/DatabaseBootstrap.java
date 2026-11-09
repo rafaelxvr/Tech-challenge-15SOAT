@@ -69,7 +69,7 @@ public final class DatabaseBootstrap {
         });
     }
 
-    /** Invoke after V10 migration, as the migration role. Does not expose the master to runtime. */
+    /** Invoke after V11 migration, as the migration role. Does not expose the master to runtime. */
     public void grantRuntime(Connection migration, BootstrapReview review) throws SQLException {
         grantRuntime(migration, review, TABLES);
     }
@@ -81,8 +81,8 @@ public final class DatabaseBootstrap {
                 rows.next(); if (!review.username("migration").equals(rows.getString(1))) throw new SQLException("Wrong grant identity");
             }
             if (!exists(migration, "SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relname=?", "flyway_schema_history")
-                    || !exists(migration, "SELECT 1 FROM public.flyway_schema_history WHERE version=? AND success", "10")) {
-                throw new SQLException("V10 migration has not completed");
+                    || !exists(migration, "SELECT 1 FROM public.flyway_schema_history WHERE version=? AND success", "11")) {
+                throw new SQLException("V11 migration has not completed");
             }
             revokeDefaults(migration, review);
             for (String role : List.of("app", "auth", "notification")) {
