@@ -61,6 +61,40 @@ class PrecosSemeadosMigrationTest extends PostgresIntegrationSupport {
         assertThat(legado.queryForObject("SELECT COUNT(*) FROM servicos WHERE valor >= 1000 AND nome <> 'Serviço Novo'", Integer.class)).isZero();
     }
 
+    @Test void upgradeNaoTocaRegistroDoOperadorComMesmoNomeOuCodigoEMesmoValor() {
+        JdbcTemplate legado = novoBanco("10");
+        DriverManagerDataSource source = (DriverManagerDataSource) legado.getDataSource();
+        // Serviço do operador: mesmo nome e mesmo valor antigo do seed, mas descrição/tempo próprios.
+        UUID homonimo = UUID.randomUUID();
+        legado.update("INSERT INTO servicos(id, nome, descricao, valor, tempo_estimado_min) VALUES (?, 'Alinhamento', 'Alinhamento 3D do operador', 12000.00, 45)", homonimo);
+        // Peça do operador: mesmo código e valor antigo do seed, mas estoque/unidade diferentes (codigo é UNIQUE).
+        legado.update("UPDATE pecas SET quantidade_estoque = 7, unidade_medida = 'CX' WHERE codigo = 'OL-5W30-1L'");
+        UUID pecaEditada = legado.queryForObject("SELECT id FROM pecas WHERE codigo = 'OL-5W30-1L'", UUID.class);
+
+        Flyway.configure().dataSource(source).load().migrate();
+
+        assertThat(legado.queryForObject("SELECT valor FROM servicos WHERE id = ?", BigDecimal.class, homonimo)).isEqualByComparingTo("12000.00");
+        assertThat(legado.queryForObject("SELECT valor_unitario FROM pecas WHERE id = ?", BigDecimal.class, pecaEditada)).isEqualByComparingTo("2500.00");
+        // Controles positivos: a linha idêntica ao seed foi convertida; as demais peças também.
+        assertThat(legado.queryForObject("SELECT valor FROM servicos WHERE nome = 'Alinhamento' AND descricao = 'Alinhamento das rodas dianteiras e traseiras'", BigDecimal.class)).isEqualByComparingTo("120.00");
+        assertThat(pecaValor(legado, "AMORT-FRONT-001")).isEqualByComparingTo("180.00");
+        assertThat(legado.queryForObject("SELECT COUNT(*) FROM servicos WHERE valor >= 1000", Integer.class)).isEqualTo(1);
+        assertThat(legado.queryForObject("SELECT COUNT(*) FROM pecas WHERE valor_unitario >= 1000", Integer.class)).isEqualTo(1);
+    }
+
+    @Test void migrationEIdempotenteQuandoReexecutadaSobreValoresJaCorrigidos() {
+        JdbcTemplate db = novoBanco(null);
+        String sql;
+        try (var in = getClass().getResourceAsStream("/db/migration/V11__corrigir_precos_semeados_para_reais.sql")) {
+            sql = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+        db.execute(sql);
+        assertThat(servicoValor(db, "Alinhamento")).isEqualByComparingTo("120.00");
+        assertThat(pecaValor(db, "OL-5W30-1L")).isEqualByComparingTo("25.00");
+    }
+
     private static BigDecimal servicoValor(JdbcTemplate db, String nome) {
         return db.queryForObject("SELECT valor FROM servicos WHERE nome = ?", BigDecimal.class, nome);
     }

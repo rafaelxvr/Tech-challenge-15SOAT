@@ -41,9 +41,9 @@ class DatabaseRolesTest {
             }
             var migration=credentials.get("migration");
             try(var connection=connect(postgres,migration)) {
-                assertThatThrownBy(()->bootstrap.grantRuntime(connection,review)).hasMessageContaining("V10");
+                assertThatThrownBy(()->bootstrap.grantRuntime(connection,review)).hasMessageContaining("V11");
             }
-            Flyway.configure().dataSource(postgres.getJdbcUrl(),migration.username(),migration.password()).target("10").load().migrate();
+            Flyway.configure().dataSource(postgres.getJdbcUrl(),migration.username(),migration.password()).target("11").load().migrate();
             try(var connection=connect(postgres,migration)) {
                 bootstrap.grantRuntime(connection,review);
                 bootstrap.grantRuntime(connection,review);
@@ -106,7 +106,7 @@ class DatabaseRolesTest {
                 bootstrap.prepare(master,review,credentials);
             }
             var migration=credentials.get("migration");
-            Flyway.configure().dataSource(postgres.getJdbcUrl(),migration.username(),migration.password()).target("10").load().migrate();
+            Flyway.configure().dataSource(postgres.getJdbcUrl(),migration.username(),migration.password()).target("11").load().migrate();
             try(var connection=connect(postgres,migration)) {
                 var withTypo=new java.util.ArrayList<>(DatabaseBootstrap.TABLES); withTypo.add("clientez");
                 assertThatThrownBy(()->bootstrap.grantRuntime(connection,review,withTypo)).isInstanceOf(java.sql.SQLException.class);

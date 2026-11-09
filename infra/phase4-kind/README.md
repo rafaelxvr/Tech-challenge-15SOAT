@@ -18,7 +18,7 @@ Senhas de Postgres são aleatórias por cluster e vivem só em Secrets do Kubern
 pwsh -NoProfile -File scripts/phase4-kind.ps1 -Action Up                 # cluster + Postgres + LocalStack
 pwsh -NoProfile -File scripts/phase4-kind-init.ps1                       # roles + filas FIFO/DLQs + tabelas DynamoDB (idempotente)
 pwsh -NoProfile -File scripts/phase4-kind.ps1 -Action Verify             # saúde + contrato SQS/DynamoDB
-pwsh -NoProfile -File scripts/verify-phase4-db.ps1                       # Flyway V1..V10, upgrade V8->V10, grants, isolamento
+pwsh -NoProfile -File scripts/verify-phase4-db.ps1                       # Flyway V1..V11, upgrade V8->V11, grants, isolamento
 pwsh -NoProfile -File scripts/phase4-kind.ps1 -Action PortForwardCheck   # prova listener só em 127.0.0.1
 pwsh -NoProfile -File tests/phase4-kind-contract.ps1                     # contrato estático (sem cluster)
 pwsh -NoProfile -File scripts/phase4-kind.ps1 -Action Down               # apaga somente o cluster oficina-phase4

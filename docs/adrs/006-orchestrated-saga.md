@@ -46,6 +46,6 @@ Use an **orchestrated** saga owned by os-service (`OsSaga`, table `os_saga`), no
 - os-service knows the step order (accepted orchestrator coupling).
 - Contracts are versioned JSON Schemas (`contracts/<type>/v<N>.json`) owned by the consuming service.
 - Orders created before this change (no saga row) keep the manual Phase 3 flow.
-- Database grants: the release bootstrap migrates Flyway V1–V10 (UNR-104) and grants the app role on the four saga tables
+- Database grants: the release bootstrap migrates Flyway V1–V11 (UNR-104) and grants the app role on the four saga tables
   (`os_saga`, `os_saga_passo`, `saga_outbox`, `saga_inbox`) like any other runtime table; a missing table now fails the
   bootstrap loudly instead of being skipped.
