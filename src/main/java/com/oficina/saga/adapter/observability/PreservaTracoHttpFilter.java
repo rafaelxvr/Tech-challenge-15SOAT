@@ -26,6 +26,12 @@ public final class PreservaTracoHttpFilter extends OncePerRequestFilter {
 
     public PreservaTracoHttpFilter(ObjectProvider<PropagadorTraco> propagador) { this.propagador = propagador; }
 
+    /** Health probes carry no trace worth keeping and would only add noise. */
+    @Override protected boolean shouldNotFilter(HttpServletRequest request) {
+        String uri = request.getRequestURI();
+        return uri != null && uri.contains("/actuator/");
+    }
+
     @Override protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
         preservar();
