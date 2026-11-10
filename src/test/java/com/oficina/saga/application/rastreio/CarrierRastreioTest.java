@@ -15,8 +15,24 @@ class CarrierRastreioTest {
         assertThat(limpo).containsOnlyKeys("traceparent", "tracestate");
     }
 
-    @Test void traceparentMalformadoDescartaTodoOCarrier() {
-        assertThat(CarrierRastreio.sanitizar(Map.of("traceparent", "00-xx", "tracestate", "a=b"))).isEmpty();
+    @Test void headerInvalidoNaoApagaOsValidos() {
+        assertThat(CarrierRastreio.sanitizar(Map.of("traceparent", "00-xx", "tracestate", "a=b")))
+                .containsOnlyKeys("tracestate");
+        assertThat(CarrierRastreio.sanitizar(Map.of("traceparent", TRACEPARENT, "tracestate", "ruim\n", "newrelic", "abc=")))
+                .containsOnlyKeys("traceparent", "newrelic");
+        assertThat(CarrierRastreio.sanitizar(Map.of("traceparent", "00-xx"))).isEmpty();
+    }
+
+    @Test void envelopeNoLimiteDeTamanhoCarregaOCarrierEUmByteAMaisDescarta() {
+        var carrier = Map.of("traceparent", TRACEPARENT);
+        String corpo = "{\"a\":\"\"}";
+        String comCarrier = CarrierRastreio.embutir(corpo, carrier, 65_536);
+        int extra = comCarrier.getBytes(java.nio.charset.StandardCharsets.UTF_8).length - corpo.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+        int limite = 65_536;
+        String justo = "{\"a\":\"" + "x".repeat(limite - extra - 8) + "\"}";
+        assertThat(CarrierRastreio.embutir(justo, carrier, limite).getBytes(java.nio.charset.StandardCharsets.UTF_8)).hasSize(limite);
+        String estoura = "{\"a\":\"" + "x".repeat(limite - extra - 7) + "\"}";
+        assertThat(CarrierRastreio.embutir(estoura, carrier, limite)).isEqualTo(estoura);
     }
 
     @Test void embutirELerFazemIdaEVolta() {
