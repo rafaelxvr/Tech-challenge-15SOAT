@@ -26,6 +26,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
 
+import com.oficina.saga.application.rastreio.PropagadorTraco;
 import java.math.BigDecimal;
 import java.time.*;
 import java.util.Map;
@@ -56,6 +57,7 @@ class ProcessadorRespostasTest extends PostgresIntegrationSupport {
     @Autowired PecaRepository pecas;
     @Autowired ServicoRepository servicos;
     @MockBean NotificacaoPort notificacoes;
+    @MockBean PropagadorTraco propagador;
     UUID os;
 
     @BeforeEach void iniciar() {
@@ -167,5 +169,14 @@ class ProcessadorRespostasTest extends PostgresIntegrationSupport {
         processador.processar(resposta(UUID.randomUUID(), "EventoFuturo", ultimoComando(),
                 JsonNodeFactory.instance.objectNode()));
         assertThat(estado()).isEqualTo(EstadoSaga.AGUARDANDO_DIAGNOSTICO);
+    }
+
+    @Test void anotaSagaIdECorrelationIdNaTransacaoSemDadosPessoais() {
+        String correlacao = UUID.randomUUID().toString();
+        var saga = sagas.findByOsId(os).orElseThrow();
+        processador.processar(respostaComRastreio("DiagnosticoConcluido", ultimoComando(), correlacao, null));
+        org.mockito.Mockito.verify(propagador).anotar("sagaId", saga.getId().toString());
+        org.mockito.Mockito.verify(propagador).anotar("correlationId", correlacao);
+        org.mockito.Mockito.verify(propagador, org.mockito.Mockito.times(2)).anotar(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
     }
 }

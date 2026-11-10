@@ -8,12 +8,14 @@ import com.oficina.saga.adapter.out.persistence.JdbcSagaOutbox;
 import com.oficina.saga.application.mensagem.Envelope;
 import com.oficina.saga.application.mensagem.MapeadorMensagens;
 import com.oficina.saga.application.port.EnviadorMensagens;
+import com.oficina.saga.application.rastreio.PropagadorTraco;
 import com.oficina.saga.domain.Destino;
 import com.oficina.support.PostgresIntegrationSupport;
 import com.oficina.support.SagaFixtures;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 
 import java.time.*;
@@ -25,6 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class SagaOutboxPublisherTest extends PostgresIntegrationSupport {
     static final Instant T = Instant.parse("2026-09-15T12:00:00Z");
     @Autowired JdbcSagaOutbox outbox;
+    @MockBean PropagadorTraco propagador;
     @Autowired ClienteRepository clientes;
     @Autowired VeiculoRepository veiculos;
     @Autowired OrdemServicoRepository ordens;
@@ -59,7 +62,7 @@ class SagaOutboxPublisherTest extends PostgresIntegrationSupport {
             outbox.registrar(Destino.EXECUCAO, primeiro);
             outbox.registrar(Destino.BILLING, segundo);
         });
-        var p = publisher((destino, osId, messageId, corpo) -> { enviados.add(destino + ":" + messageId); return "sqs-" + messageId; });
+        var p = publisher((destino, osId, messageId, corpo, traco) -> { enviados.add(destino + ":" + messageId); return "sqs-" + messageId; });
         assertThat(p.publicarProximo()).isTrue();
         assertThat(p.publicarProximo()).isTrue();
         assertThat(p.publicarProximo()).isFalse();
@@ -76,7 +79,7 @@ class SagaOutboxPublisherTest extends PostgresIntegrationSupport {
             outbox.registrar(Destino.EXECUCAO, primeiro);
             outbox.registrar(Destino.BILLING, segundo);
         });
-        var p = publisher((destino, osId, messageId, corpo) -> { throw new IllegalStateException("token=secret"); });
+        var p = publisher((destino, osId, messageId, corpo, traco) -> { throw new IllegalStateException("token=secret"); });
         assertThat(p.publicarProximo()).isTrue();
         assertThat(jdbc.queryForMap("SELECT estado, tentativas, ultimo_erro_codigo FROM saga_outbox WHERE message_id=?",
                 primeiro.messageId())).containsEntry("estado", "PENDING").containsEntry("tentativas", 1)
@@ -91,5 +94,37 @@ class SagaOutboxPublisherTest extends PostgresIntegrationSupport {
                 JsonNodeFactory.instance.objectNode().put("x", "a".repeat(Envelope.MAX_BYTES)));
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> transaction.executeWithoutResult(st ->
                 outbox.registrar(Destino.BILLING, grande))).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test void carrierCapturadoNaTransacaoProdutoraChegaAoEnvioSemPoluirOCorpo() {
+        var carrier = new LinkedHashMap<String, String>();
+        carrier.put("traceparent", "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01");
+        carrier.put("tracestate", "123@nr=0-0-1-2-3");
+        org.mockito.Mockito.when(propagador.capturar()).thenReturn(carrier);
+        UUID os = ordem();
+        var cmd = comando(os, "IniciarDiagnostico");
+        transaction.executeWithoutResult(st -> {
+            outbox.registrar(Destino.EXECUCAO, cmd);
+            // Captured while the producing transaction is still open.
+            org.mockito.Mockito.verify(propagador).capturar();
+        });
+        assertThat(jdbc.queryForObject("SELECT jsonb_exists(envelope, '_carrierRastreio') FROM saga_outbox WHERE message_id=?",
+                Boolean.class, cmd.messageId())).isTrue();
+        var corpos = new ArrayList<String>();
+        var carriers = new ArrayList<Map<String, String>>();
+        var p = publisher((destino, osId, messageId, corpo, traco) -> { corpos.add(corpo); carriers.add(traco); return "ack"; });
+        assertThat(p.publicarProximo()).isTrue();
+        assertThat(carriers).containsExactly(carrier);
+        assertThat(corpos.get(0)).doesNotContain("_carrierRastreio").doesNotContain("tracestate");
+    }
+
+    @Test void semCarrierOEnvioSegueComCarrierVazio() {
+        org.mockito.Mockito.when(propagador.capturar()).thenReturn(Map.of());
+        UUID os = ordem();
+        var cmd = comando(os, "IniciarDiagnostico");
+        transaction.executeWithoutResult(st -> outbox.registrar(Destino.EXECUCAO, cmd));
+        var carriers = new ArrayList<Map<String, String>>();
+        assertThat(publisher((d, o, m, corpo, traco) -> { carriers.add(traco); return "ack"; }).publicarProximo()).isTrue();
+        assertThat(carriers).containsExactly(Map.of());
     }
 }

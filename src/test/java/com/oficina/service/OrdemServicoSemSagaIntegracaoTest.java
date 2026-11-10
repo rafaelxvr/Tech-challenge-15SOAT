@@ -1,5 +1,6 @@
 package com.oficina.service;
 
+import com.oficina.saga.adapter.observability.NewRelicPropagadorTraco;
 import com.oficina.application.port.out.NotificacaoPort;
 import com.oficina.dto.*;
 import com.oficina.entity.StatusOrdemServico;
@@ -37,7 +38,7 @@ import static org.mockito.Mockito.when;
  */
 @Import({OrdemServicoService.class,
         RegistroTransicaoOs.class, CicloOsSagaService.class, ExecutorEfeitos.class, RoteadorRespostas.class,
-        OsDaSagaAdapter.class, JdbcSagaOutbox.class, MapeadorMensagens.class, SagaConfiguration.class,
+        OsDaSagaAdapter.class, JdbcSagaOutbox.class, NewRelicPropagadorTraco.class, MapeadorMensagens.class, SagaConfiguration.class,
         OrdemServicoSemSagaIntegracaoTest.Relogio.class})
 @TestPropertySource(properties = {"oficina.historico.zona-compatibilidade=UTC",
         "oficina.saga.filial-padrao=MATRIZ", "oficina.saga.prazos.diagnostico=3d",

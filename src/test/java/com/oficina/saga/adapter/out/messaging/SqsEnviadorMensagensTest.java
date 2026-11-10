@@ -32,9 +32,11 @@ class SqsEnviadorMensagensTest {
 
     @AfterEach void limpar() { MDC.remove("traceparent"); }
 
+    Map<String, String> traco = Map.of();
+
     private SendMessageRequest enviar() {
         when(sqs.sendMessage(any(SendMessageRequest.class))).thenReturn(SendMessageResponse.builder().messageId("m1").build());
-        assertThat(enviador.enviar(Destino.values()[0], UUID.randomUUID(), UUID.randomUUID(), "{}")).isEqualTo("m1");
+        assertThat(enviador.enviar(Destino.values()[0], UUID.randomUUID(), UUID.randomUUID(), "{}", traco)).isEqualTo("m1");
         var captor = ArgumentCaptor.forClass(SendMessageRequest.class);
         verify(sqs).sendMessage(captor.capture());
         return captor.getValue();
@@ -54,5 +56,21 @@ class SqsEnviadorMensagensTest {
     @Test void descartaTraceparentMalformadoSemPropagarValorNaoConfiavel() {
         MDC.put("traceparent", "00-malformado\r\nX-Injetado: 1");
         assertThat(enviar().messageAttributes()).isEmpty();
+    }
+
+    @Test void enviaCarrierPersistidoComTraceparentTracestateENewrelic() {
+        traco = Map.of("traceparent", TRACEPARENT, "tracestate", "123@nr=0-0-1-2-3", "newrelic", "eyJ2IjpbMCwxXX0=");
+        var atributos = enviar().messageAttributes();
+        assertThat(atributos).containsOnlyKeys("traceparent", "tracestate", "newrelic");
+        assertThat(atributos.get("tracestate").stringValue()).isEqualTo("123@nr=0-0-1-2-3");
+        assertThat(atributos.get("newrelic").dataType()).isEqualTo("String");
+    }
+
+    @Test void carrierPersistidoTemPrioridadeSobreOMdcEDescartaCabecalhosDesconhecidosOuInseguros() {
+        MDC.put("traceparent", "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01");
+        traco = Map.of("traceparent", TRACEPARENT, "x-pii", "cliente@exemplo.com", "tracestate", "a\r\nb");
+        var atributos = enviar().messageAttributes();
+        assertThat(atributos).containsOnlyKeys("traceparent");
+        assertThat(atributos.get("traceparent").stringValue()).isEqualTo(TRACEPARENT);
     }
 }

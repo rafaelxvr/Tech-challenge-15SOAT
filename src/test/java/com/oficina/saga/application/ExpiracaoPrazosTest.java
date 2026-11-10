@@ -1,5 +1,6 @@
 package com.oficina.saga.application;
 
+import com.oficina.saga.adapter.observability.NewRelicPropagadorTraco;
 import com.oficina.application.port.out.NotificacaoPort;
 import com.oficina.entity.StatusOrdemServico;
 import com.oficina.repository.*;
@@ -30,7 +31,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @Import({CicloOsSagaService.class, ExecutorEfeitos.class, RoteadorRespostas.class, OsDaSagaAdapter.class,
-        RegistroTransicaoOs.class, JdbcSagaOutbox.class, MapeadorMensagens.class, SagaConfiguration.class,
+        RegistroTransicaoOs.class, JdbcSagaOutbox.class, NewRelicPropagadorTraco.class, MapeadorMensagens.class, SagaConfiguration.class,
         ExpiracaoPrazosTest.Relogio.class})
 @TestPropertySource(properties = {"oficina.historico.zona-compatibilidade=UTC",
         "oficina.saga.filial-padrao=MATRIZ", "oficina.saga.prazos.diagnostico=3d",
