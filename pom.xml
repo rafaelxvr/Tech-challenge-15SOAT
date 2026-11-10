@@ -30,6 +30,7 @@
         <testcontainers.version>1.19.8</testcontainers.version>
         <jacoco.version>0.8.11</jacoco.version>
         <aws.sdk.version>2.54.18</aws.sdk.version>
+        <newrelic.api.version>9.4.0</newrelic.api.version>
         <logstash.logback.encoder.version>8.1</logstash.logback.encoder.version>
         <!-- SonarCloud: organização e chave do projeto ficam nas propriedades abaixo (não secretas); token só por SONAR_TOKEN. Local: -Dsonar.host.url=http://localhost:9000 -->
         <sonar.maven.plugin.version>4.0.0.4121</sonar.maven.plugin.version>
@@ -51,6 +52,13 @@
                 <exclusion><groupId>software.amazon.awssdk</groupId><artifactId>apache5-client</artifactId></exclusion>
                 <exclusion><groupId>software.amazon.awssdk</groupId><artifactId>netty-nio-client</artifactId></exclusion>
             </exclusions>
+        </dependency>
+
+        <!-- Same version as the agent pinned in the Dockerfile; every call is a no-op without the agent attached. -->
+        <dependency>
+            <groupId>com.newrelic.agent.java</groupId>
+            <artifactId>newrelic-api</artifactId>
+            <version>${newrelic.api.version}</version>
         </dependency>
 
         <!-- B1 toolchain.lock.json pin; no implicit SDK retries for the outbox. -->

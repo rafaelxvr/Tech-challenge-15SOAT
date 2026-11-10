@@ -3,6 +3,8 @@ package com.oficina.saga.adapter.out.persistence;
 import com.oficina.saga.application.mensagem.Envelope;
 import com.oficina.saga.application.mensagem.MapeadorMensagens;
 import com.oficina.saga.application.port.SaidaMensagensPort;
+import com.oficina.saga.application.rastreio.CarrierRastreio;
+import com.oficina.saga.application.rastreio.PropagadorTraco;
 import com.oficina.saga.domain.Destino;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -17,6 +19,7 @@ import java.nio.charset.StandardCharsets;
 public class JdbcSagaOutbox implements SaidaMensagensPort {
     private final JdbcTemplate jdbc;
     private final MapeadorMensagens mapeador;
+    private final PropagadorTraco propagador;
 
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
@@ -25,8 +28,10 @@ public class JdbcSagaOutbox implements SaidaMensagensPort {
         if (corpo.getBytes(StandardCharsets.UTF_8).length > Envelope.MAX_BYTES) {
             throw new IllegalArgumentException("Envelope acima de 64 KB");
         }
+        // Captured here, inside the producing transaction, so the poller later continues this trace instead of starting one.
+        String armazenado = CarrierRastreio.embutir(corpo, propagador.capturar(), Envelope.MAX_BYTES);
         jdbc.update("""
                 INSERT INTO saga_outbox(message_id, os_id, destino, tipo, envelope) VALUES (?,?,?,?,?::jsonb)
-                """, envelope.messageId(), envelope.osId(), destino.name(), envelope.type(), corpo);
+                """, envelope.messageId(), envelope.osId(), destino.name(), envelope.type(), armazenado);
     }
 }
