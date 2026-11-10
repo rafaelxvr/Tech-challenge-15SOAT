@@ -5,6 +5,7 @@ import com.oficina.saga.application.mensagem.Envelope;
 import com.oficina.saga.application.mensagem.MapeadorMensagens;
 import com.oficina.saga.application.mensagem.MensagemInvalidaException;
 import com.oficina.saga.application.port.InboxPort;
+import com.oficina.saga.application.rastreio.PropagadorTraco;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,6 +21,7 @@ public class ProcessadorRespostas {
     private final MapeadorMensagens mapeador;
     private final InboxPort inbox;
     private final CicloOsSagaService ciclo;
+    private final PropagadorTraco propagador;
 
     @Transactional
     public void processar(String corpo) {
@@ -29,8 +31,12 @@ public class ProcessadorRespostas {
         String priorTrace = MDC.get("traceparent");
         try {
             // Reply fields are untrusted: only a UUID correlation id and a W3C traceparent reach MDC and commands.
-            MDC.put(CorrelationFilter.CORRELATION_ID, CorrelationFilter.correlationIdOrNew(envelope.correlationId()));
+            String correlacao = CorrelationFilter.correlationIdOrNew(envelope.correlationId());
+            MDC.put(CorrelationFilter.CORRELATION_ID, correlacao);
             restaurar("traceparent", CorrelationFilter.validTraceparent(envelope.traceparent()));
+            // UUIDs only: no PII reaches the trace.
+            propagador.anotar("sagaId", envelope.sagaId().toString());
+            propagador.anotar("correlationId", correlacao);
             MDC.put("saga_id", envelope.sagaId().toString());
             MDC.put("os_id", envelope.osId().toString());
             if (!inbox.registrar(envelope.messageId(), envelope.type())) {

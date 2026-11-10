@@ -3,6 +3,7 @@ package com.oficina.saga.adapter.out.messaging;
 import com.oficina.adapter.out.outbox.BackoffPublicacao;
 import com.oficina.config.CorrelationFilter;
 import com.oficina.saga.application.port.EnviadorMensagens;
+import com.oficina.saga.application.rastreio.CarrierRastreio;
 import com.oficina.saga.domain.Destino;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,13 +15,14 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Map;
 import java.util.UUID;
 
 /** Same claim/ordering/backoff contract as the notification OutboxPublisher, over saga_outbox. */
 public class SagaOutboxPublisher {
     private static final Logger LOG = LoggerFactory.getLogger(SagaOutboxPublisher.class);
     private static final String CLAIM = """
-            SELECT o.message_id, o.os_id, o.destino, o.envelope::text AS corpo, o.tentativas,
+            SELECT o.message_id, o.os_id, o.destino, (o.envelope - '_carrierRastreio')::text AS corpo, (o.envelope->'_carrierRastreio')::text AS carrier, o.tentativas,
                    o.envelope->>'correlationId' AS correlation_id, o.envelope->>'traceparent' AS traceparent
             FROM saga_outbox o
             WHERE o.estado='PENDING' AND o.disponivel_em <= ?
@@ -59,7 +61,8 @@ public class SagaOutboxPublisher {
                 jdbc.execute("SET LOCAL lock_timeout = '500ms'");
                 var rows = jdbc.query(CLAIM, (rs, n) -> new Pendente(rs.getObject("message_id", UUID.class),
                         rs.getObject("os_id", UUID.class), Destino.valueOf(rs.getString("destino")), rs.getString("corpo"),
-                        rs.getInt("tentativas"), rs.getString("correlation_id"), rs.getString("traceparent")),
+                        rs.getInt("tentativas"), rs.getString("correlation_id"), rs.getString("traceparent"),
+                        CarrierRastreio.ler(rs.getString("carrier"))),
                         Timestamp.from(clock.instant()));
                 if (rows.isEmpty()) return false;
                 Pendente p = rows.get(0);
@@ -92,7 +95,7 @@ public class SagaOutboxPublisher {
         try {
             MDC.put(CorrelationFilter.CORRELATION_ID, p.correlationId());
             if (p.traceparent() != null) MDC.put("traceparent", p.traceparent());
-            return enviador.enviar(p.destino(), p.osId(), p.messageId(), p.corpo());
+            return enviador.enviar(p.destino(), p.osId(), p.messageId(), p.corpo(), p.traco());
         } finally {
             restaurar(CorrelationFilter.CORRELATION_ID, priorCorrelation);
             restaurar("traceparent", priorTrace);
@@ -112,5 +115,5 @@ public class SagaOutboxPublisher {
     }
 
     private record Pendente(UUID messageId, UUID osId, Destino destino, String corpo, int tentativas,
-                            String correlationId, String traceparent) {}
+                            String correlationId, String traceparent, Map<String, String> traco) {}
 }

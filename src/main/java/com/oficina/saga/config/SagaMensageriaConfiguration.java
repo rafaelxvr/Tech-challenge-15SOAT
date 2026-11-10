@@ -7,6 +7,7 @@ import com.oficina.saga.adapter.out.messaging.SqsEnviadorMensagens;
 import com.oficina.saga.application.CicloOsSagaService;
 import com.oficina.saga.application.ProcessadorRespostas;
 import com.oficina.saga.application.port.EnviadorMensagens;
+import com.oficina.saga.application.rastreio.PropagadorTraco;
 import com.oficina.saga.domain.Destino;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -52,8 +53,8 @@ public class SagaMensageriaConfiguration {
     }
 
     @Bean SqsRespostasListener sqsRespostasListener(ClientesSqsSaga clientes, SagaProperties propriedades,
-                                                    ProcessadorRespostas processador) {
+                                                    ProcessadorRespostas processador, PropagadorTraco propagador) {
         SqsEnviadorMensagens.validarFila(propriedades.mensageria().filaRespostas());
-        return new SqsRespostasListener(clientes.recepcao(), propriedades.mensageria().filaRespostas(), processador);
+        return new SqsRespostasListener(clientes.recepcao(), propriedades.mensageria().filaRespostas(), processador, propagador);
     }
 }
