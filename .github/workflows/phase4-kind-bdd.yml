@@ -49,13 +49,13 @@ jobs:
     timeout-minutes: 150
     steps:
       - name: Checkout os-service (histórico completo para git archive do SHA pinado)
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           path: os
 
       - name: Checkout billing no SHA pinado
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: rafaelxvr/Tech-challenge-15SOAT-billing
           ref: ${{ env.BILLING_SHA }}
@@ -63,7 +63,7 @@ jobs:
           path: billing
 
       - name: Checkout execution no SHA pinado
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: rafaelxvr/Tech-challenge-15SOAT-execution
           ref: ${{ env.EXECUTION_SHA }}
