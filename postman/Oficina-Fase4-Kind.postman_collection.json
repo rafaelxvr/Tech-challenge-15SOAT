@@ -560,6 +560,15 @@
                   "pm.environment.set('osNumeroA', d.numero);"
                 ]
               }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.unset('pagamentoIdA'); // evita reaproveitar o id de uma execução anterior"
+                ]
+              }
             }
           ],
           "request": {
@@ -1151,7 +1160,15 @@
                   "let lista = null;",
                   "try { lista = pm.response.json(); } catch (e) {}",
                   "if (pm.response.code === 200 && Array.isArray(lista) && lista.length) { pm.environment.set('pagamentoIdA', lista[lista.length - 1].id); }",
-                  "pm.test('pagamentoIdA disponível (endpoint, resolvedor ou id manual)', () => pm.expect(pm.environment.get('pagamentoIdA'), 'pagamentoIdA vazio: rode o resolvedor (Kind) ou informe o id, ver README').to.be.a('string').and.not.empty);"
+                  "// Resolvedor local (Kind) pode atrasar: o pagamento só existe depois que o billing consome o evento. Repete até pollMaxTentativas.",
+                  "const _n = Number(pm.environment.get('_pid_A') || 0) + 1;",
+                  "if (!pm.environment.get('pagamentoIdA') && pm.environment.get('pagamentoResolverUrl') && _n < Number(pm.environment.get('pollMaxTentativas') || 30)) {",
+                  "  pm.environment.set('_pid_A', String(_n));",
+                  "  pm.execution.setNextRequest(pm.info.requestName);",
+                  "} else {",
+                  "  pm.environment.unset('_pid_A');",
+                  "  pm.test('pagamentoIdA disponível (endpoint, resolvedor ou id manual)', () => pm.expect(pm.environment.get('pagamentoIdA'), 'pagamentoIdA vazio: rode o resolvedor (Kind) ou informe o id, ver README').to.be.a('string').and.not.empty);",
+                  "}"
                 ]
               }
             },
@@ -1160,6 +1177,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "if (Number(pm.environment.get('_pid_A') || 0) > 0) { setTimeout(function () {}, Number(pm.environment.get('pollIntervaloMs') || 2000)); }",
                   "// O billing não expõe GET /pagamentos?osId=. No Kind, o resolvedor local (scripts/postman/pagamento-id-resolver.mjs) lê o id no banco.",
                   "const resolvedor = pm.environment.get('pagamentoResolverUrl');",
                   "if (resolvedor && !pm.environment.get('pagamentoIdA')) {",
@@ -1857,6 +1875,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "pm.environment.unset('pagamentoIdM'); // evita reaproveitar o id de uma execução anterior",
                   "if (pm.environment.get('executarMercadoPago') !== 'true') { pm.execution.skipRequest(); }"
                 ]
               }
@@ -2494,7 +2513,15 @@
                   "let lista = null;",
                   "try { lista = pm.response.json(); } catch (e) {}",
                   "if (pm.response.code === 200 && Array.isArray(lista) && lista.length) { pm.environment.set('pagamentoIdM', lista[lista.length - 1].id); }",
-                  "pm.test('pagamentoIdM disponível (endpoint, resolvedor ou id manual)', () => pm.expect(pm.environment.get('pagamentoIdM'), 'pagamentoIdM vazio: rode o resolvedor (Kind) ou informe o id, ver README').to.be.a('string').and.not.empty);"
+                  "// Resolvedor local (Kind) pode atrasar: o pagamento só existe depois que o billing consome o evento. Repete até pollMaxTentativas.",
+                  "const _n = Number(pm.environment.get('_pid_M') || 0) + 1;",
+                  "if (!pm.environment.get('pagamentoIdM') && pm.environment.get('pagamentoResolverUrl') && _n < Number(pm.environment.get('pollMaxTentativas') || 30)) {",
+                  "  pm.environment.set('_pid_M', String(_n));",
+                  "  pm.execution.setNextRequest(pm.info.requestName);",
+                  "} else {",
+                  "  pm.environment.unset('_pid_M');",
+                  "  pm.test('pagamentoIdM disponível (endpoint, resolvedor ou id manual)', () => pm.expect(pm.environment.get('pagamentoIdM'), 'pagamentoIdM vazio: rode o resolvedor (Kind) ou informe o id, ver README').to.be.a('string').and.not.empty);",
+                  "}"
                 ]
               }
             },
@@ -2503,6 +2530,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "if (Number(pm.environment.get('_pid_M') || 0) > 0) { setTimeout(function () {}, Number(pm.environment.get('pollIntervaloMs') || 2000)); }",
                   "// O billing não expõe GET /pagamentos?osId=. No Kind, o resolvedor local (scripts/postman/pagamento-id-resolver.mjs) lê o id no banco.",
                   "const resolvedor = pm.environment.get('pagamentoResolverUrl');",
                   "if (resolvedor && !pm.environment.get('pagamentoIdM')) {",
@@ -2987,6 +3015,15 @@
                       "pm.test('OS EM_DIAGNOSTICO (a saga já iniciou o diagnóstico)', () => pm.expect(d.status).to.eql('EM_DIAGNOSTICO'));",
                       "pm.environment.set('osIdE', d.id);",
                       "pm.environment.set('osNumeroE', d.numero);"
+                    ]
+                  }
+                },
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.environment.unset('pagamentoIdE'); // evita reaproveitar o id de uma execução anterior"
                     ]
                   }
                 }
@@ -3580,7 +3617,15 @@
                       "let lista = null;",
                       "try { lista = pm.response.json(); } catch (e) {}",
                       "if (pm.response.code === 200 && Array.isArray(lista) && lista.length) { pm.environment.set('pagamentoIdE', lista[lista.length - 1].id); }",
-                      "pm.test('pagamentoIdE disponível (endpoint, resolvedor ou id manual)', () => pm.expect(pm.environment.get('pagamentoIdE'), 'pagamentoIdE vazio: rode o resolvedor (Kind) ou informe o id, ver README').to.be.a('string').and.not.empty);"
+                      "// Resolvedor local (Kind) pode atrasar: o pagamento só existe depois que o billing consome o evento. Repete até pollMaxTentativas.",
+                      "const _n = Number(pm.environment.get('_pid_E') || 0) + 1;",
+                      "if (!pm.environment.get('pagamentoIdE') && pm.environment.get('pagamentoResolverUrl') && _n < Number(pm.environment.get('pollMaxTentativas') || 30)) {",
+                      "  pm.environment.set('_pid_E', String(_n));",
+                      "  pm.execution.setNextRequest(pm.info.requestName);",
+                      "} else {",
+                      "  pm.environment.unset('_pid_E');",
+                      "  pm.test('pagamentoIdE disponível (endpoint, resolvedor ou id manual)', () => pm.expect(pm.environment.get('pagamentoIdE'), 'pagamentoIdE vazio: rode o resolvedor (Kind) ou informe o id, ver README').to.be.a('string').and.not.empty);",
+                      "}"
                     ]
                   }
                 },
@@ -3589,6 +3634,7 @@
                   "script": {
                     "type": "text/javascript",
                     "exec": [
+                      "if (Number(pm.environment.get('_pid_E') || 0) > 0) { setTimeout(function () {}, Number(pm.environment.get('pollIntervaloMs') || 2000)); }",
                       "// O billing não expõe GET /pagamentos?osId=. No Kind, o resolvedor local (scripts/postman/pagamento-id-resolver.mjs) lê o id no banco.",
                       "const resolvedor = pm.environment.get('pagamentoResolverUrl');",
                       "if (resolvedor && !pm.environment.get('pagamentoIdE')) {",
@@ -4010,6 +4056,15 @@
                       "pm.test('OS EM_DIAGNOSTICO (a saga já iniciou o diagnóstico)', () => pm.expect(d.status).to.eql('EM_DIAGNOSTICO'));",
                       "pm.environment.set('osIdR', d.id);",
                       "pm.environment.set('osNumeroR', d.numero);"
+                    ]
+                  }
+                },
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.environment.unset('pagamentoIdR'); // evita reaproveitar o id de uma execução anterior"
                     ]
                   }
                 }
@@ -4603,7 +4658,15 @@
                       "let lista = null;",
                       "try { lista = pm.response.json(); } catch (e) {}",
                       "if (pm.response.code === 200 && Array.isArray(lista) && lista.length) { pm.environment.set('pagamentoIdR', lista[lista.length - 1].id); }",
-                      "pm.test('pagamentoIdR disponível (endpoint, resolvedor ou id manual)', () => pm.expect(pm.environment.get('pagamentoIdR'), 'pagamentoIdR vazio: rode o resolvedor (Kind) ou informe o id, ver README').to.be.a('string').and.not.empty);"
+                      "// Resolvedor local (Kind) pode atrasar: o pagamento só existe depois que o billing consome o evento. Repete até pollMaxTentativas.",
+                      "const _n = Number(pm.environment.get('_pid_R') || 0) + 1;",
+                      "if (!pm.environment.get('pagamentoIdR') && pm.environment.get('pagamentoResolverUrl') && _n < Number(pm.environment.get('pollMaxTentativas') || 30)) {",
+                      "  pm.environment.set('_pid_R', String(_n));",
+                      "  pm.execution.setNextRequest(pm.info.requestName);",
+                      "} else {",
+                      "  pm.environment.unset('_pid_R');",
+                      "  pm.test('pagamentoIdR disponível (endpoint, resolvedor ou id manual)', () => pm.expect(pm.environment.get('pagamentoIdR'), 'pagamentoIdR vazio: rode o resolvedor (Kind) ou informe o id, ver README').to.be.a('string').and.not.empty);",
+                      "}"
                     ]
                   }
                 },
@@ -4612,6 +4675,7 @@
                   "script": {
                     "type": "text/javascript",
                     "exec": [
+                      "if (Number(pm.environment.get('_pid_R') || 0) > 0) { setTimeout(function () {}, Number(pm.environment.get('pollIntervaloMs') || 2000)); }",
                       "// O billing não expõe GET /pagamentos?osId=. No Kind, o resolvedor local (scripts/postman/pagamento-id-resolver.mjs) lê o id no banco.",
                       "const resolvedor = pm.environment.get('pagamentoResolverUrl');",
                       "if (resolvedor && !pm.environment.get('pagamentoIdR')) {",
@@ -4965,6 +5029,7 @@
                   "script": {
                     "type": "text/javascript",
                     "exec": [
+                      "pm.environment.unset('pagamentoIdC'); // evita reaproveitar o id de uma execução anterior",
                       "if (pm.environment.get('capacidadeReparos') !== '1') { pm.execution.skipRequest(); }"
                     ]
                   }
@@ -5602,7 +5667,15 @@
                       "let lista = null;",
                       "try { lista = pm.response.json(); } catch (e) {}",
                       "if (pm.response.code === 200 && Array.isArray(lista) && lista.length) { pm.environment.set('pagamentoIdC', lista[lista.length - 1].id); }",
-                      "pm.test('pagamentoIdC disponível (endpoint, resolvedor ou id manual)', () => pm.expect(pm.environment.get('pagamentoIdC'), 'pagamentoIdC vazio: rode o resolvedor (Kind) ou informe o id, ver README').to.be.a('string').and.not.empty);"
+                      "// Resolvedor local (Kind) pode atrasar: o pagamento só existe depois que o billing consome o evento. Repete até pollMaxTentativas.",
+                      "const _n = Number(pm.environment.get('_pid_C') || 0) + 1;",
+                      "if (!pm.environment.get('pagamentoIdC') && pm.environment.get('pagamentoResolverUrl') && _n < Number(pm.environment.get('pollMaxTentativas') || 30)) {",
+                      "  pm.environment.set('_pid_C', String(_n));",
+                      "  pm.execution.setNextRequest(pm.info.requestName);",
+                      "} else {",
+                      "  pm.environment.unset('_pid_C');",
+                      "  pm.test('pagamentoIdC disponível (endpoint, resolvedor ou id manual)', () => pm.expect(pm.environment.get('pagamentoIdC'), 'pagamentoIdC vazio: rode o resolvedor (Kind) ou informe o id, ver README').to.be.a('string').and.not.empty);",
+                      "}"
                     ]
                   }
                 },
@@ -5611,6 +5684,7 @@
                   "script": {
                     "type": "text/javascript",
                     "exec": [
+                      "if (Number(pm.environment.get('_pid_C') || 0) > 0) { setTimeout(function () {}, Number(pm.environment.get('pollIntervaloMs') || 2000)); }",
                       "// O billing não expõe GET /pagamentos?osId=. No Kind, o resolvedor local (scripts/postman/pagamento-id-resolver.mjs) lê o id no banco.",
                       "const resolvedor = pm.environment.get('pagamentoResolverUrl');",
                       "if (resolvedor && !pm.environment.get('pagamentoIdC')) {",
@@ -5974,6 +6048,7 @@
                   "script": {
                     "type": "text/javascript",
                     "exec": [
+                      "pm.environment.unset('pagamentoIdF'); // evita reaproveitar o id de uma execução anterior",
                       "if (pm.environment.get('capacidadeReparos') !== '1') { pm.execution.skipRequest(); }"
                     ]
                   }
@@ -6611,7 +6686,15 @@
                       "let lista = null;",
                       "try { lista = pm.response.json(); } catch (e) {}",
                       "if (pm.response.code === 200 && Array.isArray(lista) && lista.length) { pm.environment.set('pagamentoIdF', lista[lista.length - 1].id); }",
-                      "pm.test('pagamentoIdF disponível (endpoint, resolvedor ou id manual)', () => pm.expect(pm.environment.get('pagamentoIdF'), 'pagamentoIdF vazio: rode o resolvedor (Kind) ou informe o id, ver README').to.be.a('string').and.not.empty);"
+                      "// Resolvedor local (Kind) pode atrasar: o pagamento só existe depois que o billing consome o evento. Repete até pollMaxTentativas.",
+                      "const _n = Number(pm.environment.get('_pid_F') || 0) + 1;",
+                      "if (!pm.environment.get('pagamentoIdF') && pm.environment.get('pagamentoResolverUrl') && _n < Number(pm.environment.get('pollMaxTentativas') || 30)) {",
+                      "  pm.environment.set('_pid_F', String(_n));",
+                      "  pm.execution.setNextRequest(pm.info.requestName);",
+                      "} else {",
+                      "  pm.environment.unset('_pid_F');",
+                      "  pm.test('pagamentoIdF disponível (endpoint, resolvedor ou id manual)', () => pm.expect(pm.environment.get('pagamentoIdF'), 'pagamentoIdF vazio: rode o resolvedor (Kind) ou informe o id, ver README').to.be.a('string').and.not.empty);",
+                      "}"
                     ]
                   }
                 },
@@ -6620,6 +6703,7 @@
                   "script": {
                     "type": "text/javascript",
                     "exec": [
+                      "if (Number(pm.environment.get('_pid_F') || 0) > 0) { setTimeout(function () {}, Number(pm.environment.get('pollIntervaloMs') || 2000)); }",
                       "// O billing não expõe GET /pagamentos?osId=. No Kind, o resolvedor local (scripts/postman/pagamento-id-resolver.mjs) lê o id no banco.",
                       "const resolvedor = pm.environment.get('pagamentoResolverUrl');",
                       "if (resolvedor && !pm.environment.get('pagamentoIdF')) {",
@@ -7118,6 +7202,7 @@
                   "script": {
                     "type": "text/javascript",
                     "exec": [
+                      "pm.environment.unset('pagamentoIdS'); // evita reaproveitar o id de uma execução anterior",
                       "if (pm.environment.get('executarMercadoPago') !== 'true') { pm.execution.skipRequest(); }"
                     ]
                   }
@@ -7175,7 +7260,6 @@
                       "} else {",
                       "  pm.environment.unset('_poll_669367');",
                       "  if (dados.sagaId) { pm.environment.set('sagaIdS', dados.sagaId); }",
-                      "  if (dados.sagaId) { pm.environment.set('sagaIdM', dados.sagaId); }",
                       "  pm.test('Saga criada: esperado ' + expected.join('|') + ' (obtido ' + atual + ', tentativas ' + n + ')', function () {",
                       "    pm.expect(pm.response.code).to.eql(200);",
                       "    pm.expect(expected).to.include(atual);",
@@ -7756,7 +7840,15 @@
                       "let lista = null;",
                       "try { lista = pm.response.json(); } catch (e) {}",
                       "if (pm.response.code === 200 && Array.isArray(lista) && lista.length) { pm.environment.set('pagamentoIdS', lista[lista.length - 1].id); }",
-                      "pm.test('pagamentoIdS disponível (endpoint, resolvedor ou id manual)', () => pm.expect(pm.environment.get('pagamentoIdS'), 'pagamentoIdS vazio: rode o resolvedor (Kind) ou informe o id, ver README').to.be.a('string').and.not.empty);"
+                      "// Resolvedor local (Kind) pode atrasar: o pagamento só existe depois que o billing consome o evento. Repete até pollMaxTentativas.",
+                      "const _n = Number(pm.environment.get('_pid_S') || 0) + 1;",
+                      "if (!pm.environment.get('pagamentoIdS') && pm.environment.get('pagamentoResolverUrl') && _n < Number(pm.environment.get('pollMaxTentativas') || 30)) {",
+                      "  pm.environment.set('_pid_S', String(_n));",
+                      "  pm.execution.setNextRequest(pm.info.requestName);",
+                      "} else {",
+                      "  pm.environment.unset('_pid_S');",
+                      "  pm.test('pagamentoIdS disponível (endpoint, resolvedor ou id manual)', () => pm.expect(pm.environment.get('pagamentoIdS'), 'pagamentoIdS vazio: rode o resolvedor (Kind) ou informe o id, ver README').to.be.a('string').and.not.empty);",
+                      "}"
                     ]
                   }
                 },
@@ -7765,6 +7857,7 @@
                   "script": {
                     "type": "text/javascript",
                     "exec": [
+                      "if (Number(pm.environment.get('_pid_S') || 0) > 0) { setTimeout(function () {}, Number(pm.environment.get('pollIntervaloMs') || 2000)); }",
                       "// O billing não expõe GET /pagamentos?osId=. No Kind, o resolvedor local (scripts/postman/pagamento-id-resolver.mjs) lê o id no banco.",
                       "const resolvedor = pm.environment.get('pagamentoResolverUrl');",
                       "if (resolvedor && !pm.environment.get('pagamentoIdS')) {",
@@ -7924,15 +8017,15 @@
                       "if (pm.environment.get('executarMercadoPago') === 'true') {",
                       "  const max = Number(pm.environment.get('pollMaxTentativas') || 30);",
                       "  const n = Number(pm.environment.get('_poll_mps') || 0) + 1;",
-                      "  const j = pm.response.json();",
-                      "  const aprovado = pm.response.code === 200 && /APROVADO|CONFIRMADO|PAGO|ESTORNADO/.test(j.estado);",
+                      "  let j = {}; try { j = pm.response.json(); } catch (e) {}",
+                      "  const aprovado = pm.response.code === 200 && /^(APROVADO|CONFIRMADO|PAGO)$/.test(j.estado);",
                       "  if (!aprovado && n < max) {",
                       "    pm.environment.set('_poll_mps', String(n));",
                       "    setTimeout(function () {}, Number(pm.environment.get('pollIntervaloMs') || 2000));",
                       "    pm.execution.setNextRequest(pm.info.requestName);",
                       "  } else {",
                       "    pm.environment.unset('_poll_mps');",
-                      "    pm.test('pagamento aprovado após reconsulta (estado ' + j.estado + ')', () => { pm.expect(pm.response.code).to.eql(200); pm.expect(j.estado).to.match(/APROVADO|CONFIRMADO|PAGO|ESTORNADO/); });",
+                      "    pm.test('pagamento aprovado após reconsulta (estado ' + j.estado + ')', () => { pm.expect(pm.response.code).to.eql(200); pm.expect(j.estado).to.match(/^(APROVADO|CONFIRMADO|PAGO)$/); });",
                       "  }",
                       "}"
                     ]
@@ -8119,7 +8212,7 @@
               }
             },
             {
-              "name": "05.5k - Billing: reconsulta até o pagamento constar ESTORNADO (estorno automático, sem chamar o Mercado Pago)",
+              "name": "05.5k - Billing: reconsulta até o pagamento constar ESTORNADO (estorno feito pelo sistema; a reconsulta só lê o provedor)",
               "request": {
                 "method": "POST",
                 "header": [],
