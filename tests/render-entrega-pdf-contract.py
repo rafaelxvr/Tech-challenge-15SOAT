@@ -1,5 +1,6 @@
 """Contract for scripts/submission/render_entrega_pdf.py; offline, never contacts URLs."""
 import importlib.util
+import re
 import subprocess
 import sys
 import tempfile
@@ -176,8 +177,15 @@ with tempfile.TemporaryDirectory() as directory:
     raw = pdf.read_bytes()
     check(b"file:" not in raw and b"/UNR/issues/" not in raw, "pdf must not carry file: or Paperclip URIs")
     check(len(reader.outline) > 0, "pdf must expose bookmarks")
-    check("NÃO ENVIAR" in text and "RASCUNHO" in text, "draft banner must remain")
-    check("PENDENTE-VIDEO" in text and "[CONFIRMAR]" in text, "evidence placeholders must remain")
+    # Versão final: sem marcas de rascunho nem IDs internos; sem campos em aberto.
+    for marker in ("RASCUNHO", "NÃO ENVIAR", "[PENDENTE]", "[CONFIRMAR]", "PENDENTE-AWS", "PENDENTE-VIDEO", "UNR-", "Paperclip"):
+        check(marker not in text, f"final pdf must not carry internal marker {marker}")
+    check("RM371756" in text and "RM374087" in text, "cover must list members and RM")
+    check("A informar" not in text, "no open placeholders may remain in the final pdf")
+    check("share.descript.com/view/UGNJAf9yzG6" in "".join(text.split()), "cover must carry the video URL")
+    check("FALHA_COMPENSACAO" in text and "HTTP 401" in text, "open C2 refund defect must stay visible")
+    for jargon in ("⟨", "⟩", "sessão 6", "preencher"):
+        check(jargon not in text, f"final pdf must not carry draft jargon {jargon}")
     check("C:" + "\\Users" not in text, "no local paths in text")
 
 css = (ROOT / "docs/assets/pdf-style.css").read_text(encoding="utf-8")
