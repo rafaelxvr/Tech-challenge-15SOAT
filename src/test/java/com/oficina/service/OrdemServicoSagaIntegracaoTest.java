@@ -54,6 +54,7 @@ class OrdemServicoSagaIntegracaoTest extends PostgresIntegrationSupport {
     @Autowired PecaRepository pecas;
     @Autowired ServicoRepository servicos;
     @MockBean NotificacaoPort notificacoes;
+    @org.springframework.boot.test.mock.mockito.SpyBean NewRelicPropagadorTraco propagador;
     @MockBean ClienteService clienteService;
     @MockBean VeiculoService veiculoService;
     @MockBean ServicoService servicoService;
@@ -148,5 +149,56 @@ class OrdemServicoSagaIntegracaoTest extends PostgresIntegrationSupport {
         assertThatThrownBy(() -> service.decidirComoCliente(criada.numero(), dono(),
                 new DecisaoClienteRequest(DecisaoOrcamentoRequest.DecisaoOrcamento.APROVADO, null)))
                 .isInstanceOf(BusinessRuleException.class);
+    }
+
+    private static final String CORRELACAO = "7b0c1f3e-5a2d-4c8e-9f10-2a3b4c5d6e7f";
+
+    private void comCorrelacao(Runnable acao) {
+        org.slf4j.MDC.put(com.oficina.config.CorrelationFilter.CORRELATION_ID, CORRELACAO);
+        try { acao.run(); } finally { org.slf4j.MDC.remove(com.oficina.config.CorrelationFilter.CORRELATION_ID); }
+    }
+
+    private void verificarAnotada(UUID osId) {
+        UUID sagaId = ciclo.detalhar(osId).orElseThrow().sagaId();
+        org.mockito.Mockito.verify(propagador).anotar("sagaId", sagaId.toString());
+        org.mockito.Mockito.verify(propagador).anotar("correlationId", CORRELACAO);
+        org.mockito.Mockito.verify(propagador, org.mockito.Mockito.times(2)).anotar(
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+    }
+
+    @Test void aberturaAnotaSagaIdECorrelationIdNaTransacao() {
+        org.mockito.Mockito.clearInvocations(propagador);
+        var criada = new OrdemServicoDetalheResponse[1];
+        comCorrelacao(() -> criada[0] = abrir());
+        verificarAnotada(criada[0].id());
+    }
+
+    @Test void decisaoPeloCaminhoAtualAnotaSagaIdECorrelationId() {
+        var criada = abrir();
+        levarAteAguardandoAprovacao(criada.id());
+        org.mockito.Mockito.clearInvocations(propagador);
+        comCorrelacao(() -> service.decidirComoCliente(criada.numero(), dono(),
+                new DecisaoClienteRequest(DecisaoOrcamentoRequest.DecisaoOrcamento.APROVADO, null)));
+        verificarAnotada(criada.id());
+    }
+
+    @Test void decisaoPeloCaminhoLegadoAnotaSagaIdECorrelationId() {
+        var criada = abrir();
+        levarAteAguardandoAprovacao(criada.id());
+        org.mockito.Mockito.clearInvocations(propagador);
+        comCorrelacao(() -> service.decidirComoClienteLegado(criada.numero(), dono(),
+                new DecisaoOrcamentoRequest(DecisaoOrcamentoRequest.DecisaoOrcamento.APROVADO,
+                        cliente.getDocumento(), null)));
+        verificarAnotada(criada.id());
+    }
+
+    @Test void decisaoRecusadaAntesDaSagaNaoAnotaNada() {
+        var criada = abrir();
+        org.mockito.Mockito.clearInvocations(propagador);
+        assertThatThrownBy(() -> service.decidirComoCliente(criada.numero(), dono(),
+                new DecisaoClienteRequest(DecisaoOrcamentoRequest.DecisaoOrcamento.APROVADO, null)))
+                .isInstanceOf(BusinessRuleException.class);
+        org.mockito.Mockito.verify(propagador, org.mockito.Mockito.never()).anotar(
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
     }
 }
