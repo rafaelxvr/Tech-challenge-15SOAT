@@ -5,32 +5,32 @@
     "os-service": {
       "image": "ghcr.io/rafaelxvr/oficina-mecanica",
       "sourceRepo": "rafaelxvr/Tech-challenge-15SOAT",
-      "sourceSha": "e53ecb4f8e5803f90a4c65e8dea0cee5281997a2",
-      "tag": "e53ecb4f8e5803f90a4c65e8dea0cee5281997a2",
-      "digest": "sha256:73946503c9d2dfee2be72403755e7aebfd3faf55bd2b8cb482a751c4d3be59eb",
-      "ciRun": "42893150017",
+      "sourceSha": "d9b605bd445a2442af09cad9cdbeee4f4542f4f9",
+      "tag": "d9b605bd445a2442af09cad9cdbeee4f4542f4f9",
+      "digest": "sha256:704d51aa1f75dc3bce6943768de42d1a8021c69c29fe3b324c09cf2896eb1aa3",
+      "ciRun": "42953101412",
       "visibility": "public",
-      "deliveryRef": "refs/tags/fase4-entrega-2026-11-11"
+      "deliveryRef": "refs/tags/fase4-entrega-2026-11-12"
     },
     "billing": {
       "image": "ghcr.io/rafaelxvr/oficina-billing-service",
       "sourceRepo": "rafaelxvr/Tech-challenge-15SOAT-billing",
-      "sourceSha": "a0b80f8f3f939d041efadae984c99279228128e4",
-      "tag": "a0b80f8f3f939d041efadae984c99279228128e4",
-      "digest": "sha256:d29fa4b1e319b4ff8818727d9421fe69ce5bfbd3986f89607213c9bc38d25cdd",
-      "ciRun": "42893176731",
+      "sourceSha": "140dba5dd782f985ce2d6b5e07acb5aed57114b1",
+      "tag": "140dba5dd782f985ce2d6b5e07acb5aed57114b1",
+      "digest": "sha256:bb97e1295bc5a33b65839d61f4338c84cdc7f47340aeb59cce0837b6a2368e94",
+      "ciRun": "42953106505",
       "visibility": "public",
-      "deliveryRef": "refs/tags/fase4-entrega-2026-11-11"
+      "deliveryRef": "refs/tags/fase4-entrega-2026-11-12"
     },
     "execution": {
       "image": "ghcr.io/rafaelxvr/oficina-execution-service",
       "sourceRepo": "rafaelxvr/Tech-challenge-15SOAT-execution",
-      "sourceSha": "81a8f06f1509d18fa1367896ff101acfb920caf0",
-      "tag": "81a8f06f1509d18fa1367896ff101acfb920caf0",
-      "digest": "sha256:f0f9dfe6afdfaa800bd9f8914db6c72f05fec456f2cf888ca71dc981ca2557e7",
-      "ciRun": "42893197161",
+      "sourceSha": "fe2d8844c6172e3215603d9f97f5da64be22fc3e",
+      "tag": "fe2d8844c6172e3215603d9f97f5da64be22fc3e",
+      "digest": "sha256:e3832274dc29b5e32174bdffeec4c2e50bd05d481107ec8770d964e16fb3af18",
+      "ciRun": "42953113662",
       "visibility": "public",
-      "deliveryRef": "refs/tags/fase4-entrega-2026-11-11"
+      "deliveryRef": "refs/tags/fase4-entrega-2026-11-12"
     }
   }
 }
