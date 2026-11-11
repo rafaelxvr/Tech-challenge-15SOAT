@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 
 @Component
 @RequiredArgsConstructor
@@ -29,9 +30,19 @@ public class JdbcSagaOutbox implements SaidaMensagensPort {
             throw new IllegalArgumentException("Envelope acima de 64 KB");
         }
         // Captured here, inside the producing transaction, so the poller later continues this trace instead of starting one.
-        String armazenado = CarrierRastreio.embutir(corpo, propagador.capturar(), Envelope.MAX_BYTES);
+        String armazenado = CarrierRastreio.embutir(corpo, capturarSemFalhar(), Envelope.MAX_BYTES);
         jdbc.update("""
                 INSERT INTO saga_outbox(message_id, os_id, destino, tipo, envelope) VALUES (?,?,?,?,?::jsonb)
                 """, envelope.messageId(), envelope.osId(), destino.name(), envelope.type(), armazenado);
+    }
+
+    /** Tracing is best effort: whatever the propagator does, the business write goes on. */
+    private Map<String, String> capturarSemFalhar() {
+        try {
+            Map<String, String> carrier = propagador.capturar();
+            return carrier == null ? Map.of() : carrier;
+        } catch (RuntimeException | LinkageError e) {
+            return Map.of();
+        }
     }
 }

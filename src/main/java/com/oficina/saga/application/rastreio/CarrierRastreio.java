@@ -56,7 +56,7 @@ public final class CarrierRastreio {
         }
     }
 
-    /** Keeps only known headers with a safe value; a malformed traceparent drops the whole carrier. */
+    /** Keeps only known headers with a safe value; an invalid header is dropped alone, valid ones stay. */
     public static Map<String, String> sanitizar(Map<String, String> bruto) {
         Map<String, String> limpo = new LinkedHashMap<>();
         if (bruto == null) return limpo;
@@ -65,7 +65,7 @@ public final class CarrierRastreio {
             if (valor != null && VALOR.matcher(valor).matches()) limpo.put(nome, valor);
         }
         String traceparent = limpo.get(TRACEPARENT);
-        if (traceparent != null && !TRACEPARENT_VALIDO.matcher(traceparent).matches()) limpo.clear();
+        if (traceparent != null && !TRACEPARENT_VALIDO.matcher(traceparent).matches()) limpo.remove(TRACEPARENT);
         return limpo;
     }
 }
