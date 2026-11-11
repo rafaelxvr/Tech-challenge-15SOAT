@@ -174,6 +174,7 @@ class ProcessadorRespostasTest extends PostgresIntegrationSupport {
     @Test void anotaSagaIdECorrelationIdNaTransacaoSemDadosPessoais() {
         String correlacao = UUID.randomUUID().toString();
         var saga = sagas.findByOsId(os).orElseThrow();
+        org.mockito.Mockito.clearInvocations(propagador); // the setup's iniciar already annotated
         processador.processar(respostaComRastreio("DiagnosticoConcluido", ultimoComando(), correlacao, null));
         org.mockito.Mockito.verify(propagador).anotar("sagaId", saga.getId().toString());
         org.mockito.Mockito.verify(propagador).anotar("correlationId", correlacao);

@@ -6,6 +6,7 @@ import com.oficina.exception.BusinessRuleException;
 import com.oficina.exception.EntityNotFoundException;
 import com.oficina.saga.adapter.out.persistence.OsSagaRepository;
 import com.oficina.saga.application.mensagem.Envelope;
+import com.oficina.saga.application.rastreio.PropagadorTraco;
 import com.oficina.saga.domain.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,16 +32,19 @@ public class CicloOsSagaService implements CicloOsPort {
     private final RoteadorRespostas roteador;
     private final PrazosSaga prazos;
     private final Clock clock;
+    private final PropagadorTraco propagador;
     private final TransactionTemplate transacaoCurta;
     private final TransactionTemplate transacaoPorSaga;
 
     public CicloOsSagaService(OsSagaRepository sagas, ExecutorEfeitos efeitos, RoteadorRespostas roteador,
-                              PrazosSaga prazos, Clock clock, PlatformTransactionManager transacoes) {
+                              PrazosSaga prazos, Clock clock, PropagadorTraco propagador,
+                              PlatformTransactionManager transacoes) {
         this.sagas = sagas;
         this.efeitos = efeitos;
         this.roteador = roteador;
         this.prazos = prazos;
         this.clock = clock;
+        this.propagador = propagador;
         this.transacaoCurta = new TransactionTemplate(transacoes);
         this.transacaoPorSaga = new TransactionTemplate(transacoes);
         this.transacaoPorSaga.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
@@ -51,6 +55,7 @@ public class CicloOsSagaService implements CicloOsPort {
     public void iniciar(UUID osId) {
         if (sagas.existsByOsId(osId)) throw new BusinessRuleException("Saga já iniciada para a ordem de serviço.");
         OsSaga saga = OsSaga.iniciar(osId, momento());
+        anotarTransacao(saga.getId());
         efeitos.executar(saga);
         sagas.save(saga);
     }
@@ -64,6 +69,7 @@ public class CicloOsSagaService implements CicloOsPort {
     public void registrarDecisao(UUID osId, boolean aprovado) {
         OsSaga saga = sagas.findByOsId(osId)
                 .orElseThrow(() -> new EntityNotFoundException("Saga da ordem de serviço", osId));
+        anotarTransacao(saga.getId());
         // The order stays AGUARDANDO_APROVACAO while an expired decision is being compensated.
         if (saga.getEstado() != EstadoSaga.AGUARDANDO_DECISAO) {
             throw new BusinessRuleException("Orçamento não está mais aguardando decisão.");
@@ -120,6 +126,7 @@ public class CicloOsSagaService implements CicloOsPort {
         Optional<OsSaga> encontrada = sagas.findById(id);
         if (encontrada.isEmpty()) return false;
         OsSaga saga = encontrada.get();
+        anotarTransacao(saga.getId());
         saga.prazoExpirado(momento());
         efeitos.executar(saga);
         return true;
@@ -133,6 +140,12 @@ public class CicloOsSagaService implements CicloOsPort {
                 s.compensacoesPendentes().stream().map(Enum::name).toList(),
                 s.getPassos().stream().map(p -> new SagaDetalhe.Passo(p.getOrdem(), p.getEtapa().name(),
                         p.getEvento(), p.getEstadoSaga().name(), p.getOcorridoEm())).toList()));
+    }
+
+    /** Correlates the active New Relic transaction with its saga by attribute only; UUIDs, never PII. */
+    private void anotarTransacao(UUID sagaId) {
+        propagador.anotar("sagaId", sagaId.toString());
+        propagador.anotar("correlationId", CorrelationFilter.correlationId());
     }
 
     private MomentoSaga momento() { return new MomentoSaga(clock.instant(), prazos); }
