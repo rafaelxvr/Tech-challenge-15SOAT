@@ -8,7 +8,7 @@ Roteiro para ensaio e gravação. Documento principal: [`entrega-fase-4.md`](ent
 
 - Duração-alvo total: **14min30s**, com 30s de margem até o limite de 15min.
 - Ambiente da gravação: **AWS Academy**. O Kind aparece apenas como validação local e de CI antes do deploy, nunca como ambiente gravado.
-- Campos ⟨preencher após gravação⟩: URL e timecodes reais só existem depois da gravação. Capturas que dependem do AWS Academy ⟨preencher após sessão 6⟩ vão para a seção 10 do documento de entrega.
+- Campos a informar: URL e timecodes reais só existem depois da gravação. Capturas que dependem do AWS Academy (a informar) vão para a seção 10 do documento de entrega.
 - Estado das evidências no AWS Academy: o caminho feliz (C1) foi aprovado em execução anterior (saga `CONCLUIDA`, OS `FINALIZADA`, R$ 170,00), com baseline de imagens anterior ao final. O estorno real, o ReparoRecusado e o trace por etapa no AWS Academy ainda precisam ser repetidos nos digests finais. Não afirmar na fala o que não foi provado.
 - Plano B de cada bloco: evidência **pré-capturada ligada ao mesmo SHA**, apresentada como tal. Nunca apresentar fixture ou captura antiga como execução ao vivo.
 - Não exibir console com tokens, variáveis secretas, payloads integrais, PII, ARN ou IDs de recursos. Credenciais de Mercado Pago e New Relic ficam fora de banda.
@@ -58,7 +58,7 @@ Soma: 0:45 + 1:30 + 1:30 + 2:00 + 2:00 + 2:00 + 1:30 + 1:30 + 1:00 + 0:45 = **14
 - **Tela/ação:** abrir OS, diagnóstico, orçamento, aprovação, pagamento, reserva, reparo, finalização; consultar `GET /api/ordens-servico/{id}/saga` a cada etapa.
 - **Prova:** conclusão da OS (`FINALIZADA`).
 - **Evidência esperada:** saga encerrada com sucesso; estados na ordem da seção 3.2.
-- **Plano B:** BDD-01a do [run 40884415348](https://github.com/rafaelxvr/Tech-challenge-15SOAT/actions/runs/40884415348), pré-capturado (validação local em Kind com SHAs anteriores; dizer isso na fala). Também existe o caminho feliz aprovado em execução anterior no AWS Academy (saga `CONCLUIDA`, OS `FINALIZADA`, R$ 170,00); citar como resultado dessa execução, não como execução nos digests finais. Execução ao vivo nos digests finais: ⟨preencher após gravação⟩.
+- **Plano B:** BDD-01a do [run 40884415348](https://github.com/rafaelxvr/Tech-challenge-15SOAT/actions/runs/40884415348), pré-capturado (validação local em Kind com SHAs anteriores; dizer isso na fala). Também existe o caminho feliz aprovado em execução anterior no AWS Academy (saga `CONCLUIDA`, OS `FINALIZADA`, R$ 170,00); citar como resultado dessa execução, não como execução nos digests finais. Execução ao vivo nos digests finais: a informar.
 
 ### 5. EstoqueInsuficiente e compensação (05:45–07:45)
 - **Tela/ação:** OS com peça sem saldo; seguir até a reserva de peças.
@@ -80,7 +80,7 @@ Soma: 0:45 + 1:30 + 1:30 + 2:00 + 2:00 + 2:00 + 1:30 + 1:30 + 1:00 + 0:45 = **14
   3. compensações: repor estoque, estornar pagamento, cancelar orçamento, cancelar OS;
   4. estado final observável: OS `CANCELADA`, estoque reposto, estorno registrado, fila de execução sem item.
 - **Evidência esperada:** log de passos da saga e estado do estoque antes/depois.
-- **Plano B:** cenário "reparo recusado por capacidade cheia" da matriz BDD do run 40884415348. Execução no AWS Academy: ⟨preencher após gravação⟩.
+- **Plano B:** cenário "reparo recusado por capacidade cheia" da matriz BDD do run 40884415348. Execução no AWS Academy: a informar.
 
 ### 7. Pagamento sandbox e estorno (09:45–11:15)
 - **Tela/ação:** Postman com a coleção `postman/Oficina-Fase4-Kind.postman_collection.json` ([PR #85](https://github.com/rafaelxvr/Tech-challenge-15SOAT/pull/85)) e o environment `aws-academy` (portas 18080/18081/18082; segredos só no Postman local): preferência, pagamento sandbox, reconsulta e **estorno automático do sistema**.
@@ -90,19 +90,19 @@ Soma: 0:45 + 1:30 + 1:30 + 2:00 + 2:00 + 2:00 + 1:30 + 1:30 + 1:00 + 0:45 = **14
 - **Evidência esperada:** pagamento confirmado por reconsulta e estorno concluído; sem tokens, `external_reference` truncado, sem payload integral.
 - **Preços em reais (V11):** o catálogo exibe valores em reais (ex.: Alinhamento R$ 120,00; Troca de Óleo R$ 80,00), após a `V11__corrigir_precos_semeados_para_reais.sql`. Antes da correção, um checkout de teste cobrou R$ 17.000 onde o esperado era R$ 170 (centavos gravados em colunas de reais pelo seed V2). A cobrança correta (R$ 170,00) foi observada no caminho feliz da execução anterior no AWS Academy.
 - **Plano B:** captura previamente sanitizada do mesmo fluxo. Fake/WireMock **não** vale como prova.
-- **Estado do estorno (obrigatório na fala):** o pagamento real de R$ 170,00 foi concluído no caminho feliz, mas o **estorno falhou** na execução anterior (0 estornos no provedor). A correção ([billing #23](https://github.com/rafaelxvr/Tech-challenge-15SOAT-billing/pull/23)) está em `main`; sua causa original não foi demonstrada. Não declarar estorno concluído sem a evidência da seção 10 (⟨preencher após gravação⟩).
+- **Estado do estorno (obrigatório na fala):** o pagamento real de R$ 170,00 foi concluído no caminho feliz, mas o **estorno falhou** na execução anterior (0 estornos no provedor). A correção ([billing #23](https://github.com/rafaelxvr/Tech-challenge-15SOAT-billing/pull/23)) está em `main`; sua causa original não foi demonstrada. Não declarar estorno concluído sem a evidência da seção 10 (a informar).
 
 ### 8. CI, cobertura, Sonar e New Relic (11:15–12:45)
 - **Tela/ação:** runs de CI de `main` de 11/11/2026 (core [42953101412](https://github.com/rafaelxvr/Tech-challenge-15SOAT/actions/runs/42953101412), billing [42953106505](https://github.com/rafaelxvr/Tech-challenge-15SOAT-billing/actions/runs/42953106505), execution [42953113662](https://github.com/rafaelxvr/Tech-challenge-15SOAT-execution/actions/runs/42953113662), todos `success`); Sonar Quality Gate aprovado nos três. **Cobertura em código novo, não total** (`new_coverage`, check SonarCloud do SHA de `main`): core 91,1%, billing 92,6%, execution 93,4%; dizer que é cobertura em código novo e que a cobertura total não foi medida. No New Relic: transações dos três serviços e a consulta `FROM Transaction SELECT ... WHERE sagaId = '<id>'`.
 - **Prova:** qualidade e observabilidade.
-- **Evidência esperada:** Quality Gate aprovado nos três `main`. **Trace:** **um `trace.id` por etapa (4 gatilhos HTTP: criação da OS, ações do mecânico, decisão do cliente, pagamento) + correlação da OS inteira por `sagaId` via NRQL**; **não afirmar trace único da OS inteira**. Provado no Kind local (4 `traceId` por `sagaId` nos heads dos PRs #126/#28/#53; CI do PR #126 verde, [run 42934949615](https://github.com/rafaelxvr/Tech-challenge-15SOAT/actions/runs/42934949615)). No AWS Academy: ⟨preencher após gravação⟩.
+- **Evidência esperada:** Quality Gate aprovado nos três `main`. **Trace:** **um `trace.id` por etapa (4 gatilhos HTTP: criação da OS, ações do mecânico, decisão do cliente, pagamento) + correlação da OS inteira por `sagaId` via NRQL**; **não afirmar trace único da OS inteira**. Provado no Kind local (4 `traceId` por `sagaId` nos heads dos PRs #126/#28/#53; CI do PR #126 verde, [run 42934949615](https://github.com/rafaelxvr/Tech-challenge-15SOAT/actions/runs/42934949615)). No AWS Academy: a informar.
 - **Plano B:** mostrar os PRs de instrumentação mesclados e a prova do Kind (4 traces por `sagaId`), dizendo explicitamente que é prova local, que o critério é um trace por etapa mais correlação por `sagaId`, e que a prova no AWS Academy ainda não existe.
 
 ### 9. DLQ/redrive e reconciliação (12:45–13:45)
 - **Tela/ação:** runbook de DLQ ([#93](https://github.com/rafaelxvr/Tech-challenge-15SOAT/pull/93)); mensagem na DLQ, redrive seguro, reconciliação idempotente.
 - **Prova:** recuperação operacional.
 - **Evidência esperada:** DLQ com profundidade antes/depois do redrive e saga reconciliada sem efeito duplicado.
-- **Plano B:** cenário DLQ/redrive da matriz BDD do run 40884415348. Execução no AWS Academy: ⟨preencher após gravação⟩.
+- **Plano B:** cenário DLQ/redrive da matriz BDD do run 40884415348. Execução no AWS Academy: a informar.
 
 ### 10. Limitações e encerramento (13:45–14:30)
 - **Tela/ação:** seções 10 e 11 do documento de entrega.

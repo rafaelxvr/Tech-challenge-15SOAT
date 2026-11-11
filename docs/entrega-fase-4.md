@@ -20,7 +20,7 @@ Microsserviços e Saga Pattern na Plataforma de Gestão de Oficina Mecânica
 | Rafael Xavier | RM371756 |
 | Silas Furini | RM374087 |
 
-**Vídeo de demonstração (até 15 min):** ⟨preencher após sessão 6: URL do vídeo⟩. O roteiro está em [`docs/roteiro-video-fase-4.md`](roteiro-video-fase-4.md).
+**Vídeo de demonstração (até 15 min):** a informar. O roteiro está em [`docs/roteiro-video-fase-4.md`](roteiro-video-fase-4.md).
 
 **Ambiente de demonstração:** a gravação e o deploy de avaliação usam o ambiente AWS Academy. O Kind é usado apenas como validação local e no CI, antes do deploy. As evidências que dependem do AWS Academy estão reunidas na seção 10 (tabela "Evidências AWS Academy").
 
@@ -268,22 +268,22 @@ Legenda: **Evidenciado** (run/PR e SHA citados); **Parcial** (evidência de SHA 
 | Kind / Kubernetes automatizado | Evidenciado | Runs `success` nos três serviços em `main`; prova local do trace por etapa (seção 6) | O Kind é validação pré-deploy; o deploy de avaliação é no AWS Academy |
 | Deploy de avaliação AWS Academy | Parcial | Terraform e overlay (PR #95) e manifesto de release (PR #109); execuções anteriores aplicadas e destruídas, com inventário final zerado | Digests finais implantados e validados (seção 10) |
 | Runbook de DLQ/redrive e reconciliação | Parcial | Harness [#91](https://github.com/rafaelxvr/Tech-challenge-15SOAT/pull/91) e runbook [#93](https://github.com/rafaelxvr/Tech-challenge-15SOAT/pull/93) | Execução no AWS Academy (seção 10) |
-| Vídeo ≤ 15 min | A preencher | Roteiro em `docs/roteiro-video-fase-4.md` | URL e timecodes (seção 10) |
+| Vídeo ≤ 15 min | Pendente de gravação | Roteiro em `docs/roteiro-video-fase-4.md` | URL e timecodes (seção 10) |
 
 ## 10. Evidências AWS Academy
 
-Esta é a única seção com campos a preencher. Cada campo ⟨preencher após sessão 6⟩ só será preenchido com evidência real; enquanto estiver vazio, o item **não** é declarado como atendido.
+Esta é a única seção com campos em aberto. Cada campo "A informar" só será preenchido com evidência real; enquanto estiver em aberto, o item **não** é declarado como atendido.
 
 | Evidência | Resultado | Referência (run, comando, captura) |
 |---|---|---|
-| Deploy dos digests finais da capa no AWS Academy (health por serviço e teardown com inventário zerado) | ⟨preencher após sessão 6⟩ | ⟨preencher após sessão 6⟩ |
-| Caminho feliz (C1) nos digests finais | ⟨preencher após sessão 6⟩ | ⟨preencher após sessão 6⟩ |
-| EstoqueInsuficiente com estorno real concluído no Mercado Pago sandbox (C2) | ⟨preencher após sessão 6⟩ | ⟨preencher após sessão 6⟩ |
-| ReparoRecusado e compensação (C3) | ⟨preencher após sessão 6⟩ | ⟨preencher após sessão 6⟩ |
-| Trace por etapa e consulta NRQL por `sagaId` | ⟨preencher após sessão 6⟩ | ⟨preencher após sessão 6⟩ |
-| BDD, Sonar e New Relic nos digests finais no AWS Academy | ⟨preencher após sessão 6⟩ | ⟨preencher após sessão 6⟩ |
-| Tag de entrega `fase4-entrega-2026-11-12` criada nos três repositórios | ⟨preencher após sessão 6⟩ | ⟨preencher após sessão 6⟩ |
-| URL do vídeo de demonstração e timecodes | ⟨preencher após sessão 6⟩ | ⟨preencher após sessão 6⟩ |
+| Deploy dos digests finais da capa no AWS Academy (health por serviço e teardown com inventário zerado) | A informar | A informar |
+| Caminho feliz (C1) nos digests finais | A informar | A informar |
+| EstoqueInsuficiente com estorno real concluído no Mercado Pago sandbox (C2) | A informar | A informar |
+| ReparoRecusado e compensação (C3) | A informar | A informar |
+| Trace por etapa e consulta NRQL por `sagaId` | A informar | A informar |
+| BDD, Sonar e New Relic nos digests finais no AWS Academy | A informar | A informar |
+| Tag de entrega `fase4-entrega-2026-11-12` criada nos três repositórios | A informar | A informar |
+| URL do vídeo de demonstração e timecodes | A informar | A informar |
 
 ## 11. Limitações e riscos conhecidos
 

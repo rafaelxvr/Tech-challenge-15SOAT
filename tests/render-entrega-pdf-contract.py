@@ -177,16 +177,16 @@ with tempfile.TemporaryDirectory() as directory:
     raw = pdf.read_bytes()
     check(b"file:" not in raw and b"/UNR/issues/" not in raw, "pdf must not carry file: or Paperclip URIs")
     check(len(reader.outline) > 0, "pdf must expose bookmarks")
-    # A extração de texto do PDF separa ⟨ ⟩ do conteúdo por espaços; normaliza antes de comparar.
-    text = re.sub(r"\s*⟩", "⟩", re.sub(r"⟨\s*", "⟨", text))
     # Versão final: sem marcas de rascunho nem IDs internos; os únicos campos abertos ficam na tabela da seção 10.
     for marker in ("RASCUNHO", "NÃO ENVIAR", "[PENDENTE]", "[CONFIRMAR]", "PENDENTE-AWS", "PENDENTE-VIDEO", "UNR-", "Paperclip"):
         check(marker not in text, f"final pdf must not carry internal marker {marker}")
     check("RM371756" in text and "RM374087" in text, "cover must list members and RM")
-    check("⟨preencher após sessão 6⟩" in text, "AWS evidence table placeholders must remain")
+    check(text.count("A informar") >= 8, "AWS evidence table placeholders must remain")
+    for jargon in ("⟨", "⟩", "sessão 6", "preencher"):
+        check(jargon not in text, f"final pdf must not carry draft jargon {jargon}")
     before, _, after = text.rpartition("10. Evidências AWS Academy")
-    outside = (before + after.split("11. Limitações")[-1]).replace("⟨preencher após sessão 6: URL do vídeo⟩", "")
-    check("⟨preencher" not in outside, "placeholders only in the AWS evidence table (and the cover video URL)")
+    outside = (before + after.split("11. Limitações")[-1])
+    check("A informar" not in outside, "placeholders only in the AWS evidence table (and the cover video URL)")
     check("C:" + "\\Users" not in text, "no local paths in text")
 
 css = (ROOT / "docs/assets/pdf-style.css").read_text(encoding="utf-8")
