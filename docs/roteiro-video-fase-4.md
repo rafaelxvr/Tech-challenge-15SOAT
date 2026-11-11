@@ -43,7 +43,7 @@ Soma: 0:45 + 1:30 + 1:30 + 2:00 + 2:00 + 2:00 + 1:30 + 1:30 + 1:00 + 0:45 = **14
   - core `d9b605bd445a2442af09cad9cdbeee4f4542f4f9`, digest `sha256:704d51aa1f75dc3bce6943768de42d1a8021c69c29fe3b324c09cf2896eb1aa3`, [run 42953101412](https://github.com/rafaelxvr/Tech-challenge-15SOAT/actions/runs/42953101412);
   - billing `140dba5dd782f985ce2d6b5e07acb5aed57114b1`, digest `sha256:bb97e1295bc5a33b65839d61f4338c84cdc7f47340aeb59cce0837b6a2368e94`, [run 42953106505](https://github.com/rafaelxvr/Tech-challenge-15SOAT-billing/actions/runs/42953106505);
   - execution `fe2d8844c6172e3215603d9f97f5da64be22fc3e`, digest `sha256:e3832274dc29b5e32174bdffeec4c2e50bd05d481107ec8770d964e16fb3af18`, [run 42953113662](https://github.com/rafaelxvr/Tech-challenge-15SOAT-execution/actions/runs/42953113662).
-  - A tabela prova SHA, digest e CI; não prova deploy no AWS Academy dos digests novos (`PENDENTE-AWS`). O manifesto e os overlays são atualizados pela frente SRE ([UNR-1183](/UNR/issues/UNR-1183)); este roteiro não os altera.
+  - A tabela prova SHA, digest e CI; não prova deploy no AWS Academy dos digests novos (`PENDENTE-AWS`). O manifesto e os overlays `aws` já refletem esse baseline de `main` de 11/11 (SHAs `d9b605bd`, `140dba5d`, `fe2d8844`; digests conforme o `release-manifest.json`; `deliveryRef` `refs/tags/fase4-entrega-2026-11-12`; frente SRE, [UNR-1183](/UNR/issues/UNR-1183)); este roteiro não os altera.
 - **Plano B:** captura da tabela de SHAs e digests com data e hora.
 
 ### 3. Contratos, filas, inbox/outbox e Saga (02:15–03:45)
