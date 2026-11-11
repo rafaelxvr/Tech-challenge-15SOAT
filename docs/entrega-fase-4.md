@@ -20,7 +20,7 @@ Microsserviços e Saga Pattern na Plataforma de Gestão de Oficina Mecânica
 | Rafael Xavier | RM371756 |
 | Silas Furini | RM374087 |
 
-**Vídeo de demonstração (até 15 min):** a informar. O roteiro está em [`docs/roteiro-video-fase-4.md`](roteiro-video-fase-4.md).
+**Vídeo de demonstração (até 15 min):** <https://share.descript.com/view/UGNJAf9yzG6>. O roteiro está em [`docs/roteiro-video-fase-4.md`](roteiro-video-fase-4.md).
 
 **Ambiente de demonstração:** a gravação e o deploy de avaliação usam o ambiente AWS Academy. O Kind é usado apenas como validação local e no CI, antes do deploy. As evidências que dependem do AWS Academy estão reunidas na seção 10 (tabela "Evidências AWS Academy").
 
@@ -34,7 +34,7 @@ Microsserviços e Saga Pattern na Plataforma de Gestão de Oficina Mecânica
 
 Cada imagem é publicada no GHCR (`ghcr.io/rafaelxvr/oficina-mecanica`, `oficina-billing-service` e `oficina-execution-service`) com tag igual ao `sourceSha`. Neste baseline o `sourceSha` é o commit de merge da promoção `develop` → `main` ([core #127](https://github.com/rafaelxvr/Tech-challenge-15SOAT/pull/127), [billing #29](https://github.com/rafaelxvr/Tech-challenge-15SOAT-billing/pull/29), [execution #54](https://github.com/rafaelxvr/Tech-challenge-15SOAT-execution/pull/54)), que incluem o trace por etapa e a anotação de `sagaId` (seção 6). O Sonar Quality Gate passou nos três serviços (seção 7). O manifesto `infra/aws-academy/release-manifest.json` e os overlays `aws` fixam esses SHAs e digests; o `deliveryRef` de cada serviço é `refs/tags/fase4-entrega-2026-11-12`, a tag da entrega.
 
-**Limite:** a tabela prova SHA, digest e run de CI. Ela não prova deploy no AWS Academy dos digests acima; essa prova está na seção 10. A assinatura/atestado das imagens não foi verificada.
+**Limite:** a tabela prova SHA, digest e run de CI. Ela não prova, por si, deploy no AWS Academy; a execução de 11/11 está na seção 10. Essa execução usou a tag de entrega (commits de merge posteriores aos `sourceSha` da tabela); a coleta não registrou o digest de cada pod em execução, então a igualdade com os digests acima não é afirmada. A assinatura/atestado das imagens não foi verificada.
 
 Sumário
 {: .toc-title }
@@ -51,7 +51,7 @@ O desenho da Fase 4 divide a aplicação da oficina em **três microsserviços i
 
 Os serviços não acessam os bancos uns dos outros. A integração assíncrona usa filas SQS FIFO exercitadas localmente por LocalStack, com contratos JSON versionados. LocalStack é dependência de teste local; não representa provisionamento ou uso de uma conta AWS.
 
-Este documento distingue "implementado e testado" (código, CI, Sonar, validação local no Kind) de "executado no ambiente AWS Academy". O que ainda não tem evidência de execução no AWS Academy está identificado, em um único lugar, na seção 10.
+Este documento distingue "implementado e testado" (código, CI, Sonar, validação local no Kind) de "executado no ambiente AWS Academy". A execução no AWS Academy de 11/11/2026 está na seção 10, com seus resultados e limitações (estorno sandbox com falha e C3 só no Kind).
 
 ## 2. Arquitetura dos microsserviços
 
@@ -207,7 +207,7 @@ A validação local pré-deploy usa o cluster Kind `oficina-phase4`, efêmero no
 
 | Item exigido no vídeo | Situação |
 |---|---|
-| Rastreamento distribuído com `traceparent` e `correlationId` | Critério: um `trace.id` por etapa HTTP + correlação da OS por `sagaId` (NRQL). Kind local: 4 traces por `sagaId` provadas. AWS Academy: seção 10 |
+| Rastreamento distribuído com `traceparent` e `correlationId` | Critério: um `trace.id` por etapa HTTP + correlação da OS por `sagaId` (NRQL). Kind local: 4 traces por `sagaId` provadas. AWS Academy (11/11): atendido nos dois fluxos executados, seção 10 |
 | Sinais `saga_prazo_falhou`, outbox `BLOCKED`, idade do item mais antigo, profundidade de DLQ e falha de compensação | Evidência de execução não anexada; ver o runbook de operação |
 | M4: 20 ou mais sagas expiradas distintas sem processar em varreduras consecutivas | Limiar e notificação não provados |
 | M7: alerta antes/no limite de cinco envios de compensação ou quando envio bloqueado atingir 20 minutos | Limiar e notificação não provados; o runbook cobre redrive/reconciliação seguros |
@@ -241,14 +241,14 @@ O Billing Service integra o Mercado Pago por uma camada anticorrupção (`Gatewa
 - O gateway fake existe só no perfil de testes e **não** é evidência de pagamento real.
 - Coleção e environments Postman: [PR #85](https://github.com/rafaelxvr/Tech-challenge-15SOAT/pull/85).
 - Os segredos `MP_ACCESS_TOKEN` e `MP_WEBHOOK_SECRET` são injetados fora de banda e nunca versionados ou registrados em logs.
-- Pagamento sandbox real e estorno real concluído: seção 10.
+- Pagamento sandbox real confirmado no caminho feliz (R$ 130,00); estorno real **não** concluído (HTTP 401 no sandbox): seção 10.
 
 ### 8.1 Correção de preços do catálogo (centavos → reais)
 
 - **Defeito:** o seed `V2__seed_data.sql` gravou preços em centavos (ex.: `12000`) em colunas `NUMERIC(10,2)` cujo contrato é reais decimais, de modo que `12000` valia R$ 12.000,00 em vez de R$ 120,00. Num checkout de teste, isso cobrou R$ 17.000 onde o esperado era R$ 170.
 - **Correção:** `V11__corrigir_precos_semeados_para_reais.sql` (core [PR #117](https://github.com/rafaelxvr/Tech-challenge-15SOAT/pull/117)) divide por 100 somente as 10 linhas de serviços e as 10 de peças do seed que ainda coincidem com a impressão digital completa gravada pelo V2; linha editada depois do seed não é tocada e a migration é idempotente. Ordens de serviço já criadas têm snapshots de preço próprios e não são alteradas. O contrato de release avançou para V1–V11 (ver `docs/runbooks/first-writer-cutover.md`).
 - **Preços do catálogo após a V11 (R$):** serviços: Troca de Óleo 80,00; Alinhamento 120,00; Balanceamento 80,00; Revisão Geral 350,00; Troca de Pastilha 180,00; Troca de Pneu 50,00; Diagnóstico Eletrônico 80,00; Troca de Filtro de Ar 40,00; Troca de Correia Dentada 450,00; Higienização do A/C 150,00. Peças (valor unitário): Óleo Motor 5W30 1L 25,00; Filtro de Óleo Universal 15,00; Pastilha Freio Dianteira 80,00; Pastilha Freio Traseira 70,00; Filtro de Ar Universal 20,00; Correia Dentada + Kit 180,00; Vela de Ignição NGK 35,00; Líquido de Arrefecimento 1L 18,00; Filtro de Combustível 25,00; Amortecedor Dianteiro (par) 180,00.
-- **Verificação:** em execução anterior no AWS Academy, com a V11 aplicada, o caminho feliz concluiu com cobrança de R$ 170,00 (saga `CONCLUIDA`, OS `FINALIZADA`). Essa execução usou um baseline de imagens anterior ao final; a repetição nos digests finais está na seção 10.
+- **Verificação:** em execução anterior no AWS Academy, com a V11 aplicada, o caminho feliz concluiu com cobrança de R$ 170,00 (saga `CONCLUIDA`, OS `FINALIZADA`). Essa execução usou um baseline de imagens anterior ao final; a execução de 11/11/2026 no AWS Academy (R$ 130,00, saga `CONCLUIDA`, OS `ENTREGUE`) está na seção 10.
 
 ## 9. Matriz de rastreabilidade do enunciado
 
@@ -259,34 +259,37 @@ Legenda: **Evidenciado** (run/PR e SHA citados); **Parcial** (evidência de SHA 
 | Três serviços independentes, persistência isolada (SQL + NoSQL) | Evidenciado (Kind) | Repositórios, SHAs e digests na capa; seção 2.2; smokes de isolamento e grants negativos no [run 40884415348](https://github.com/rafaelxvr/Tech-challenge-15SOAT/actions/runs/40884415348) | Revalidação nos digests finais no AWS Academy |
 | APIs REST documentadas | Parcial | Core `docs/openapi.yaml`; billing `docs/openapi.json`; Springdoc nos três; coleção Postman [#85](https://github.com/rafaelxvr/Tech-challenge-15SOAT/pull/85); spec do execution em PR [#45](https://github.com/rafaelxvr/Tech-challenge-15SOAT-execution/pull/45); coleção validada offline por `python scripts/postman/validate-collection.py` | Spec do execution depende do merge do PR #45 |
 | Mensageria, contratos, inbox/outbox, Saga | Evidenciado | Seções 2.3 e 3; run 40884415348: 34 PASS, 2 por teste unitário, 0 FAIL | — |
-| Fluxo feliz ponta a ponta | Evidenciado (Kind); AWS Academy em baseline anterior | BDD-01a no mesmo run, cleanup zerado; caminho feliz no AWS Academy com saga `CONCLUIDA`, OS `FINALIZADA` e R$ 170,00 (seção 8.1) | Repetição nos digests finais (seção 10) |
-| Compensação e idempotência (EstoqueInsuficiente, ReparoRecusado, duplicata, resposta tardia, DLQ/redrive) | Evidenciado (Kind, SHAs anteriores) | Matriz BDD do run 40884415348; dois cenários cobertos por teste unitário (explícito) | Estorno real e ReparoRecusado no AWS Academy (seção 10) |
-| Mercado Pago sandbox real + estorno | Parcial | Pagamento real de R$ 170,00 no caminho feliz do AWS Academy; correção do estorno em [billing #23](https://github.com/rafaelxvr/Tech-challenge-15SOAT-billing/pull/23), testada com doubles; Postman [#85](https://github.com/rafaelxvr/Tech-challenge-15SOAT/pull/85) | Estorno real concluído (seção 10) |
-| New Relic e rastreamento distribuído | Parcial (provado no Kind) | Seção 6: 4 `traceId` por `sagaId` no Kind, 12 transações com `correlationId` | Prova no AWS Academy (seção 10) |
+| Fluxo feliz ponta a ponta | Evidenciado (Kind e AWS Academy) | BDD-01a no mesmo run, cleanup zerado; caminho feliz no AWS Academy em 11/11/2026: saga `CONCLUIDA`, OS `ENTREGUE`, R$ 130,00 (seção 10); execução anterior com R$ 170,00 (seção 8.1) | — |
+| Compensação e idempotência (EstoqueInsuficiente, ReparoRecusado, duplicata, resposta tardia, DLQ/redrive) | Evidenciado (Kind, SHAs anteriores) | Matriz BDD do run 40884415348; dois cenários cobertos por teste unitário (explícito) | No AWS Academy: estorno real falhou (HTTP 401, defeito aberto) e ReparoRecusado não foi executado (seção 10) |
+| Mercado Pago sandbox real + estorno | Parcial: pagamento sim, estorno **não** | Pagamento real confirmado no caminho feliz do AWS Academy (R$ 130,00 em 11/11; R$ 170,00 em execução anterior); correção do estorno em [billing #23](https://github.com/rafaelxvr/Tech-challenge-15SOAT-billing/pull/23), testada com doubles; Postman [#85](https://github.com/rafaelxvr/Tech-challenge-15SOAT/pull/85) | Estorno real não concluído: HTTP 401 do provedor nas 3 tentativas, saga em `FALHA_COMPENSACAO` (seção 10) |
+| New Relic e rastreamento distribuído | Evidenciado (Kind e AWS Academy) | Seção 6: Kind com 4 `traceId` por `sagaId`; AWS Academy em 11/11: caminho feliz 12 transações/5 traces e C2 11 transações/4 traces, 3 serviços (seção 10) | — |
 | Cobertura ≥ 80% e SonarCloud | Atendido em código novo | Seção 7: Quality Gate aprovado nos três `main`; 91,1%, 92,6% e 93,4% | Cobertura total não medida |
 | CI/CD e política de PR | Evidenciado | Seção 5.1; PRs para `develop` e promoção para `main`; Gitleaks/SAST/SCA sem bloqueio crítico/alto | Deploy de produção do core desabilitado por contrato |
 | Kind / Kubernetes automatizado | Evidenciado | Runs `success` nos três serviços em `main`; prova local do trace por etapa (seção 6) | O Kind é validação pré-deploy; o deploy de avaliação é no AWS Academy |
-| Deploy de avaliação AWS Academy | Parcial | Terraform e overlay (PR #95) e manifesto de release (PR #109); execuções anteriores aplicadas e destruídas, com inventário final zerado | Digests finais implantados e validados (seção 10) |
-| Runbook de DLQ/redrive e reconciliação | Parcial | Harness [#91](https://github.com/rafaelxvr/Tech-challenge-15SOAT/pull/91) e runbook [#93](https://github.com/rafaelxvr/Tech-challenge-15SOAT/pull/93) | Execução no AWS Academy (seção 10) |
-| Vídeo ≤ 15 min | Pendente de gravação | Roteiro em `docs/roteiro-video-fase-4.md` | URL e timecodes (seção 10) |
+| Deploy de avaliação AWS Academy | Evidenciado (com limite) | Terraform e overlay (PR #95), manifesto de release (PR #109); execução de 11/11 na tag de entrega, destruída, inventário final zerado (seção 10) | Digest por pod não registrado; C2 e C3 incompletos (seção 10) |
+| Runbook de DLQ/redrive e reconciliação | Parcial | Harness [#91](https://github.com/rafaelxvr/Tech-challenge-15SOAT/pull/91) e runbook [#93](https://github.com/rafaelxvr/Tech-challenge-15SOAT/pull/93) | DLQs e filas em 0 e sem duplicidade no AWS Academy (seção 10); redrive não executado lá |
+| Vídeo ≤ 15 min | Entregue | <https://share.descript.com/view/UGNJAf9yzG6>; roteiro em `docs/roteiro-video-fase-4.md` | — |
 
 ## 10. Evidências AWS Academy
 
-Esta é a única seção com campos em aberto. Cada campo "A informar" só será preenchido com evidência real; enquanto estiver em aberto, o item **não** é declarado como atendido.
+Execução de 11/11/2026 no AWS Academy (us-east-1), conduzida pelo Rafael no Postman (ambiente `aws-academy`), sobre a tag de entrega `fase4-entrega-2026-11-12`. Os resultados abaixo são os observados, inclusive o defeito aberto no estorno (C2) e o cenário não executado (C3); nenhum item é declarado como atendido além do que a evidência mostra. Os `sagaId` são sintéticos.
 
 | Evidência | Resultado | Referência (run, comando, captura) |
 |---|---|---|
-| Deploy dos digests finais da capa no AWS Academy (health por serviço e teardown com inventário zerado) | A informar | A informar |
-| Caminho feliz (C1) nos digests finais | A informar | A informar |
-| EstoqueInsuficiente com estorno real concluído no Mercado Pago sandbox (C2) | A informar | A informar |
-| ReparoRecusado e compensação (C3) | A informar | A informar |
-| Trace por etapa e consulta NRQL por `sagaId` | A informar | A informar |
-| BDD, Sonar e New Relic nos digests finais no AWS Academy | A informar | A informar |
-| Tag de entrega `fase4-entrega-2026-11-12` criada nos três repositórios | A informar | A informar |
-| URL do vídeo de demonstração e timecodes | A informar | A informar |
+| Deploy no AWS Academy (health por serviço e teardown com inventário zerado) | **Atendido.** Os três serviços executaram os fluxos abaixo via SQS. Teardown: `terraform destroy` concluído na 2ª passada (a 1ª estourou 10 min), "Destroy complete! Resources: 5 destroyed". Inventário final zerado em us-east-1 (EKS, RDS, EC2, ELB, ENI, EBS e snapshots, SG e VPC não padrão, SQS, DynamoDB, NAT/EIP, launch templates, ECR); restam apenas log groups do próprio lab | Leitura somente leitura de ~20:29Z; Service LoadBalancer/Ingress ausentes antes do destroy |
+| Caminho feliz (C1) | **Atendido.** Saga `CONCLUIDA` (19 passos, sem compensação), OS `ENTREGUE`, pagamento `CONFIRMADO` de R$ 130,00 (Mercado Pago sandbox, confirmado por reconsulta) | Postman, pasta 03; saga `791d535f-6b5b-4d74-96be-88b049889c98` |
+| EstoqueInsuficiente com estorno real concluído no Mercado Pago sandbox (C2) | **Não atendido (defeito aberto).** Estoque insuficiente detectado e compensação disparada, mas o estorno falhou: `MERCADO_PAGO_ESTORNO` HTTP 401 nas 3 tentativas, enquanto busca e consulta com o mesmo token retornaram 200. Resultado: saga `FALHA_COMPENSACAO`, OS `AGUARDANDO_PAGAMENTO`, pagamento `CONFIRMADO` de R$ 160,00 sem estorno (esperado: `CANCELADA`/`ESTORNADO`). Causa não determinada (permissão/escopo do token sandbox para estorno ou limitação do sandbox); o billing repassa o 401 | Postman, 05.5; saga `2d8b4a15-d872-439d-b4a1-f62ddeecbfe9`; log de provedor do billing, sanitizado. Mesmo defeito do [billing #23](https://github.com/rafaelxvr/Tech-challenge-15SOAT-billing/pull/23), não fechado |
+| ReparoRecusado e compensação (C3) | **Não executado no AWS Academy** (tempo da janela). Provado apenas no Kind: matriz BDD do [run 40884415348](https://github.com/rafaelxvr/Tech-challenge-15SOAT/actions/runs/40884415348), em SHAs anteriores aos finais | Seção 3.5 |
+| Trace por etapa e consulta NRQL por `sagaId` | **Atendido** nos dois fluxos executados. Caminho feliz: 12 transações, 5 traces (um `trace.id` por etapa), 3 serviços, entrada via fila SQS. C2: 11 transações, 4 traces, 3 serviços (sem etapa de reparo, pois a saga parou na compensação). Veredito do verificador: aprovado nos dois | NRQL: `FROM Transaction SELECT count(*) WHERE sagaId = '<id>' FACET traceId SINCE 3 hours ago`, conferido por script somente leitura (NerdGraph) |
+| Filas, DLQs e idempotência | **Atendido.** `billing-commands`, `execution-commands`, `os-saga-replies` e `notifications`: 0 mensagens visíveis, em voo ou atrasadas; as 3 DLQs: 0/0/0. 1 pagamento por OS nas 4 OS da sessão; 0 passos de saga duplicados | Leitura de ~20:15Z. As outras 2 sagas (checkout expirado, `CANCELADA`) foram descartadas |
+| BDD, Sonar e New Relic nos digests finais no AWS Academy | **Parcial.** New Relic: atendido (linha do trace). BDD automatizado (`bdd.mjs`) não foi executado no AWS Academy; o caminho feliz foi gravado pelo Postman. Sonar não foi reexecutado: vale o Quality Gate dos três `main` (seção 7) | Seções 3.5 e 7 |
+| Tag de entrega `fase4-entrega-2026-11-12` criada nos três repositórios | **Atendido.** Tag existente nos três; commits de merge `develop` → `main`: core `97801723` ([#131](https://github.com/rafaelxvr/Tech-challenge-15SOAT/pull/131)), billing `58954fe5` ([#31](https://github.com/rafaelxvr/Tech-challenge-15SOAT-billing/pull/31)), execution `50c688d9` ([#56](https://github.com/rafaelxvr/Tech-challenge-15SOAT-execution/pull/56)) | Verificado via API do GitHub |
+| URL do vídeo de demonstração | **Entregue:** <https://share.descript.com/view/UGNJAf9yzG6> | Capa e roteiro |
 
 ## 11. Limitações e riscos conhecidos
 
+- **Estorno no Mercado Pago sandbox (defeito aberto):** no AWS Academy o estorno da compensação de EstoqueInsuficiente falhou com HTTP 401 nas 3 tentativas (busca e consulta com o mesmo token deram 200); a saga terminou em `FALHA_COMPENSACAO` com o pagamento `CONFIRMADO` sem estorno. Causa não determinada; pode ser escopo do token sandbox ou limitação do sandbox. A detecção do estoque insuficiente e o disparo da compensação foram provados; o estorno real, não.
+- **C3 (ReparoRecusado):** não executado no AWS Academy por tempo de janela; provado apenas no Kind (run 40884415348, SHAs anteriores).
 - **Deploy de produção:** desabilitado por contrato; nenhum deploy de produção ocorreu.
 - **Webhook Mercado Pago:** sem túnel HTTPS, a confirmação usa reconsulta, não a notificação real.
 - **Compensação:** `FALHA_COMPENSACAO` após cinco envios exige tratamento pelo runbook; não é garantia de recuperação automática.

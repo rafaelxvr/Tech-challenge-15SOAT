@@ -8,8 +8,8 @@ Roteiro para ensaio e gravação. Documento principal: [`entrega-fase-4.md`](ent
 
 - Duração-alvo total: **14min30s**, com 30s de margem até o limite de 15min.
 - Ambiente da gravação: **AWS Academy**. O Kind aparece apenas como validação local e de CI antes do deploy, nunca como ambiente gravado.
-- Campos a informar: URL e timecodes reais só existem depois da gravação. Capturas que dependem do AWS Academy (a informar) vão para a seção 10 do documento de entrega.
-- Estado das evidências no AWS Academy: o caminho feliz (C1) foi aprovado em execução anterior (saga `CONCLUIDA`, OS `FINALIZADA`, R$ 170,00), com baseline de imagens anterior ao final. O estorno real, o ReparoRecusado e o trace por etapa no AWS Academy ainda precisam ser repetidos nos digests finais. Não afirmar na fala o que não foi provado.
+- Vídeo gravado e entregue: <https://share.descript.com/view/UGNJAf9yzG6>. As evidências do AWS Academy (11/11/2026) estão na seção 10 do documento de entrega.
+- Estado das evidências no AWS Academy (execução de 11/11/2026, seção 10): caminho feliz (C1) aprovado (saga `CONCLUIDA`, OS `ENTREGUE`, R$ 130,00); trace por etapa atendido nos dois fluxos; **estorno real (C2) falhou** (HTTP 401 do Mercado Pago sandbox, saga `FALHA_COMPENSACAO`, defeito aberto); ReparoRecusado (C3) não executado no AWS Academy, provado só no Kind. Não afirmar na fala o que não foi provado.
 - Plano B de cada bloco: evidência **pré-capturada ligada ao mesmo SHA**, apresentada como tal. Nunca apresentar fixture ou captura antiga como execução ao vivo.
 - Não exibir console com tokens, variáveis secretas, payloads integrais, PII, ARN ou IDs de recursos. Credenciais de Mercado Pago e New Relic ficam fora de banda.
 
@@ -19,7 +19,7 @@ Em cada bloco, a linha **Abrir** diz o que aparece na tela, com repositório, pa
 
 - **Arquivo no GitHub:** link fixado na tag `fase4-entrega-2026-11-12` (`https://github.com/rafaelxvr/<repositório>/blob/fase4-entrega-2026-11-12/<path>`). Do core há também o caminho local de leitura em `D:\repository\fiap-entrega\<path>`; billing e execution só têm o link.
 - **Versão final só em `develop`:** `docs/entrega-fase-4.pdf`, `docs/postman/README.md` e os arquivos de `postman/` têm a versão final apenas em `develop` até a tag ser movida; nesses itens o link usa `develop` (o caminho local, que está em `develop`, é o mesmo).
-- **PDF de entrega** (`docs/entrega-fase-4.pdf`, 9 páginas): capa na p. 1; seção 2.1 na p. 2; seções 2.2 e 2.3 na p. 3; seções 3.2 a 3.4 nas pp. 3 e 4; seções 5.1 na p. 5 e 5.2 e 6 na p. 6; seções 7 e 8 na p. 7; seção 9 na p. 8; seções 10 e 11 na p. 9.
+- **PDF de entrega** (`docs/entrega-fase-4.pdf`, 10 páginas): capa na p. 1; seção 2.1 na p. 2; seções 2.2 e 2.3 na p. 3; seções 3.2 a 3.4 nas pp. 3 e 4; seções 5.1 na p. 5 e 5.2 e 6 na p. 6; seções 7 e 8 na p. 7; seção 9 na p. 8; seção 10 na p. 9 e seção 11 na p. 10.
 - **Postman:** coleção `postman/Oficina-Fase4-Kind.postman_collection.json` e environment `postman/aws-academy.postman_environment.json`, ambos no core. Nomes de pasta e de request exatamente como aparecem no Postman.
 - **Terminal:** pasta de execução e comando exato; nada que imprima segredo.
 - **Verificação:** `python scripts/check-roteiro-paths.py` confere que cada path citado existe no repositório indicado, na tag ou branch do link.
@@ -132,7 +132,7 @@ Soma: 0:45 + 1:30 + 1:30 + 2:00 + 2:00 + 2:00 + 1:30 + 1:30 + 1:00 + 0:45 = **14
 - **Evidência esperada:** pagamento confirmado por reconsulta e estorno concluído; sem tokens, `external_reference` truncado, sem payload integral.
 - **Preços em reais (V11):** o catálogo exibe valores em reais (ex.: Alinhamento R$ 120,00; Troca de Óleo R$ 80,00), após a `V11__corrigir_precos_semeados_para_reais.sql`. Antes da correção, um checkout de teste cobrou R$ 17.000 onde o esperado era R$ 170 (centavos gravados em colunas de reais pelo seed V2). A cobrança correta (R$ 170,00) foi observada no caminho feliz da execução anterior no AWS Academy.
 - **Plano B:** captura previamente sanitizada do mesmo fluxo. Fake/WireMock **não** vale como prova.
-- **Estado do estorno (obrigatório na fala):** o pagamento real de R$ 170,00 foi concluído no caminho feliz, mas o **estorno falhou** na execução anterior (0 estornos no provedor). A correção ([billing #23](https://github.com/rafaelxvr/Tech-challenge-15SOAT-billing/pull/23)) está em `main`; sua causa original não foi demonstrada. Não declarar estorno concluído sem a evidência da seção 10 (a informar).
+- **Estado do estorno (obrigatório na fala):** o pagamento real foi concluído no caminho feliz (R$ 130,00 em 11/11/2026), mas o **estorno falhou** também na execução de 11/11 (HTTP 401 do Mercado Pago sandbox nas 3 tentativas; saga `FALHA_COMPENSACAO`, pagamento `CONFIRMADO` sem estorno). A correção ([billing #23](https://github.com/rafaelxvr/Tech-challenge-15SOAT-billing/pull/23)) está em `main`; a causa não foi determinada (escopo do token sandbox ou limitação do sandbox). Não declarar estorno concluído: é defeito aberto, registrado na seção 10.
 
 ### 8. CI, cobertura, Sonar e New Relic (11:15–12:45)
 - **Abrir (web):**
@@ -163,17 +163,17 @@ Soma: 0:45 + 1:30 + 1:30 + 2:00 + 2:00 + 2:00 + 1:30 + 1:30 + 1:00 + 0:45 = **14
 - **Plano B:** cenário DLQ/redrive da matriz BDD do run 40884415348. Execução no AWS Academy: a informar.
 
 ### 10. Limitações e encerramento (13:45–14:30)
-- **Abrir:** `Tech-challenge-15SOAT` · `docs/entrega-fase-4.pdf` · [GitHub](https://github.com/rafaelxvr/Tech-challenge-15SOAT/blob/develop/docs/entrega-fase-4.pdf) · local `D:\repository\fiap-entrega\docs\entrega-fase-4.pdf` · seções 10 "Evidências AWS Academy" e 11 "Limitações e riscos conhecidos" (p. 9).
+- **Abrir:** `Tech-challenge-15SOAT` · `docs/entrega-fase-4.pdf` · [GitHub](https://github.com/rafaelxvr/Tech-challenge-15SOAT/blob/develop/docs/entrega-fase-4.pdf) · local `D:\repository\fiap-entrega\docs\entrega-fase-4.pdf` · seção 10 "Evidências AWS Academy" (p. 9) e seção 11 "Limitações e riscos conhecidos" (p. 10).
 - **Tela/ação:** seções 10 e 11 do documento de entrega.
 - **Prova:** transparência sobre o que está e o que não está evidenciado.
-- **Fala obrigatória:** deploy de produção do core desabilitado por contrato; estorno real, ReparoRecusado e trace por etapa no AWS Academy conforme a tabela da seção 10; trace por etapa provado no Kind; critério de trace é um por etapa mais `sagaId`. Encerrar sem afirmar o que não tem prova.
+- **Fala obrigatória:** deploy de produção do core desabilitado por contrato; no AWS Academy: caminho feliz e trace por etapa atendidos, estorno real com falha (HTTP 401 no sandbox, defeito aberto) e ReparoRecusado não executado (só no Kind), conforme a seção 10; trace por etapa provado no Kind; critério de trace é um por etapa mais `sagaId`. Encerrar sem afirmar o que não tem prova.
 - **Plano B:** slide estático com as limitações.
 
 ## Verificações pré-gravação
 
 - Rodar `python scripts/check-roteiro-paths.py` na raiz do core: todo path citado neste roteiro existe no repositório e na tag ou branch do link. Abrir uma amostra dos links de verdade.
 - Deixar abertas as abas dos blocos 2, 3, 7, 8 e 9 e o terminal em `D:\unravel-private\aws-learner-lab\sessao6`, para não procurar arquivo durante a gravação.
-- Conferir a tabela "Evidências AWS Academy" (seção 10 do documento de entrega): campos vazios continuam como pendentes na fala.
+- Conferir a tabela "Evidências AWS Academy" (seção 10 do documento de entrega): a fala segue o resultado registrado, sem declarar atendido o que a tabela marca como não atendido ou não executado.
 - Reconferir SHAs de `main`, digests do manifesto e métricas do Sonar, e regenerar o PDF.
 - Inventário AWS final zero e `terraform destroy` ao final da gravação.
 - Revisar a tela inteira em busca de segredo, PII, ARN ou ID de recurso antes de publicar.
