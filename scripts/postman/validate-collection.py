@@ -19,12 +19,12 @@ COLECAO = RAIZ / "postman" / "Oficina-Fase4-Kind.postman_collection.json"
 ENVIRONMENTS = [RAIZ / "postman" / "kind-local.postman_environment.json",
                 RAIZ / "postman" / "aws-academy.postman_environment.json"]
 PREFIXO = {"baseUrlOs": "os", "baseUrlBilling": "billing", "baseUrlExecution": "execution"}
-PUBLICAS = {("os", "GET", "/actuator/health"), ("billing", "GET", "/actuator/health/readiness"),
+PUBLICAS = {("os", "GET", "/actuator/health/readiness"), ("billing", "GET", "/actuator/health/readiness"),
             ("execution", "GET", "/actuator/health")}
 # Rotas sem contrato publicado, com justificativa verificável.
 EXCECOES = {
     ("billing", "POST", "/simulacoes/pagamentos/{id}"): "controller com @Profile(\"gateway-fake\"); só existe no overlay kind-fake",
-    ("billing", "GET", "/pagamentos"): "consulta por osId ainda inexistente no billing; a coleção tolera 404 (README seção 5)",
+    ("billing", "GET", "/pagamentos"): "consulta por osId ainda inexistente no billing; a coleção tolera 404 (README seção 6)",
 }
 SEGREDOS_VARIAVEIS = {"adminSenha", "jwtSecret", "mpAccessToken"}  # devem ser type=secret e vazias
 TOKENS_DE_FLUXO = {"token", "tokenServicos", "tokenCliente"}  # preenchidas só em runtime; vazias no arquivo
@@ -93,7 +93,7 @@ def main():
     if pastas != sorted(pastas):
         erros.append(f"pastas fora de ordem: {pastas}")
     passos = [i["name"] for _, i in requests(colecao["item"]) if i["name"].startswith("03.")]
-    ordem = ["03.1", "03.2", "03.3", "03.4", "03.5", "03.6", "03.7", "03.8", "03.9", "03.10", "03.11", "03.12", "03.13", "03.14"]
+    ordem = ["03.1", "03.2", "03.3", "03.4", "03.5", "03.6", "03.7", "03.8", "03.9", "03.10", "03.11", "03.12", "03.13", "03.14", "03.15"]
     vistos = []
     for p in passos:
         n = p.split(" ")[0]
@@ -101,6 +101,20 @@ def main():
             vistos.append(n)
     if vistos != ordem:
         erros.append(f"ordem do fluxo feliz inesperada: {vistos}")
+    # Observabilidade (UNR-1218): cada fluxo guarda o sagaId e tem um passo com a NRQL pronta; o C2 real (05.5) é todo guardado
+    # por executarMercadoPago para não rodar (nem chamar o provedor) no Newman do Kind com gateway-fake.
+    todos = [i for _, i in requests(colecao["item"])]
+    for slot in "AMERCFS":
+        # o slot C só ocupa a capacidade de reparos na 05.3; a NRQL da 05.3 é a do slot F (reparo recusado)
+        if slot != "C" and not any(f"sagaId{slot}" in json.dumps(i.get("event", [])) and "NRQL" in i["name"] for i in todos):
+            erros.append(f"sem passo NRQL para o fluxo {slot} (sagaId{slot})")
+        if not any(f"sagaId{slot}" in json.dumps(i.get("event", [])) and "NRQL" not in i["name"] for i in todos):
+            erros.append(f"nenhum request salva sagaId{slot}")
+    if "SELECT" in texto and re.search(r"api-key|NRAK-", texto, re.I):
+        erros.append("chave do New Relic na coleção")
+    for trilha, i in requests(colecao["item"]):
+        if i["name"].startswith("05.5") and "executarMercadoPago" not in json.dumps(i.get("event", [])):
+            erros.append(f"passo do C2 real sem guarda executarMercadoPago: {i['name']}")
     cobertas = {s: {(m, c) for (sv, m, c) in vistas if sv == s} for s in contratos}
     print(f"requests de serviço validadas: {len(vistas)} rotas distintas; exceções documentadas: {len(EXCECOES)}")
     for chave, motivo in EXCECOES.items():
